@@ -67,6 +67,111 @@
 - **Docker** - Contenedorización (opcional)
 - **Scripts automatizados** - Instalación y actualización
 
+## 💻 Requisitos del Sistema
+
+### 📋 Requisitos Mínimos
+
+#### Servidor/Hardware
+- **CPU**: 2 núcleos (2.0 GHz)
+- **RAM**: 4 GB
+- **Almacenamiento**: 20 GB de espacio libre
+- **Red**: Conexión a internet estable
+
+#### Sistema Operativo
+- **Linux**: Ubuntu 18.04+ / CentOS 7+ / Debian 9+
+- **Windows**: Windows Server 2016+ / Windows 10+
+- **macOS**: macOS 10.15+ (Catalina)
+
+#### Software Base
+- **Node.js**: v18.0.0 o superior
+- **npm**: v8.0.0 o superior
+- **MongoDB**: v5.0 o superior
+- **Git**: v2.20 o superior
+
+#### Navegadores Soportados (Cliente)
+- **Chrome**: v90+
+- **Firefox**: v88+
+- **Safari**: v14+
+- **Edge**: v90+
+
+### 🚀 Requisitos Recomendados
+
+#### Servidor/Hardware
+- **CPU**: 4+ núcleos (2.5+ GHz)
+- **RAM**: 8+ GB
+- **Almacenamiento**: 100+ GB SSD
+- **Red**: Ancho de banda dedicado 10+ Mbps
+
+#### Sistema Operativo
+- **Linux**: Ubuntu 22.04 LTS / CentOS Stream 9
+- **Contenedores**: Docker 20.10+ con Docker Compose
+
+#### Software Base
+- **Node.js**: v20.x LTS (última versión estable)
+- **npm**: v10.x (última versión)
+- **MongoDB**: v7.0+ (con replica set para producción)
+- **Nginx**: v1.20+ (como proxy reverso)
+- **PM2**: v5.x (gestor de procesos)
+- **SSL/TLS**: Certificado válido (Let's Encrypt recomendado)
+
+#### Configuración de Producción
+- **Firewall**: Configurado (puertos 80, 443, 22)
+- **Backup**: Sistema automatizado de respaldos
+- **Monitoreo**: Logs centralizados y alertas
+- **CDN**: Para assets estáticos (opcional)
+
+### 🏢 Requisitos por Tamaño de Empresa
+
+#### Pequeña Empresa (1-50 vehículos)
+- **CPU**: 2 núcleos
+- **RAM**: 4 GB
+- **Usuarios concurrentes**: 5-10
+- **Almacenamiento**: 50 GB
+
+#### Mediana Empresa (51-200 vehículos)
+- **CPU**: 4 núcleos
+- **RAM**: 8 GB
+- **Usuarios concurrentes**: 10-25
+- **Almacenamiento**: 200 GB
+- **Recomendado**: Servidor dedicado
+
+#### Gran Empresa (200+ vehículos)
+- **CPU**: 8+ núcleos
+- **RAM**: 16+ GB
+- **Usuarios concurrentes**: 25+
+- **Almacenamiento**: 500+ GB
+- **Recomendado**: Cluster de servidores + Load Balancer
+
+### 🔧 Verificación de Requisitos
+
+```bash
+# Verificar versión de Node.js
+node --version
+
+# Verificar versión de npm
+npm --version
+
+# Verificar MongoDB
+mongod --version
+
+# Verificar recursos del sistema (Linux)
+free -h                    # RAM disponible
+df -h                      # Espacio en disco
+nproc                      # Número de CPUs
+
+# Verificar puertos disponibles
+sudo netstat -tlnp | grep :5000
+sudo netstat -tlnp | grep :27017
+```
+
+### ⚠️ Notas Importantes
+
+- **MongoDB**: Se recomienda usar MongoDB Atlas para producción
+- **SSL**: Obligatorio para entornos de producción
+- **Backup**: Configurar respaldos automáticos diarios
+- **Actualizaciones**: Mantener el sistema actualizado
+- **Seguridad**: Configurar firewall y accesos restringidos
+
 ## 🚀 Instalación Rápida
 
 ### Opción 1: Instalación Automática (Recomendada)
