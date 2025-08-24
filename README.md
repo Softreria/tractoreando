@@ -146,11 +146,128 @@ node load-spanish-data.js
 ## 📱 Uso de la Aplicación
 
 ### Acceso Inicial
+
+#### Opción 1: Cargar Datos de Ejemplo (Recomendada)
+```bash
+# Cargar datos de ejemplo españoles con usuarios predefinidos
+node load-spanish-data.js
+```
+
+Credenciales del administrador:
+- **Usuario**: admin@tractoreando.es
+- **Contraseña**: Admin2024!
+- **Rol**: Super Administrador
+
+#### Opción 2: Aplicación Limpia (Sin Datos de Ejemplo)
+```bash
+# Crear solo un usuario administrador básico
+node -e "
+const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+const User = require('./models/User');
+
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/tractoreando')
+.then(async () => {
+  const hashedPassword = await bcrypt.hash('Admin2024!', 10);
+  const admin = new User({
+    firstName: 'Admin',
+    lastName: 'Sistema',
+    email: 'admin@tuempresa.com',
+    password: hashedPassword,
+    role: 'super_admin',
+    permissions: {
+      companies: { create: true, read: true, update: true, delete: true },
+      branches: { create: true, read: true, update: true, delete: true },
+      vehicles: { create: true, read: true, update: true, delete: true },
+      maintenance: { create: true, read: true, update: true, delete: true },
+      users: { create: true, read: true, update: true, delete: true },
+      reports: { read: true, export: true },
+      settings: { read: true, update: true }
+    },
+    isActive: true
+  });
+  await admin.save();
+  console.log('✅ Usuario administrador creado: admin@tuempresa.com');
+  process.exit(0);
+}).catch(err => { console.error(err); process.exit(1); });
+"
+```
+
+Credenciales del administrador:
+- **Usuario**: admin@tuempresa.com
+- **Contraseña**: Admin2024!
+- **Rol**: Super Administrador
+
+#### Acceso a la Aplicación
 1. Accede a `http://tu-servidor` o `http://localhost:3000`
-2. Usa las credenciales por defecto:
-   - **Usuario**: admin@tractoreando.com
-   - **Contraseña**: admin123
+2. Usa las credenciales según la opción elegida
 3. **¡Importante!** Cambia la contraseña en el primer acceso
+
+### Configuración Inicial Post-Instalación
+
+#### 1. **Primer Acceso y Configuración de Seguridad**
+```bash
+# Después del primer login, cambiar contraseña del admin
+# Esto se hace desde la interfaz web en: Perfil > Cambiar Contraseña
+```
+
+#### 2. **Crear Tu Primera Empresa**
+- Ve a **Empresas > Nueva Empresa**
+- Completa los datos:
+  - Nombre de la empresa
+  - RFC/CIF
+  - Dirección completa
+  - Datos de contacto
+  - Configuración de moneda y zona horaria
+
+#### 3. **Crear Sucursales/Delegaciones**
+- Ve a **Sucursales > Nueva Sucursal**
+- Tipos disponibles: Oficina, Taller, Almacén, Delegación
+- Asigna un código único y manager responsable
+
+#### 4. **Gestión de Usuarios**
+
+**Roles Disponibles:**
+- **Super Admin**: Acceso total al sistema
+- **Company Admin**: Administrador de empresa
+- **Branch Manager**: Gerente de sucursal
+- **Mechanic**: Mecánico/Técnico
+- **Operator**: Operador básico
+
+**Crear Nuevos Usuarios:**
+```bash
+# Desde la interfaz web:
+# Usuarios > Nuevo Usuario
+# - Datos personales
+# - Email (será el username)
+# - Rol y permisos
+# - Empresa y sucursales asignadas
+```
+
+#### 5. **Limpiar Datos de Ejemplo (Opcional)**
+```bash
+# Si usaste datos de ejemplo y quieres empezar limpio:
+node -e "
+const mongoose = require('mongoose');
+const Company = require('./models/Company');
+const Branch = require('./models/Branch');
+const Vehicle = require('./models/Vehicle');
+const Maintenance = require('./models/Maintenance');
+const User = require('./models/User');
+
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/tractoreando')
+.then(async () => {
+  // Mantener solo usuarios super_admin
+  await Maintenance.deleteMany({});
+  await Vehicle.deleteMany({});
+  await User.deleteMany({ role: { \$ne: 'super_admin' } });
+  await Branch.deleteMany({});
+  await Company.deleteMany({});
+  console.log('✅ Datos de ejemplo eliminados. Solo se mantuvieron los super_admin.');
+  process.exit(0);
+}).catch(err => { console.error(err); process.exit(1); });
+"
+```
 
 ### Flujo de Trabajo Típico
 
