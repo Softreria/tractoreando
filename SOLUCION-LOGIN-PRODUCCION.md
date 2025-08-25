@@ -13,6 +13,32 @@ Se ejecutó un script de diagnóstico que reveló:
 - ✅ Usuarios existen en la base de datos
 - ✅ Estructura de la aplicación es correcta
 
+## 🚀 Solución Rápida (Recomendada)
+
+**Opción 1: Script optimizado para root**
+```bash
+# 1. Subir el script al servidor
+scp fix-login-root.sh root@tu-servidor:/tmp/
+
+# 2. Conectar al servidor y ejecutar
+ssh root@tu-servidor
+cd /tmp
+chmod +x fix-login-root.sh
+./fix-login-root.sh
+```
+
+**Opción 2: Script principal (más completo)**
+```bash
+# 1. Subir el script al servidor
+scp fix-production-login.sh root@tu-servidor:/tmp/
+
+# 2. Conectar al servidor y ejecutar
+ssh root@tu-servidor
+cd /tmp
+chmod +x fix-production-login.sh
+./fix-production-login.sh
+```
+
 ## 🛠️ Solución Automática
 
 ### Opción 1: Script Automático (Recomendado)
