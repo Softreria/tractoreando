@@ -51,7 +51,6 @@ const mongoOptions = {
   serverSelectionTimeoutMS: 30000,
   socketTimeoutMS: 60000,
   connectTimeoutMS: 30000,
-  bufferMaxEntries: 0,
   maxPoolSize: 10,
   minPoolSize: 2,
   maxIdleTimeMS: 30000,
