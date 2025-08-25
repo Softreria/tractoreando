@@ -271,23 +271,31 @@ setup_application() {
     
     if [[ -n "$DETECTED_REPO" ]]; then
         log_info "Repositorio Git detectado automáticamente: $DETECTED_REPO"
+        log_info "Creando directorio de destino con permisos adecuados..."
+        sudo mkdir -p "$APP_DIR"
+        sudo chown $APP_USER:$APP_USER "$APP_DIR"
+        
         log_info "Clonando repositorio..."
         sudo -u $APP_USER git clone "$DETECTED_REPO" "$APP_DIR" || {
             log_error "Error al clonar el repositorio. Verificando si el directorio existe..."
             if [[ -d "$APP_DIR" ]]; then
                 log_warning "El directorio '$APP_DIR' existe pero la clonación falló."
                 log_info "Intentando copiar archivos locales en su lugar..."
-                sudo mkdir -p "$APP_DIR"
-                sudo chown $APP_USER:$APP_USER "$APP_DIR"
+                sudo rm -rf "$APP_DIR"/*
                 sudo cp -r . "$APP_DIR/"
                 sudo chown -R $APP_USER:$APP_USER "$APP_DIR"
             else
+                log_error "No se pudo crear el directorio de trabajo. Verifica los permisos."
                 exit 1
             fi
         }
     else
         log_warning "No se detectó repositorio Git. Copiando archivos localmente..."
+        log_info "Creando directorio de destino con permisos adecuados..."
         sudo mkdir -p "$APP_DIR"
+        sudo chown $APP_USER:$APP_USER "$APP_DIR"
+        
+        log_info "Copiando archivos..."
         sudo cp -r . "$APP_DIR/"
         sudo chown -R $APP_USER:$APP_USER "$APP_DIR"
     fi

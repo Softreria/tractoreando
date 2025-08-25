@@ -220,42 +220,70 @@ update_from_git() {
     
     log_info "Usando repositorio: $GIT_REPO"
     
-    cd $APP_DIR
+    # Asegurarse de que el directorio de la aplicación existe y tiene los permisos correctos
+    if [[ ! -d "$APP_DIR" ]]; then
+        log_info "Creando directorio de la aplicación: $APP_DIR"
+        sudo mkdir -p "$APP_DIR"
+        sudo chown "$APP_USER":"$APP_USER" "$APP_DIR"
+    fi
+    
+    cd "$APP_DIR"
     
     # Verificar si es un repositorio Git
     if [[ ! -d ".git" ]]; then
         log_info "Inicializando repositorio Git en $APP_DIR..."
-        sudo -u $APP_USER git init
-        sudo -u $APP_USER git remote add origin "$GIT_REPO"
+        sudo -u "$APP_USER" git init
+        sudo -u "$APP_USER" git remote add origin "$GIT_REPO"
         
         # Primera descarga
         log_info "Descargando código por primera vez..."
-        sudo -u $APP_USER git fetch origin
-        sudo -u $APP_USER git checkout -b $BRANCH origin/$BRANCH
+        if ! sudo -u "$APP_USER" git fetch origin; then
+            log_error "Error al descargar el código desde el repositorio remoto"
+            log_error "Verifica la conectividad y los permisos de acceso al repositorio"
+            return 1
+        fi
+        
+        if ! sudo -u "$APP_USER" git checkout -b "$BRANCH" "origin/$BRANCH"; then
+            log_error "Error al cambiar a la rama $BRANCH"
+            log_error "Verifica que la rama exista en el repositorio remoto"
+            return 1
+        fi
     else
         # Verificar/actualizar remote origin
-        CURRENT_REMOTE=$(sudo -u $APP_USER git remote get-url origin 2>/dev/null || echo "")
+        CURRENT_REMOTE=$(sudo -u "$APP_USER" git remote get-url origin 2>/dev/null || echo "")
         if [[ "$CURRENT_REMOTE" != "$GIT_REPO" ]]; then
             log_info "Actualizando URL del repositorio remoto..."
-            sudo -u $APP_USER git remote set-url origin "$GIT_REPO"
+            sudo -u "$APP_USER" git remote set-url origin "$GIT_REPO"
         fi
         
         # Guardar cambios locales si los hay
-        if ! sudo -u $APP_USER git diff --quiet 2>/dev/null; then
+        if ! sudo -u "$APP_USER" git diff --quiet 2>/dev/null; then
             log_info "Guardando cambios locales..."
-            sudo -u $APP_USER git add . || true
-            sudo -u $APP_USER git stash push -m "Auto-stash before update $(date)" || true
+            sudo -u "$APP_USER" git add . || true
+            sudo -u "$APP_USER" git stash push -m "Auto-stash before update $(date)" || true
         fi
         
         # Actualizar desde remoto
         log_info "Descargando últimos cambios..."
-        sudo -u $APP_USER git fetch origin
-        sudo -u $APP_USER git reset --hard origin/$BRANCH
+        if ! sudo -u "$APP_USER" git fetch origin; then
+            log_error "Error al descargar los cambios desde el repositorio remoto"
+            log_error "Verifica la conectividad y los permisos de acceso al repositorio"
+            return 1
+        fi
+        
+        if ! sudo -u "$APP_USER" git reset --hard "origin/$BRANCH"; then
+            log_error "Error al actualizar a la última versión de la rama $BRANCH"
+            log_error "Verifica que la rama exista en el repositorio remoto"
+            return 1
+        fi
     fi
     
+    # Asegurar permisos correctos después de la actualización
+    sudo chown -R "$APP_USER":"$APP_USER" "$APP_DIR"
+    
     # Mostrar información del commit actual
-    CURRENT_COMMIT=$(sudo -u $APP_USER git rev-parse --short HEAD)
-    COMMIT_MESSAGE=$(sudo -u $APP_USER git log -1 --pretty=format:"%s")
+    CURRENT_COMMIT=$(sudo -u "$APP_USER" git rev-parse --short HEAD)
+    COMMIT_MESSAGE=$(sudo -u "$APP_USER" git log -1 --pretty=format:"%s")
     log_success "Código actualizado a commit $CURRENT_COMMIT: $COMMIT_MESSAGE"
 }
 
@@ -270,8 +298,16 @@ update_from_local() {
     
     log_info "Actualizando desde directorio local: $SOURCE_DIR"
     
+    # Asegurarse de que el directorio de la aplicación existe y tiene los permisos correctos
+    if [[ ! -d "$APP_DIR" ]]; then
+        log_info "Creando directorio de la aplicación: $APP_DIR"
+        sudo mkdir -p "$APP_DIR"
+        sudo chown "$APP_USER":"$APP_USER" "$APP_DIR"
+    fi
+    
     # Copiar archivos (excluyendo ciertos directorios)
-    sudo rsync -av \
+    log_info "Copiando archivos desde $SOURCE_DIR a $APP_DIR..."
+    if ! sudo rsync -av \
         --exclude="node_modules" \
         --exclude="frontend/node_modules" \
         --exclude="frontend/build" \
@@ -280,9 +316,16 @@ update_from_local() {
         --exclude="backups" \
         --exclude=".git" \
         --exclude=".env" \
-        "$SOURCE_DIR/" "$APP_DIR/"
+        "$SOURCE_DIR/" "$APP_DIR/"; then
+        
+        log_error "Error al copiar archivos desde el directorio local"
+        log_error "Verifica los permisos y la disponibilidad de los archivos"
+        return 1
+    fi
     
-    sudo chown -R $APP_USER:$APP_USER $APP_DIR
+    # Asegurar permisos correctos después de la copia
+    log_info "Ajustando permisos..."
+    sudo chown -R "$APP_USER":"$APP_USER" "$APP_DIR"
     
     log_success "Archivos copiados desde directorio local"
 }
