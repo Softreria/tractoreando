@@ -45,95 +45,95 @@ export default api;
 export const apiUtils = {
   // Autenticación
   auth: {
-    login: (credentials) => api.post('/api/auth/login', credentials),
-    register: (data) => api.post('/api/auth/register', data),
-    forgotPassword: (email) => api.post('/api/auth/forgot-password', { email }),
-    resetPassword: (token, password) => api.post('/api/auth/reset-password', { token, password }),
-    refreshToken: () => api.post('/api/auth/refresh'),
-    logout: () => api.post('/api/auth/logout'),
-    getProfile: () => api.get('/api/auth/profile'),
-    updateProfile: (data) => api.put('/api/auth/profile', data),
-    changePassword: (data) => api.put('/api/auth/change-password', data),
+    login: (credentials) => api.post('/auth/login', credentials),
+    register: (data) => api.post('/auth/register', data),
+    forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
+    resetPassword: (token, password) => api.post('/auth/reset-password', { token, password }),
+    refreshToken: () => api.post('/auth/refresh'),
+    logout: () => api.post('/auth/logout'),
+    getProfile: () => api.get('/auth/profile'),
+    updateProfile: (data) => api.put('/auth/profile', data),
+    changePassword: (data) => api.put('/auth/change-password', data),
   },
 
   // Empresas
   companies: {
-    getAll: (params) => api.get('/api/companies', { params }),
-    getById: (id) => api.get(`/api/companies/${id}`),
-    create: (data) => api.post('/api/companies', data),
-    update: (id, data) => api.put(`/api/companies/${id}`, data),
-    delete: (id) => api.delete(`/api/companies/${id}`),
-    updateStatus: (id, status) => api.patch(`/api/companies/${id}/status`, { status }),
-    getStats: () => api.get('/api/companies/stats'),
+    getAll: (params) => api.get('/companies', { params }),
+    getById: (id) => api.get(`/companies/${id}`),
+    create: (data) => api.post('/companies', data),
+    update: (id, data) => api.put(`/companies/${id}`, data),
+    delete: (id) => api.delete(`/companies/${id}`),
+    updateStatus: (id, status) => api.patch(`/companies/${id}/status`, { status }),
+    getStats: () => api.get('/companies/stats'),
   },
 
   // Delegaciones
   branches: {
-    getAll: (params) => api.get('/api/branches', { params }),
-    getById: (id) => api.get(`/api/branches/${id}`),
-    create: (data) => api.post('/api/branches', data),
-    update: (id, data) => api.put(`/api/branches/${id}`, data),
-    delete: (id) => api.delete(`/api/branches/${id}`),
-    updateStatus: (id, status) => api.patch(`/api/branches/${id}/status`, { status }),
-    getByCompany: (companyId) => api.get(`/api/branches/company/${companyId}`),
+    getAll: (params) => api.get('/branches', { params }),
+    getById: (id) => api.get(`/branches/${id}`),
+    create: (data) => api.post('/branches', data),
+    update: (id, data) => api.put(`/branches/${id}`, data),
+    delete: (id) => api.delete(`/branches/${id}`),
+    updateStatus: (id, status) => api.patch(`/branches/${id}/status`, { status }),
+    getByCompany: (companyId) => api.get(`/branches/company/${companyId}`),
   },
 
   // Vehículos
   vehicles: {
-    getAll: (params) => api.get('/api/vehicles', { params }),
-    getById: (id) => api.get(`/api/vehicles/${id}`),
-    create: (data) => api.post('/api/vehicles', data),
-    update: (id, data) => api.put(`/api/vehicles/${id}`, data),
-    delete: (id) => api.delete(`/api/vehicles/${id}`),
-    updateStatus: (id, status) => api.patch(`/api/vehicles/${id}/status`, { status }),
-    updateMileage: (id, mileage) => api.patch(`/api/vehicles/${id}/mileage`, { mileage }),
-    getAlerts: (id) => api.get(`/api/vehicles/${id}/alerts`),
-    getMaintenanceHistory: (id) => api.get(`/api/vehicles/${id}/maintenance-history`),
-    uploadDocuments: (id, formData) => api.post(`/api/vehicles/${id}/documents`, formData, {
+    getAll: (params) => api.get('/vehicles', { params }),
+    getById: (id) => api.get(`/vehicles/${id}`),
+    create: (data) => api.post('/vehicles', data),
+    update: (id, data) => api.put(`/vehicles/${id}`, data),
+    delete: (id) => api.delete(`/vehicles/${id}`),
+    updateStatus: (id, status) => api.patch(`/vehicles/${id}/status`, { status }),
+    updateMileage: (id, mileage) => api.patch(`/vehicles/${id}/mileage`, { mileage }),
+    getAlerts: (id) => api.get(`/vehicles/${id}/alerts`),
+    getMaintenanceHistory: (id) => api.get(`/vehicles/${id}/maintenance-history`),
+    uploadDocuments: (id, formData) => api.post(`/vehicles/${id}/documents`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     }),
   },
 
   // Mantenimientos
   maintenance: {
-    getAll: (params) => api.get('/api/maintenance', { params }),
-    getById: (id) => api.get(`/api/maintenance/${id}`),
-    create: (data) => api.post('/api/maintenance', data),
-    update: (id, data) => api.put(`/api/maintenance/${id}`, data),
-    delete: (id) => api.delete(`/api/maintenance/${id}`),
-    updateStatus: (id, status) => api.patch(`/api/maintenance/${id}/status`, { status }),
-    addTimeLog: (id, data) => api.post(`/api/maintenance/${id}/time-log`, data),
-    getTimeLog: (id) => api.get(`/api/maintenance/${id}/time-log`),
-    addCost: (id, data) => api.post(`/api/maintenance/${id}/costs`, data),
-    getCosts: (id) => api.get(`/api/maintenance/${id}/costs`),
-    uploadFiles: (id, formData) => api.post(`/api/maintenance/${id}/files`, formData, {
+    getAll: (params) => api.get('/maintenance', { params }),
+    getById: (id) => api.get(`/maintenance/${id}`),
+    create: (data) => api.post('/maintenance', data),
+    update: (id, data) => api.put(`/maintenance/${id}`, data),
+    delete: (id) => api.delete(`/maintenance/${id}`),
+    updateStatus: (id, status) => api.patch(`/maintenance/${id}/status`, { status }),
+    addTimeLog: (id, data) => api.post(`/maintenance/${id}/time-log`, data),
+    getTimeLog: (id) => api.get(`/maintenance/${id}/time-log`),
+    addCost: (id, data) => api.post(`/maintenance/${id}/costs`, data),
+    getCosts: (id) => api.get(`/maintenance/${id}/costs`),
+    uploadFiles: (id, formData) => api.post(`/maintenance/${id}/files`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     }),
   },
 
   // Usuarios
   users: {
-    getAll: (params) => api.get('/api/users', { params }),
-    getById: (id) => api.get(`/api/users/${id}`),
-    create: (data) => api.post('/api/users', data),
-    update: (id, data) => api.put(`/api/users/${id}`, data),
-    delete: (id) => api.delete(`/api/users/${id}`),
-    updateStatus: (id, status) => api.patch(`/api/users/${id}/status`, { status }),
-    resetPassword: (id) => api.post(`/api/users/${id}/reset-password`),
-    updatePassword: (id, data) => api.put(`/api/users/${id}/password`, data),
-    getRoles: () => api.get('/api/users/roles'),
-    getStats: () => api.get('/api/users/stats'),
-    getActivity: (id) => api.get(`/api/users/${id}/activity`),
+    getAll: (params) => api.get('/users', { params }),
+    getById: (id) => api.get(`/users/${id}`),
+    create: (data) => api.post('/users', data),
+    update: (id, data) => api.put(`/users/${id}`, data),
+    delete: (id) => api.delete(`/users/${id}`),
+    updateStatus: (id, status) => api.patch(`/users/${id}/status`, { status }),
+    resetPassword: (id) => api.post(`/users/${id}/reset-password`),
+    updatePassword: (id, data) => api.put(`/users/${id}/password`, data),
+    getRoles: () => api.get('/users/roles'),
+    getStats: () => api.get('/users/stats'),
+    getActivity: (id) => api.get(`/users/${id}/activity`),
   },
 
   // Reportes
   reports: {
-    getDashboard: (params) => api.get('/api/reports/dashboard', { params }),
-    getVehicles: (params) => api.get('/api/reports/vehicles', { params }),
-    getMaintenance: (params) => api.get('/api/reports/maintenance', { params }),
-    getCosts: (params) => api.get('/api/reports/costs', { params }),
-    getPerformance: (params) => api.get('/api/reports/performance', { params }),
-    exportToCsv: (type, params) => api.get(`/api/reports/export/${type}`, {
+    getDashboard: (params) => api.get('/reports/dashboard', { params }),
+    getVehicles: (params) => api.get('/reports/vehicles', { params }),
+    getMaintenance: (params) => api.get('/reports/maintenance', { params }),
+    getCosts: (params) => api.get('/reports/costs', { params }),
+    getPerformance: (params) => api.get('/reports/performance', { params }),
+    exportToCsv: (type, params) => api.get(`/reports/export/${type}`, {
       params,
       responseType: 'blob'
     }),
@@ -141,34 +141,34 @@ export const apiUtils = {
 
   // Configuraciones
   settings: {
-    getAll: () => api.get('/api/settings'),
-    update: (data) => api.put('/api/settings', data),
-    getStats: () => api.get('/api/settings/stats'),
-    createBackup: () => api.post('/api/settings/backup', {}, { responseType: 'blob' }),
-    restoreBackup: (formData) => api.post('/api/settings/restore', formData, {
+    getAll: () => api.get('/settings'),
+    update: (data) => api.put('/settings', data),
+    getStats: () => api.get('/settings/stats'),
+    createBackup: () => api.post('/settings/backup', {}, { responseType: 'blob' }),
+    restoreBackup: (formData) => api.post('/settings/restore', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     }),
-    cleanData: (type) => api.delete(`/api/settings/clean/${type}`),
-    optimizeDatabase: () => api.post('/api/settings/optimize'),
-    restartServices: () => api.post('/api/settings/restart'),
+    cleanData: (type) => api.delete(`/settings/clean/${type}`),
+    optimizeDatabase: () => api.post('/settings/optimize'),
+    restartServices: () => api.post('/settings/restart'),
   },
 
   // Notificaciones
   notifications: {
-    getAll: (params) => api.get('/api/notifications', { params }),
-    markAsRead: (id) => api.patch(`/api/notifications/${id}/read`),
-    markAllAsRead: () => api.patch('/api/notifications/read-all'),
-    delete: (id) => api.delete(`/api/notifications/${id}`),
-    getUnreadCount: () => api.get('/api/notifications/unread-count'),
+    getAll: (params) => api.get('/notifications', { params }),
+    markAsRead: (id) => api.patch(`/notifications/${id}/read`),
+    markAllAsRead: () => api.patch('/notifications/read-all'),
+    delete: (id) => api.delete(`/notifications/${id}`),
+    getUnreadCount: () => api.get('/notifications/unread-count'),
   },
 
   // Archivos
   files: {
-    upload: (formData) => api.post('/api/files/upload', formData, {
+    upload: (formData) => api.post('/files/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     }),
-    download: (id) => api.get(`/api/files/${id}/download`, { responseType: 'blob' }),
-    delete: (id) => api.delete(`/api/files/${id}`),
+    download: (id) => api.get(`/files/${id}/download`, { responseType: 'blob' }),
+    delete: (id) => api.delete(`/files/${id}`),
   },
 };
 

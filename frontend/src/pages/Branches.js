@@ -92,7 +92,7 @@ const Branches = () => {
         status: filterStatus !== 'all' ? filterStatus : undefined,
         company: filterCompany || undefined
       };
-      const response = await axios.get('/api/branches', { params });
+      const response = await axios.get('/branches', { params });
       return response.data;
     }
   });
@@ -101,7 +101,7 @@ const Branches = () => {
   const { data: companiesData } = useQuery({
     queryKey: ['companies-list'],
     queryFn: async () => {
-      const response = await axios.get('/api/companies', { params: { limit: 100 } });
+      const response = await axios.get('/companies', { params: { limit: 100 } });
       return response.data.companies;
     },
     enabled: hasRole('super_admin')
@@ -111,9 +111,9 @@ const Branches = () => {
   const saveBranchMutation = useMutation({
     mutationFn: async (data) => {
       if (editingBranch) {
-        return axios.put(`/api/branches/${editingBranch._id}`, data);
+        return axios.put(`/branches/${editingBranch._id}`, data);
       } else {
-        return axios.post('/api/branches', data);
+        return axios.post('/branches', data);
       }
     },
     onSuccess: () => {

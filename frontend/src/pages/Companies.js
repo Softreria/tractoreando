@@ -93,7 +93,7 @@ const Companies = () => {
         search: searchTerm,
         status: filterStatus !== 'all' ? filterStatus : undefined
       };
-      const response = await axios.get('/api/companies', { params });
+      const response = await axios.get('/companies', { params });
       return response.data;
     },
     enabled: isAuthenticated && !!user && !authLoading
@@ -103,9 +103,9 @@ const Companies = () => {
   const saveCompanyMutation = useMutation({
     mutationFn: async (data) => {
       if (editingCompany) {
-        return axios.put(`/api/companies/${editingCompany._id}`, data);
+        return axios.put(`/companies/${editingCompany._id}`, data);
       } else {
-        return axios.post('/api/companies', data);
+        return axios.post('/companies', data);
       }
     },
     onSuccess: () => {

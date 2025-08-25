@@ -104,7 +104,7 @@ const Profile = () => {
   const { data: activityData, isLoading: activityLoading } = useQuery({
     queryKey: ['user-activity', activityPage, activityRowsPerPage],
     queryFn: async () => {
-      const response = await axios.get('/api/users/activity', {
+      const response = await axios.get('/users/activity', {
         params: {
           page: activityPage + 1,
           limit: activityRowsPerPage
@@ -118,7 +118,7 @@ const Profile = () => {
   // Mutación para actualizar perfil
   const updateProfileMutation = useMutation({
     mutationFn: async (data) => {
-      return axios.put('/api/users/profile', data);
+      return axios.put('/users/profile', data);
     },
     onSuccess: (response) => {
       updateProfile(response.data.user);
@@ -133,7 +133,7 @@ const Profile = () => {
   // Mutación para cambiar contraseña
   const changePasswordMutation = useMutation({
     mutationFn: async (data) => {
-      return axios.patch('/api/users/change-password', data);
+      return axios.patch('/users/change-password', data);
     },
     onSuccess: () => {
       toast.success('Contraseña actualizada exitosamente');

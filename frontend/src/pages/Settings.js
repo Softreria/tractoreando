@@ -98,7 +98,7 @@ const Settings = () => {
   const { data: settingsData, isLoading } = useQuery({
     queryKey: ['system-settings'],
     queryFn: async () => {
-      const response = await axios.get('/api/settings');
+      const response = await axios.get('/settings');
       return response.data;
     },
     enabled: hasPermission('settings', 'read')
@@ -108,7 +108,7 @@ const Settings = () => {
   const { data: systemStats } = useQuery({
     queryKey: ['system-stats'],
     queryFn: async () => {
-      const response = await axios.get('/api/settings/stats');
+      const response = await axios.get('/settings/stats');
       return response.data;
     },
     enabled: hasRole('super_admin')
@@ -117,7 +117,7 @@ const Settings = () => {
   // Mutación para actualizar configuraciones
   const updateSettingsMutation = useMutation({
     mutationFn: async (data) => {
-      return axios.put('/api/settings', data);
+      return axios.put('/settings', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['system-settings']);
@@ -131,7 +131,7 @@ const Settings = () => {
   // Mutación para crear backup
   const createBackupMutation = useMutation({
     mutationFn: async () => {
-      return axios.post('/api/settings/backup');
+      return axios.post('/settings/backup');
     },
     onSuccess: (response) => {
       toast.success('Backup creado exitosamente');
