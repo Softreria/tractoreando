@@ -36,7 +36,31 @@ check_mongodb_status() {
     fi
     
     # Verificar si el puerto está abierto
-    if netstat -tuln | grep -q ":27017"; then
+    port_check=false
+    if command -v ss &> /dev/null; then
+        # Usar ss si está disponible
+        if ss -tuln | grep -q ":27017"; then
+            port_check=true
+        fi
+    elif command -v lsof &> /dev/null; then
+        # Usar lsof como alternativa
+        if lsof -i :27017 &> /dev/null; then
+            port_check=true
+        fi
+    elif command -v netstat &> /dev/null; then
+        # Usar netstat si está disponible
+        if netstat -tuln | grep -q ":27017"; then
+            port_check=true
+        fi
+    else
+        # Si no hay herramientas disponibles, intentar conexión directa
+        echo "⚠️ No se encontraron herramientas para verificar puertos, probando conexión directa..."
+        if timeout 5 bash -c "</dev/tcp/localhost/27017" &>/dev/null; then
+            port_check=true
+        fi
+    fi
+    
+    if $port_check; then
         echo "✅ Puerto 27017 está abierto"
     else
         echo "❌ Puerto 27017 no está disponible"

@@ -35,7 +35,30 @@ detect_problem() {
     fi
     
     # Verificar si el puerto está disponible
-    if ! netstat -tuln | grep -q ":27017"; then
+    port_check=false
+    if command -v ss &> /dev/null; then
+        # Usar ss si está disponible
+        if ss -tuln | grep -q ":27017"; then
+            port_check=true
+        fi
+    elif command -v lsof &> /dev/null; then
+        # Usar lsof como alternativa
+        if lsof -i :27017 &> /dev/null; then
+            port_check=true
+        fi
+    elif command -v netstat &> /dev/null; then
+        # Usar netstat si está disponible
+        if netstat -tuln | grep -q ":27017"; then
+            port_check=true
+        fi
+    else
+        # Si no hay herramientas disponibles, asumir que el puerto no está disponible
+        echo "⚠️ No se encontraron herramientas para verificar puertos (ss, lsof, netstat)"
+        echo "❌ Puerto 27017 no está disponible"
+        return 3  # Problema de puerto
+    fi
+    
+    if ! $port_check; then
         echo "❌ Puerto 27017 no está disponible"
         return 3  # Problema de puerto
     fi

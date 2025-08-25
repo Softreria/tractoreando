@@ -281,7 +281,11 @@ df -h
 # 6. Verificar memoria
 free -h
 
-# 7. Verificar puerto
+# 7. Verificar puerto (usar el comando disponible)
+sudo ss -tuln | grep 27017
+# O alternativamente:
+sudo lsof -i :27017
+# O si tienes netstat:
 sudo netstat -tuln | grep 27017
 ```
 
