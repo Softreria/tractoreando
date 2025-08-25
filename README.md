@@ -577,6 +577,25 @@ docker run -d -p 80:5000 --name tractoreando-app tractoreando
 4. Push a la rama (`git push origin feature/AmazingFeature`)
 5. Abre un Pull Request
 
+## 🔧 Solución de Problemas
+
+Para problemas comunes, consulta la [Guía de Solución de Problemas](./GUIA-SOLUCION-PROBLEMAS.md).
+
+### Diagnóstico Rápido
+```bash
+# Diagnóstico completo del sistema
+node diagnose-system.js
+
+# Carga de datos de ejemplo
+node data-loader.js sample
+```
+
+### Scripts Disponibles
+- `diagnose-system.js` - Sistema unificado de diagnóstico
+- `data-loader.js` - Sistema unificado de carga de datos
+- `install.sh` - Instalación completa
+- `update.sh` - Actualización del sistema
+
 ## 📝 Changelog
 
 ### v1.0.0 (2024-08-24)
