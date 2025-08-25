@@ -36,8 +36,11 @@ BACKUP_DIR="/opt/tractoreando/backups"
 
 # Verificar si se ejecuta como root
 if [[ $EUID -eq 0 ]]; then
-    log_error "Este script no debe ejecutarse como root"
-    exit 1
+    log_warning "Ejecutándose como root - usando comandos directos sin sudo"
+    SUDO_CMD=""
+else
+    log_info "Ejecutándose como usuario normal - usando sudo"
+    SUDO_CMD="sudo"
 fi
 
 # Función principal
@@ -53,8 +56,8 @@ fix_production_login() {
     # 2. Crear backup del archivo .env actual si existe
     if [[ -f "$APP_DIR/.env" ]]; then
         log_info "Creando backup del archivo .env actual..."
-        sudo mkdir -p "$BACKUP_DIR"
-        sudo cp "$APP_DIR/.env" "$BACKUP_DIR/.env.backup.$(date +%Y%m%d_%H%M%S)"
+        $SUDO_CMD mkdir -p "$BACKUP_DIR"
+        $SUDO_CMD cp "$APP_DIR/.env" "$BACKUP_DIR/.env.backup.$(date +%Y%m%d_%H%M%S)"
         log_success "Backup creado"
     fi
     
@@ -63,14 +66,14 @@ fix_production_login() {
     
     if [[ -f "$APP_DIR/.env.production" ]]; then
         # Copiar desde .env.production y modificar valores críticos
-        sudo cp "$APP_DIR/.env.production" "$APP_DIR/.env"
+        $SUDO_CMD cp "$APP_DIR/.env.production" "$APP_DIR/.env"
         
         # Generar JWT_SECRET único si no está configurado correctamente
         JWT_SECRET=$(openssl rand -base64 64 | tr -d "\n")
         
         # Actualizar variables críticas
-        sudo sed -i "s/JWT_SECRET=.*/JWT_SECRET=$JWT_SECRET/g" "$APP_DIR/.env"
-        sudo sed -i "s/NODE_ENV=.*/NODE_ENV=production/g" "$APP_DIR/.env"
+        $SUDO_CMD sed -i "s/JWT_SECRET=.*/JWT_SECRET=$JWT_SECRET/g" "$APP_DIR/.env"
+        $SUDO_CMD sed -i "s/NODE_ENV=.*/NODE_ENV=production/g" "$APP_DIR/.env"
         
         log_success "Archivo .env creado y configurado"
     else
@@ -79,7 +82,7 @@ fix_production_login() {
         
         JWT_SECRET=$(openssl rand -base64 64 | tr -d "\n")
         
-        sudo tee "$APP_DIR/.env" > /dev/null <<EOF
+        $SUDO_CMD tee "$APP_DIR/.env" > /dev/null <<EOF
 # Variables de entorno para producción - Tractoreando
 NODE_ENV=production
 PORT=5000
@@ -114,8 +117,8 @@ EOF
     
     # 4. Establecer permisos correctos
     log_info "Configurando permisos del archivo .env..."
-    sudo chown "$APP_USER:$APP_USER" "$APP_DIR/.env"
-    sudo chmod 600 "$APP_DIR/.env"
+    $SUDO_CMD chown "$APP_USER:$APP_USER" "$APP_DIR/.env"
+    $SUDO_CMD chmod 600 "$APP_DIR/.env"
     log_success "Permisos configurados"
     
     # 5. Verificar que PM2 está instalado
@@ -128,23 +131,45 @@ EOF
     log_info "Reiniciando la aplicación..."
     
     # Detener la aplicación si está corriendo
-    if sudo -u "$APP_USER" pm2 list | grep -q "tractoreando"; then
-        log_info "Deteniendo aplicación actual..."
-        sudo -u "$APP_USER" pm2 stop tractoreando || true
-        sudo -u "$APP_USER" pm2 delete tractoreando || true
+    if [[ $EUID -eq 0 ]]; then
+        # Ejecutándose como root
+        if su - "$APP_USER" -c "pm2 list" | grep -q "tractoreando"; then
+            log_info "Deteniendo aplicación actual..."
+            su - "$APP_USER" -c "pm2 stop tractoreando" || true
+            su - "$APP_USER" -c "pm2 delete tractoreando" || true
+        fi
+        
+        # Iniciar la aplicación
+        log_info "Iniciando aplicación..."
+        cd "$APP_DIR"
+        su - "$APP_USER" -c "cd $APP_DIR && pm2 start ecosystem.config.js"
+        su - "$APP_USER" -c "pm2 save"
+    else
+        # Ejecutándose como usuario normal
+        if sudo -u "$APP_USER" pm2 list | grep -q "tractoreando"; then
+            log_info "Deteniendo aplicación actual..."
+            sudo -u "$APP_USER" pm2 stop tractoreando || true
+            sudo -u "$APP_USER" pm2 delete tractoreando || true
+        fi
+        
+        # Iniciar la aplicación
+        log_info "Iniciando aplicación..."
+        cd "$APP_DIR"
+        sudo -u "$APP_USER" pm2 start ecosystem.config.js
+        sudo -u "$APP_USER" pm2 save
     fi
-    
-    # Iniciar la aplicación
-    log_info "Iniciando aplicación..."
-    cd "$APP_DIR"
-    sudo -u "$APP_USER" pm2 start ecosystem.config.js
-    sudo -u "$APP_USER" pm2 save
     
     # 7. Verificar que la aplicación está funcionando
     log_info "Verificando estado de la aplicación..."
     sleep 5
     
-    if sudo -u "$APP_USER" pm2 list | grep -q "online"; then
+    if [[ $EUID -eq 0 ]]; then
+        PM2_STATUS=$(su - "$APP_USER" -c "pm2 list")
+    else
+        PM2_STATUS=$(sudo -u "$APP_USER" pm2 list)
+    fi
+    
+    if echo "$PM2_STATUS" | grep -q "online"; then
         log_success "✅ Aplicación iniciada correctamente"
         
         # Probar endpoint de salud
@@ -157,7 +182,11 @@ EOF
     else
         log_error "❌ Error al iniciar la aplicación"
         log_info "Logs de PM2:"
-        sudo -u "$APP_USER" pm2 logs tractoreando --lines 20
+        if [[ $EUID -eq 0 ]]; then
+            su - "$APP_USER" -c "pm2 logs tractoreando --lines 20"
+        else
+            sudo -u "$APP_USER" pm2 logs tractoreando --lines 20
+        fi
         exit 1
     fi
     
@@ -200,7 +229,11 @@ show_status() {
     # Estado de PM2
     if command -v pm2 &> /dev/null; then
         echo "🔄 Estado de PM2:"
-        sudo -u "$APP_USER" pm2 list
+        if [[ $EUID -eq 0 ]]; then
+            su - "$APP_USER" -c "pm2 list"
+        else
+            sudo -u "$APP_USER" pm2 list
+        fi
         echo ""
     else
         log_warning "PM2 no está instalado"
@@ -229,7 +262,11 @@ show_status() {
 show_logs() {
     if command -v pm2 &> /dev/null; then
         log_info "📋 Logs de la aplicación (últimas 50 líneas):"
-        sudo -u "$APP_USER" pm2 logs tractoreando --lines 50
+        if [[ $EUID -eq 0 ]]; then
+            su - "$APP_USER" -c "pm2 logs tractoreando --lines 50"
+        else
+            sudo -u "$APP_USER" pm2 logs tractoreando --lines 50
+        fi
     else
         log_error "PM2 no está instalado"
     fi
