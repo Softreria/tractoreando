@@ -49,8 +49,14 @@ NGINX_SSL_PORT=443
 # Función para verificar si es root
 check_root() {
     if [[ $EUID -ne 0 ]]; then
-        log_error "Este script debe ejecutarse como root (usa sudo)"
-        exit 1
+        log_warning "Este script normalmente requiere permisos de root para instalar dependencias y configurar servicios."
+        log_warning "Se recomienda ejecutarlo con sudo."
+        read -p "¿Deseas intentar continuar sin permisos de root? (s/N): " response
+        if [[ "$response" != "s" && "$response" != "S" ]]; then
+            log_error "Instalación cancelada. Ejecuta el script con sudo."
+            exit 1
+        fi
+        log_warning "Continuando sin permisos de root. Algunas operaciones podrían fallar."
     fi
 }
 
