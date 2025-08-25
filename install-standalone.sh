@@ -231,10 +231,60 @@ setup_application() {
         DETECTED_REPO=$(git remote get-url origin 2>/dev/null || echo "")
     fi
     
+    # Verificar si el directorio de destino ya existe
+    if [[ -d "$APP_DIR" ]]; then
+        log_warning "El directorio de destino '$APP_DIR' ya existe y puede no estar vacío."
+        echo "Opciones disponibles:"
+        echo "  1. Eliminar el directorio existente y crear uno nuevo (CUIDADO: se perderán todos los datos)"
+        echo "  2. Actualizar la instalación existente (si es un repositorio Git válido)"
+        echo "  3. Cancelar la instalación"
+        read -p "Selecciona una opción [1-3]: " dir_option
+        
+        case $dir_option in
+            1)
+                log_warning "Eliminando directorio existente..."
+                sudo rm -rf "$APP_DIR"
+                ;;
+            2)
+                if [[ -d "$APP_DIR/.git" ]]; then
+                    log_info "Actualizando repositorio existente..."
+                    cd "$APP_DIR"
+                    sudo -u $APP_USER git pull
+                    log_success "Repositorio actualizado correctamente"
+                    return
+                else
+                    log_error "El directorio existente no es un repositorio Git válido."
+                    log_info "Puedes convertirlo en un repositorio Git con: cd $APP_DIR && git init"
+                    read -p "¿Deseas continuar de todos modos? (s/N): " continue_option
+                    if [[ "$continue_option" != "s" && "$continue_option" != "S" ]]; then
+                        log_error "Instalación cancelada por el usuario"
+                        exit 1
+                    fi
+                fi
+                ;;
+            *)
+                log_error "Instalación cancelada por el usuario"
+                exit 1
+                ;;
+        esac
+    fi
+    
     if [[ -n "$DETECTED_REPO" ]]; then
         log_info "Repositorio Git detectado automáticamente: $DETECTED_REPO"
         log_info "Clonando repositorio..."
-        sudo -u $APP_USER git clone "$DETECTED_REPO" "$APP_DIR"
+        sudo -u $APP_USER git clone "$DETECTED_REPO" "$APP_DIR" || {
+            log_error "Error al clonar el repositorio. Verificando si el directorio existe..."
+            if [[ -d "$APP_DIR" ]]; then
+                log_warning "El directorio '$APP_DIR' existe pero la clonación falló."
+                log_info "Intentando copiar archivos locales en su lugar..."
+                sudo mkdir -p "$APP_DIR"
+                sudo chown $APP_USER:$APP_USER "$APP_DIR"
+                sudo cp -r . "$APP_DIR/"
+                sudo chown -R $APP_USER:$APP_USER "$APP_DIR"
+            else
+                exit 1
+            fi
+        }
     else
         log_warning "No se detectó repositorio Git. Copiando archivos localmente..."
         sudo mkdir -p "$APP_DIR"

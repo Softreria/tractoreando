@@ -81,8 +81,13 @@ fi
 
 # Verificar si se ejecuta como root
 if [[ $EUID -eq 0 ]]; then
-   log_error "Este script no debe ejecutarse como root"
-   exit 1
+   log_warning "Estás ejecutando este script como root. Aunque es posible continuar, se recomienda ejecutarlo como un usuario normal con permisos sudo."
+   read -p "¿Deseas continuar de todos modos? (s/N): " response
+   if [[ "$response" != "s" && "$response" != "S" ]]; then
+      log_error "Actualización cancelada por el usuario"
+      exit 1
+   fi
+   log_warning "Continuando la actualización como root..."
 fi
 
 # Verificar que la aplicación esté instalada

@@ -172,6 +172,88 @@ sudo netstat -tlnp | grep :27017
 - **Actualizaciones**: Mantener el sistema actualizado
 - **Seguridad**: Configurar firewall y accesos restringidos
 
+### 🔄 Solución a Problemas Comunes
+
+#### Error de dependencia libssl1.1 al instalar MongoDB
+
+Si encuentras este error al instalar MongoDB:
+```
+The following packages have unmet dependencies: 
+  mongodb-org-mongos : Depends: libssl1.1 (>= 1.1.1) but it is not installable 
+  mongodb-org-server : Depends: libssl1.1 (>= 1.1.1) but it is not installable 
+E: Unable to correct problems, you have held broken packages.
+```
+
+Solución para Ubuntu 22.04 o superior:
+
+```bash
+# Descargar e instalar libssl1.1 manualmente
+wget http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+sudo dpkg -i libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+
+# Luego continuar con la instalación de MongoDB
+sudo apt update
+sudo apt install -y mongodb-org
+```
+
+Alternativamente, puedes usar Docker para ejecutar MongoDB sin problemas de dependencias:
+
+```bash
+# Instalar Docker si no está instalado
+sudo apt install -y docker.io
+
+# Iniciar contenedor de MongoDB
+sudo docker run -d -p 27017:27017 --name mongodb mongo:5.0
+
+# Configurar para iniciar con el sistema
+sudo systemctl enable docker
+```
+
+#### Error al clonar el repositorio: directorio ya existe
+
+Si al ejecutar el script de instalación aparece este error:
+```
+[INFO] Clonando repositorio... 
+fatal: destination path '/opt/tractoreando' already exists and is not an empty directory.
+```
+
+Tienes dos opciones:
+
+1. **Eliminar el directorio existente** (si no contiene datos importantes):
+
+```bash
+# Eliminar el directorio existente
+sudo rm -rf /opt/tractoreando
+
+# Volver a ejecutar el script de instalación
+./install.sh
+```
+
+2. **Actualizar la instalación existente** (si ya tenías una versión anterior):
+
+```bash
+# Ir al directorio existente
+cd /opt/tractoreando
+
+# Actualizar desde el repositorio
+git pull
+
+# Ejecutar el script de actualización
+./update.sh
+```
+
+Si el directorio existe pero no es un repositorio git válido:
+
+```bash
+# Hacer copia de seguridad de archivos importantes
+sudo mkdir -p /opt/backup
+sudo cp -r /opt/tractoreando/datos_importantes /opt/backup/
+
+# Eliminar y reinstalar
+sudo rm -rf /opt/tractoreando
+./install.sh
+```
+
 ## 🚀 Instalación Rápida
 
 ### Opción 1: Instalación Automática (Recomendada)
