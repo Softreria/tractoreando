@@ -17,7 +17,7 @@ const mongoOptions = {
   useUnifiedTopology: true,
   serverSelectionTimeoutMS: 30000,
   socketTimeoutMS: 60000,
-  bufferMaxEntries: 0,
+  bufferCommands: false,
   maxPoolSize: 10,
   minPoolSize: 2,
   maxIdleTimeMS: 30000,
@@ -234,6 +234,7 @@ async function createCompanies(template, options = {}) {
 async function createBranches(companies, template, options = {}) {
   log('🏢 Creando sucursales...', 'cyan');
   
+  const { tempAdminId } = options;
   const branches = [];
   
   companies.forEach((company, index) => {
@@ -243,7 +244,9 @@ async function createBranches(companies, template, options = {}) {
     for (let i = 0; i < branchCount; i++) {
       branches.push({
         name: `Sucursal ${i + 1}`,
+        code: `SUC${index + 1}${String(i + 1).padStart(2, '0')}`,
         company: company._id,
+        createdBy: tempAdminId,
         address: {
           street: `Calle Sucursal ${i + 1}, ${(i + 1) * 10}`,
           city: company.address.city,
@@ -336,33 +339,43 @@ async function createUsers(companies, branches, template, options = {}) {
 }
 
 // Función para crear vehículos
-async function createVehicles(companies, branches, template, options = {}) {
+async function createVehicles(companies, branches, users, template, options = {}) {
   log('🚛 Creando vehículos...', 'cyan');
   
   const vehicles = [];
-  const vehicleTypes = template.vehicleTypes || ['Camión', 'Furgoneta', 'Tráiler'];
+  const vehicleTypeMap = {
+    'Camión': 'camion',
+    'Furgoneta': 'van',
+    'Tráiler': 'trailer',
+    'Autobús': 'autobus',
+    'Motocicleta': 'motocicleta'
+  };
   
   companies.forEach(company => {
     const companyBranches = branches.filter(b => b.company.toString() === company._id.toString());
+    const companyUsers = users.filter(u => u.company && u.company.toString() === company._id.toString());
     const vehicleCount = Math.floor(Math.random() * 8) + 5; // 5-12 vehículos por empresa
     
     for (let i = 0; i < vehicleCount; i++) {
       const year = 2015 + Math.floor(Math.random() * 9); // 2015-2023
+      const templateType = template.vehicleTypes[Math.floor(Math.random() * template.vehicleTypes.length)];
       
       vehicles.push({
-        licensePlate: `${Math.random().toString(36).substr(2, 3).toUpperCase()}-${Math.floor(Math.random() * 9000) + 1000}`,
-        brand: ['Mercedes', 'Volvo', 'Scania', 'MAN', 'Iveco'][Math.floor(Math.random() * 5)],
+        plateNumber: `${Math.random().toString(36).substr(2, 3).toUpperCase()}-${Math.floor(Math.random() * 9000) + 1000}`,
+        make: ['Mercedes', 'Volvo', 'Scania', 'MAN', 'Iveco'][Math.floor(Math.random() * 5)],
         model: `Modelo ${year}`,
         year: year,
-        type: vehicleTypes[Math.floor(Math.random() * vehicleTypes.length)],
+        vehicleType: vehicleTypeMap[templateType] || 'camion',
         company: company._id,
         branch: companyBranches[i % companyBranches.length]?._id,
-        status: ['active', 'maintenance', 'inactive'][Math.floor(Math.random() * 3)],
-        mileage: Math.floor(Math.random() * 200000) + 10000,
-        specifications: {
-          engine: `Motor ${year}`,
-          fuelType: ['Diesel', 'Gasolina', 'Híbrido'][Math.floor(Math.random() * 3)],
-          capacity: `${Math.floor(Math.random() * 20) + 5} toneladas`
+        createdBy: companyUsers[i % companyUsers.length]?._id || users[0]._id,
+        status: ['activo', 'en_mantenimiento', 'fuera_de_servicio'][Math.floor(Math.random() * 3)],
+        odometer: {
+          current: Math.floor(Math.random() * 200000) + 10000,
+          unit: 'km'
+        },
+        engine: {
+          type: ['diesel', 'gasolina', 'hibrido'][Math.floor(Math.random() * 3)]
         },
         createdAt: new Date(),
         updatedAt: new Date()
@@ -379,30 +392,55 @@ async function createVehicles(companies, branches, template, options = {}) {
 }
 
 // Función para crear mantenimientos
-async function createMaintenance(vehicles, template, options = {}) {
+async function createMaintenance(vehicles, users, template, options = {}) {
   log('🔧 Creando registros de mantenimiento...', 'cyan');
   
   const maintenances = [];
-  const maintenanceTypes = template.maintenanceTypes || ['Preventivo', 'Correctivo', 'Inspección'];
+  
+  // Mapeo de tipos de mantenimiento a valores válidos del enum
+  const typeMap = {
+    'Preventivo': 'preventivo',
+    'Correctivo': 'correctivo',
+    'Inspección': 'inspeccion',
+    'Reparación': 'correctivo',
+    'Emergencia': 'emergencia'
+  };
+  
+  // Valores válidos para status
+  const validStatuses = ['programado', 'en_proceso', 'pausado', 'completado', 'cancelado', 'pendiente_aprobacion', 'pendiente_partes'];
   
   vehicles.forEach(vehicle => {
-    const maintenanceCount = Math.floor(Math.random() * 5) + 2; // 2-6 mantenimientos por vehículo
+    const maintenanceCount = Math.floor(Math.random() * 3) + 1; // 1-3 mantenimientos por vehículo
     
     for (let i = 0; i < maintenanceCount; i++) {
       const daysAgo = Math.floor(Math.random() * 365);
       const maintenanceDate = new Date();
       maintenanceDate.setDate(maintenanceDate.getDate() - daysAgo);
       
+      const templateType = template.maintenanceTypes[Math.floor(Math.random() * template.maintenanceTypes.length)];
+      const mappedType = typeMap[templateType] || 'preventivo';
+      
+      // Seleccionar un usuario aleatorio como creador
+      const randomUser = users[Math.floor(Math.random() * users.length)];
+      
       maintenances.push({
         vehicle: vehicle._id,
         company: vehicle.company,
-        type: maintenanceTypes[Math.floor(Math.random() * maintenanceTypes.length)],
-        description: `Mantenimiento ${maintenanceTypes[Math.floor(Math.random() * maintenanceTypes.length)].toLowerCase()} del vehículo`,
-        date: maintenanceDate,
-        mileage: vehicle.mileage - Math.floor(Math.random() * 50000),
-        cost: Math.floor(Math.random() * 2000) + 100,
-        status: ['completed', 'pending', 'in_progress'][Math.floor(Math.random() * 3)],
-        notes: `Notas del mantenimiento ${i + 1}`,
+        branch: vehicle.branch,
+        workOrderNumber: `WO-${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${i}`,
+        type: mappedType,
+        title: `Mantenimiento ${templateType} - ${vehicle.plateNumber}`,
+        description: `Mantenimiento ${templateType.toLowerCase()} programado para el vehículo ${vehicle.plateNumber}`,
+        scheduledDate: maintenanceDate,
+        odometerReading: Math.max(0, (vehicle.odometer?.current || 0) - Math.floor(Math.random() * 10000)),
+        status: validStatuses[Math.floor(Math.random() * validStatuses.length)],
+        services: [{
+          category: 'motor',
+          description: `Revisión de ${templateType.toLowerCase()}`,
+          estimatedHours: Math.floor(Math.random() * 8) + 1,
+          completed: Math.random() > 0.5
+        }],
+        createdBy: randomUser._id,
         createdAt: maintenanceDate,
         updatedAt: maintenanceDate
       });
@@ -454,21 +492,35 @@ async function loadData(type = 'sample', options = {}) {
     
     // Crear datos
     const companies = await createCompanies(template, { useBatches });
-    const branches = await createBranches(companies, template, { useBatches });
+    
+    // Crear un usuario administrador temporal para las sucursales
+    const tempAdmin = await User.create({
+      firstName: 'Admin',
+      lastName: 'Temporal',
+      email: 'temp@admin.com',
+      password: await bcrypt.hash('temp123', 10),
+      role: 'super_admin',
+      company: companies[0]._id,
+      isActive: true
+    });
+    
+    const branches = await createBranches(companies, template, { useBatches, tempAdminId: tempAdmin._id });
     
     let users = [];
     if (!skipUsers) {
       users = await createUsers(companies, branches, template, { useBatches });
+      // Eliminar el usuario temporal
+      await User.findByIdAndDelete(tempAdmin._id);
     }
     
     let vehicles = [];
     if (!skipVehicles) {
-      vehicles = await createVehicles(companies, branches, template, { useBatches });
+      vehicles = await createVehicles(companies, branches, users, template, { useBatches });
     }
     
     let maintenances = [];
-    if (!skipMaintenance && vehicles.length > 0) {
-      maintenances = await createMaintenance(vehicles, template, { useBatches });
+    if (!skipMaintenance && vehicles.length > 0 && users.length > 0) {
+      maintenances = await createMaintenance(vehicles, users, template, { useBatches });
     }
     
     // Resumen

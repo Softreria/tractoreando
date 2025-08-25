@@ -388,7 +388,7 @@ verify_installation() {
     echo "• Estado de PM2: sudo -u $APP_USER pm2 status"
     echo "• Logs de aplicación: sudo -u $APP_USER pm2 logs"
     echo "• Logs de Nginx: sudo tail -f /var/log/nginx/$APP_NAME-*.log"
-    echo "• Diagnóstico MongoDB: node $APP_DIR/diagnose-mongodb-production.js"
+    echo "• Diagnóstico MongoDB: node $APP_DIR/diagnose-system.js --mongo-only"
     echo "• Reiniciar aplicación: sudo -u $APP_USER pm2 restart all"
     echo "• Reiniciar Nginx: sudo systemctl restart nginx"
     echo ""

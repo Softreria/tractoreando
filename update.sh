@@ -466,7 +466,7 @@ EOF
             log_info "1. Verificar logs: sudo journalctl -u mongod -f"
             log_info "2. Verificar configuración: sudo nano /etc/mongod.conf"
             log_info "3. Verificar permisos: sudo chown -R mongodb:mongodb /var/lib/mongodb"
-            log_info "4. Ejecutar script de diagnóstico: node diagnose-mongodb-production.js"
+            log_info "4. Ejecutar script de diagnóstico: node diagnose-system.js --mongo-only"
             return 1
         fi
     fi
@@ -814,10 +814,10 @@ run_migrations() {
     fi
     
     # Ejecutar script de carga de datos si existe y la base está vacía
-    if [[ -f "load-data-production.js" ]]; then
+    if [[ -f "data-loader.js" ]]; then
         log_info "Verificando si es necesario cargar datos iniciales..."
         # Aquí podrías agregar lógica para verificar si la base de datos está vacía
-        # y ejecutar load-data-production.js si es necesario
+        # y ejecutar data-loader.js si es necesario
     fi
 }
 
@@ -849,7 +849,7 @@ update_app() {
         log_info "Soluciones:"
         log_info "1. Ejecutar script de instalación: ./install.sh"
         log_info "2. Verificar logs de MongoDB: sudo journalctl -u mongod -f"
-        log_info "3. Ejecutar diagnóstico: node diagnose-mongodb-production.js"
+        log_info "3. Ejecutar diagnóstico: node diagnose-system.js --mongo-only"
         exit 1
     fi
     
@@ -925,7 +925,7 @@ update_app() {
         fi
         
         log_info "Comandos de diagnóstico:"
-        log_info "- Verificar MongoDB: node diagnose-mongodb-production.js"
+        log_info "- Verificar MongoDB: node diagnose-system.js --mongo-only"
         log_info "- Verificar PM2: pm2 status"
         log_info "- Verificar logs: pm2 logs $APP_NAME"
         

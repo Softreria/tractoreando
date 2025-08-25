@@ -327,7 +327,7 @@ sudo systemctl start mongodb
 sudo systemctl enable mongodb
 
 # Cargar datos de ejemplo (opcional)
-node load-spanish-data.js
+node data-loader.js spanish
 ```
 
 ## 📱 Uso de la Aplicación
@@ -337,7 +337,7 @@ node load-spanish-data.js
 #### Opción 1: Cargar Datos de Ejemplo (Recomendada)
 ```bash
 # Cargar datos de ejemplo españoles con usuarios predefinidos
-node load-spanish-data.js
+node data-loader.js spanish
 ```
 
 Credenciales del administrador:

@@ -91,10 +91,10 @@ apply_solution() {
             ;;
         4)
             echo "\n🔧 Aplicando solución: Optimización de timeouts"
-            if [ -f "fix-mongodb-timeout.js" ]; then
-                node fix-mongodb-timeout.js
-            else
-                echo "⚠️ Script fix-mongodb-timeout.js no encontrado"
+            if [ -f "diagnose-system.js" ]; then
+    node diagnose-system.js --optimize-only
+else
+    echo "⚠️ Script diagnose-system.js no encontrado"
                 echo "💡 Aplicando configuración básica de timeouts..."
                 
                 # Crear configuración básica de timeouts
@@ -151,9 +151,9 @@ EOF
 test_data_loading() {
     echo "\n🧪 Probando carga de datos..."
     
-    if [ -f "load-data-production.js" ]; then
+    if [ -f "data-loader.js" ]; then
         echo "📦 Usando script optimizado de carga de datos"
-        if timeout 300 node load-data-production.js; then
+        if timeout 300 node data-loader.js production; then
             echo "✅ Carga de datos exitosa"
             return 0
         else
@@ -161,9 +161,9 @@ test_data_loading() {
         fi
     fi
     
-    if [ -f "load-spanish-data.js" ]; then
-        echo "📦 Usando script original de carga de datos"
-        if timeout 300 node load-spanish-data.js; then
+    if [ -f "data-loader.js" ]; then
+        echo "📦 Usando script de datos españoles"
+        if timeout 300 node data-loader.js spanish; then
             echo "✅ Carga de datos exitosa"
             return 0
         else
@@ -193,8 +193,8 @@ main() {
         echo "\n❌ Error aplicando solución"
         echo "💡 Intenta ejecutar manualmente:"
         echo "   • ./fix-mongodb-connection.sh"
-        echo "   • node fix-mongodb-timeout.js"
-        echo "   • node diagnose-mongodb-production.js"
+        echo "   • node diagnose-system.js --optimize-only"
+        echo "   • node diagnose-system.js --mongo-only"
         exit 1
     fi
     
@@ -210,8 +210,8 @@ main() {
     else
         echo "\n⚠️ MongoDB funciona pero hay problemas con la carga de datos"
         echo "💡 Puedes intentar cargar los datos manualmente:"
-        echo "   • node load-data-production.js"
-        echo "   • node load-spanish-data.js"
+        echo "   • node data-loader.js production"
+        echo "   • node data-loader.js spanish"
     fi
     
     echo "\n📋 Comandos útiles para el futuro:"

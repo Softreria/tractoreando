@@ -1306,7 +1306,7 @@ main() {
     echo "   • Reiniciar app: sudo -u $APP_USER pm2 restart all"
     echo "   • Estado de la app: sudo -u $APP_USER pm2 status"
     echo "   • Logs de Nginx: sudo tail -f /var/log/nginx/$APP_NAME-*.log"
-    echo "   • Diagnóstico: node diagnose-mongodb-production.js"
+    echo "   • Diagnóstico: node diagnose-system.js --mongo-only"
     echo ""
     echo "⚠️  IMPORTANTE: Configura las variables de entorno en $APP_DIR/.env"
     echo "   especialmente EMAIL_* para el envío de correos"

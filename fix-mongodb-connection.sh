@@ -235,7 +235,7 @@ main() {
     echo "   • Ver logs: tail -f /var/log/mongodb/mongod.log"
     echo "   • Conectar: mongosh"
     echo "   • Reiniciar: systemctl restart mongod"
-    echo "\n✨ Ahora puedes ejecutar: node load-spanish-data.js"
+    echo "\n✨ Ahora puedes ejecutar: node data-loader.js spanish"
 }
 
 # Ejecutar función principal
