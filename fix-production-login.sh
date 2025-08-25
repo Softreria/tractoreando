@@ -72,8 +72,8 @@ fix_production_login() {
         JWT_SECRET=$(openssl rand -base64 64 | tr -d "\n")
         
         # Actualizar variables críticas
-        $SUDO_CMD sed -i "s/JWT_SECRET=.*/JWT_SECRET=$JWT_SECRET/g" "$APP_DIR/.env"
-        $SUDO_CMD sed -i "s/NODE_ENV=.*/NODE_ENV=production/g" "$APP_DIR/.env"
+        $SUDO_CMD sed -i "s|JWT_SECRET=.*|JWT_SECRET=$JWT_SECRET|g" "$APP_DIR/.env"
+    $SUDO_CMD sed -i "s|NODE_ENV=.*|NODE_ENV=production|g" "$APP_DIR/.env"
         
         log_success "Archivo .env creado y configurado"
     else
