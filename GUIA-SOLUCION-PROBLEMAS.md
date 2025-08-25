@@ -56,6 +56,7 @@ grep -E "(JWT_SECRET|MONGODB_URI|NODE_ENV)" .env
 - Error: "ECONNREFUSED ::1:27017"
 - Error: "MongooseError: Operation buffering timed out"
 - No se puede conectar a la base de datos
+- Mensaje: "❌ Error durante la carga de datos: connect ECONNREFUSED ::1:27017"
 
 ### 🔍 **Diagnóstico**
 ```bash
@@ -74,24 +75,120 @@ node diagnose-system.js --mongo-only
 
 ### 🛠️ **Solución Manual**
 
-#### Verificar estado de MongoDB
+#### 1. Verificar estado del servicio MongoDB
+
+**En servidores Linux (Ubuntu/CentOS):**
 ```bash
-# Verificar si MongoDB está ejecutándose
+# Verificar estado
 sudo systemctl status mongod
 
 # Si no está activo, iniciarlo
 sudo systemctl start mongod
 sudo systemctl enable mongod
+
+# Verificar logs si hay problemas
+sudo journalctl -u mongod -f
 ```
 
-#### Verificar puerto 27017
+**En macOS (desarrollo local):**
 ```bash
-# Verificar si el puerto está en uso
+# Verificar estado
+brew services list | grep mongo
+
+# Iniciar si es necesario
+brew services start mongodb-community
+```
+
+#### 2. Verificar conectividad de red
+
+```bash
+# Verificar que MongoDB esté escuchando
+sudo netstat -tlnp | grep 27017
+# o en macOS:
 lsof -i :27017
 
-# Verificar conexión local
-mongo --eval "db.adminCommand('ismaster')"
+# Probar conexión directa
+mongosh --host 127.0.0.1 --port 27017
 ```
+
+#### 3. Configurar archivo .env para producción
+
+**Problema común:** El archivo `data-loader.js` usa `process.env.MONGODB_URI` pero en producción puede no estar configurado correctamente.
+
+**Solución:**
+1. Copiar el archivo de configuración de producción:
+   ```bash
+   # En el servidor de producción
+   cp .env.production .env
+   ```
+
+2. Editar la URI de MongoDB en `.env`:
+   ```bash
+   # Para conexión local en producción
+   MONGODB_URI=mongodb://127.0.0.1:27017/tractoreando_prod
+   
+   # Para conexión remota (si MongoDB está en otro servidor)
+   MONGODB_URI=mongodb://usuario:password@ip-servidor:27017/tractoreando_prod
+   ```
+
+#### 4. Resolver problemas IPv6 vs IPv4
+
+**Si el error muestra `::1:27017` (IPv6):**
+```bash
+# Cambiar localhost por IP específica en .env
+MONGODB_URI=mongodb://127.0.0.1:27017/tractoreando_prod
+```
+
+#### 5. Configurar MongoDB para acceso de red
+
+**Editar configuración de MongoDB:**
+```bash
+sudo nano /etc/mongod.conf
+```
+
+**Configuración recomendada:**
+```yaml
+# /etc/mongod.conf
+net:
+  port: 27017
+  bindIp: 127.0.0.1,0.0.0.0  # Para acceso local y remoto
+
+security:
+  authorization: enabled  # Recomendado para producción
+```
+
+**Reiniciar MongoDB después de cambios:**
+```bash
+sudo systemctl restart mongod
+```
+
+#### 6. Verificar firewall (en producción)
+
+```bash
+# Ubuntu/Debian
+sudo ufw status
+sudo ufw allow 27017  # Solo si es necesario acceso externo
+
+# CentOS/RHEL
+sudo firewall-cmd --list-ports
+sudo firewall-cmd --add-port=27017/tcp --permanent
+sudo firewall-cmd --reload
+```
+
+#### 7. Probar la carga de datos
+
+```bash
+# Verificar que el archivo .env esté cargado
+node -e "require('dotenv').config(); console.log('MONGODB_URI:', process.env.MONGODB_URI);"
+
+# Probar carga de datos
+node data-loader.js sample
+```
+
+**Configuración específica para producción:**
+- Usar base de datos separada: `tractoreando_prod`
+- Configurar autenticación MongoDB si es necesario
+- Asegurar que el directorio `/opt/tractoreando/` tenga los permisos correctos
 
 #### Instalar MongoDB (si no está instalado)
 ```bash

@@ -658,7 +658,23 @@ setup_environment() {
     
     # Crear archivo .env para producción
     log_info "Generando archivo .env de producción..."
-    sudo -u "$APP_USER" tee "$APP_DIR/.env" > /dev/null <<EOF
+    
+    # Copiar desde .env.production si existe
+    if [[ -f "$APP_DIR/.env.production" ]]; then
+        log_info "Copiando configuración desde .env.production..."
+        sudo -u "$APP_USER" cp "$APP_DIR/.env.production" "$APP_DIR/.env"
+        
+        # Actualizar MONGODB_URI para usar 127.0.0.1 en lugar de localhost
+        log_info "Configurando MongoDB URI para producción..."
+        sudo -u "$APP_USER" sed -i "s|MONGODB_URI=mongodb://localhost:27017|MONGODB_URI=mongodb://127.0.0.1:27017|g" "$APP_DIR/.env"
+        
+        # Actualizar nombre de base de datos si es necesario
+        sudo -u "$APP_USER" sed -i "s|/tractoreando_prod|/$DB_NAME|g" "$APP_DIR/.env"
+        
+        log_success "Archivo .env configurado desde .env.production"
+    else
+        log_warning "No se encontró .env.production, creando archivo .env básico..."
+        sudo -u "$APP_USER" tee "$APP_DIR/.env" > /dev/null <<EOF
 # =============================================================================
 # CONFIGURACIÓN DE PRODUCCIÓN - TRACTOREANDO
 # Generado automáticamente: $(date)
@@ -670,7 +686,7 @@ PORT=$PORT_BACKEND
 HOST=0.0.0.0
 
 # ===== BASE DE DATOS MONGODB =====
-MONGODB_URI=mongodb://localhost:27017/$DB_NAME
+MONGODB_URI=mongodb://127.0.0.1:27017/$DB_NAME
 DB_NAME=$DB_NAME
 
 # Configuración de timeouts para MongoDB
@@ -903,6 +919,7 @@ SOURCEMAPS_ENABLED=false
 # DEBUG=false
 # VERBOSE_LOGGING=false
 EOF
+    fi
     
     # Establecer permisos seguros para el archivo .env
     sudo chmod 600 "$APP_DIR/.env"

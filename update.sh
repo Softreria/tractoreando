@@ -543,21 +543,37 @@ EOF
 create_basic_env_file() {
     log_info "Creando archivo .env básico..."
     
-    # Generar secretos seguros
-    local jwt_secret
-    local session_secret
-    if command -v openssl &> /dev/null; then
-        jwt_secret=$(openssl rand -hex 32)
-        session_secret=$(openssl rand -hex 32)
+    # Copiar desde .env.production si existe
+    if [[ -f "$APP_DIR/.env.production" ]]; then
+        log_info "Copiando configuración desde .env.production..."
+        sudo -u "$APP_USER" cp "$APP_DIR/.env.production" "$APP_DIR/.env"
+        
+        # Actualizar MONGODB_URI para usar 127.0.0.1 en lugar de localhost
+        log_info "Configurando MongoDB URI para producción..."
+        sudo -u "$APP_USER" sed -i "s|MONGODB_URI=mongodb://localhost:27017|MONGODB_URI=mongodb://127.0.0.1:27017|g" "$APP_DIR/.env"
+        
+        # Actualizar nombre de base de datos si es necesario
+        sudo -u "$APP_USER" sed -i "s|/tractoreando_prod|/tractoreando_prod|g" "$APP_DIR/.env"
+        
+        log_success "Archivo .env configurado desde .env.production"
     else
-        jwt_secret=$(head -c 32 /dev/urandom | base64)
-        session_secret=$(head -c 32 /dev/urandom | base64)
-    fi
-    
-    # Obtener IP del servidor
-    local server_ip=$(hostname -I | awk '{print $1}' || echo 'localhost')
-    
-    sudo -u "$APP_USER" tee "$APP_DIR/.env" > /dev/null <<EOF
+        log_warning "No se encontró .env.production, creando archivo .env básico..."
+        
+        # Generar secretos seguros
+        local jwt_secret
+        local session_secret
+        if command -v openssl &> /dev/null; then
+            jwt_secret=$(openssl rand -hex 32)
+            session_secret=$(openssl rand -hex 32)
+        else
+            jwt_secret=$(head -c 32 /dev/urandom | base64)
+            session_secret=$(head -c 32 /dev/urandom | base64)
+        fi
+        
+        # Obtener IP del servidor
+        local server_ip=$(hostname -I | awk '{print $1}' || echo 'localhost')
+        
+        sudo -u "$APP_USER" tee "$APP_DIR/.env" > /dev/null <<EOF
 # =============================================================================
 # CONFIGURACIÓN DE PRODUCCIÓN - TRACTOREANDO
 # Generado automáticamente: $(date)
@@ -569,7 +585,7 @@ PORT=5000
 HOST=0.0.0.0
 
 # ===== BASE DE DATOS MONGODB =====
-MONGODB_URI=mongodb://localhost:27017/tractoreando_prod
+MONGODB_URI=mongodb://127.0.0.1:27017/tractoreando_prod
 
 # Configuración de timeouts para MongoDB
 MONGODB_CONNECT_TIMEOUT=30000
@@ -787,10 +803,11 @@ LIVE_RELOAD_ENABLED=false
 SOURCEMAPS_ENABLED=false
 EOF
     
-    sudo chmod 600 "$APP_DIR/.env"
-    sudo chown "$APP_USER":"$APP_USER" "$APP_DIR/.env"
-    
-    log_success "Archivo .env básico creado"
+        sudo chmod 600 "$APP_DIR/.env"
+        sudo chown "$APP_USER":"$APP_USER" "$APP_DIR/.env"
+        
+        log_success "Archivo .env básico creado"
+    fi
 }
 
 # Función para ejecutar migraciones de base de datos
