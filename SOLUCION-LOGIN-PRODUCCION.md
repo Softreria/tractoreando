@@ -24,11 +24,13 @@ Se ejecutó un script de diagnóstico que reveló:
 
 2. **Conectarse al servidor y ejecutar:**
    ```bash
-   ssh usuario@servidor
+   ssh root@servidor
    cd /tmp
    chmod +x fix-production-login.sh
    ./fix-production-login.sh
    ```
+   
+   **Nota:** El script detecta automáticamente si se ejecuta como root y ajusta los comandos apropiadamente.
 
 3. **El script automáticamente:**
    - Crea un backup del `.env` actual (si existe)
@@ -43,12 +45,12 @@ Si prefieres hacerlo manualmente:
 
 1. **Conectarse al servidor:**
    ```bash
-   ssh usuario@servidor
+   ssh root@servidor
    ```
 
 2. **Crear archivo .env:**
    ```bash
-   sudo nano /opt/tractoreando/.env
+   nano /opt/tractoreando/.env
    ```
 
 3. **Agregar contenido mínimo:**
@@ -89,13 +91,13 @@ Si prefieres hacerlo manualmente:
 
 5. **Configurar permisos:**
    ```bash
-   sudo chown tractoreando:tractoreando /opt/tractoreando/.env
-   sudo chmod 600 /opt/tractoreando/.env
+   chown tractoreando:tractoreando /opt/tractoreando/.env
+   chmod 600 /opt/tractoreando/.env
    ```
 
 6. **Reiniciar aplicación:**
    ```bash
-   sudo -u tractoreando pm2 restart tractoreando
+   su - tractoreando -c "pm2 restart tractoreando"
    ```
 
 ## 🔧 Comandos de Verificación
@@ -109,7 +111,7 @@ Si prefieres hacerlo manualmente:
 ```bash
 ./fix-production-login.sh logs
 # o directamente:
-sudo -u tractoreando pm2 logs tractoreando
+su - tractoreando -c "pm2 logs tractoreando"
 ```
 
 ### Probar API manualmente:
@@ -120,7 +122,7 @@ curl http://localhost:5000/api/health
 ### Verificar archivo .env:
 ```bash
 ls -la /opt/tractoreando/.env
-sudo cat /opt/tractoreando/.env | grep JWT_SECRET
+cat /opt/tractoreando/.env | grep JWT_SECRET
 ```
 
 ## 📋 Checklist Post-Solución
@@ -142,22 +144,22 @@ npm install -g pm2
 
 ### 2. "Permission denied"
 ```bash
-sudo chown -R tractoreando:tractoreando /opt/tractoreando
+chown -R tractoreando:tractoreando /opt/tractoreando
 ```
 
 ### 3. "MongoDB connection failed"
 Verificar que MongoDB esté corriendo:
 ```bash
-sudo systemctl status mongod
-sudo systemctl start mongod
+systemctl status mongod
+systemctl start mongod
 ```
 
 ### 4. "Port 5000 already in use"
 ```bash
 # Encontrar proceso que usa el puerto
-sudo lsof -ti:5000
+lsof -ti:5000
 # Detener proceso
-sudo kill <PID>
+kill <PID>
 ```
 
 ## 📞 Soporte
@@ -171,13 +173,13 @@ Si el problema persiste después de seguir estos pasos:
 
 2. Revisar logs detallados:
    ```bash
-   sudo -u tractoreando pm2 logs tractoreando --lines 100
+   su - tractoreando -c "pm2 logs tractoreando --lines 100"
    ```
 
 3. Verificar configuración de Nginx (si aplica):
    ```bash
-   sudo nginx -t
-   sudo systemctl status nginx
+   nginx -t
+   systemctl status nginx
    ```
 
 ## 🔐 Seguridad
