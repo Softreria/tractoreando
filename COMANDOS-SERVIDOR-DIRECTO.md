@@ -1,41 +1,25 @@
-# Comandos para Ejecutar Directamente en el Servidor de Producción
+# Comandos para Servidor Detrás de Nginx Proxy Manager
 
-## Información del Servidor
-- **Dominio**: tractoreando.softreria.com
-- **Puerto Backend**: 5001
-- **Directorio de trabajo**: `/opt/tractoreando` (o el que uses)
+## ⚠️ IMPORTANTE: Configuración para Proxy Manager
+
+Este servidor está **detrás de un Nginx Proxy Manager**, por lo que:
+- El backend debe usar puerto **5000** (no 5001)
+- Nginx local debe servir en puerto **80** (sin SSL)
+- El SSL se maneja en el Proxy Manager
+- El acceso público es a través del proxy, no directo
 
 ---
 
-## 1. Actualizar Código en el Servidor
-
-```bash
-# Ir al directorio del proyecto
-cd /opt/tractoreando
-
-# Hacer backup del estado actual
-cp -r . ../tractoreando-backup-$(date +%Y%m%d-%H%M%S)
-
-# Actualizar código desde repositorio
-git pull origin main
-
-# O si subes archivos manualmente, asegúrate de tener estos archivos:
-# - .env.production
-# - frontend/.env.production  
-# - nginx-production.conf
-# - ecosystem.config.js
-```
-
-## 2. Configurar Variables de Entorno
+## 1. Configurar Variables de Entorno
 
 ```bash
 # Crear/actualizar archivo .env.production
 cat > .env.production << 'EOF'
 NODE_ENV=production
-PORT=5001
+PORT=5000
 HOST=0.0.0.0
 
-# URLs base de la aplicación
+# URLs base de la aplicación (a través del proxy)
 BASE_URL=https://tractoreando.softreria.com
 FRONTEND_URL=https://tractoreando.softreria.com
 BACKEND_URL=https://tractoreando.softreria.com/api
@@ -48,7 +32,7 @@ JWT_SECRET=your-super-secret-jwt-key-change-this-in-production-2024
 JWT_EXPIRE=7d
 BCRYPT_ROUNDS=12
 
-# CORS
+# CORS (permitir el dominio del proxy)
 CORS_ORIGIN=https://tractoreando.softreria.com
 CORS_CREDENTIALS=true
 

@@ -151,12 +151,12 @@ echo ""
 echo "4. VERIFICANDO PUERTOS..."
 echo "─────────────────────────"
 
-# Verificar puerto 5001
-if lsof -i:5001 &> /dev/null; then
-    PROCESS_5001=$(lsof -i:5001 | tail -n 1 | awk '{print $1, $2}')
-    echo -e "${GREEN}✓ Puerto 5001 en uso por: $PROCESS_5001${NC}"
+# Verificar puerto 5000 (backend)
+if lsof -i:5000 &> /dev/null; then
+    PROCESS_5000=$(lsof -i:5000 | tail -n 1 | awk '{print $1, $2}')
+    echo -e "${GREEN}✓ Puerto 5000 en uso por: $PROCESS_5000${NC}"
 else
-    echo -e "${YELLOW}⚠ Puerto 5001 libre${NC}"
+    echo -e "${YELLOW}⚠ Puerto 5000 libre${NC}"
 fi
 
 # Verificar puerto 80
@@ -238,10 +238,18 @@ echo "────────────────────────�
 
 # Test local del backend
 echo "Probando backend local..."
-if curl -s -f http://localhost:5001/api/health &> /dev/null; then
-    echo -e "${GREEN}✓ Backend responde en localhost:5001${NC}"
+if curl -s -f http://localhost:5000/api/health &> /dev/null; then
+    echo -e "${GREEN}✓ Backend responde en localhost:5000${NC}"
 else
-    echo -e "${RED}✗ Backend NO responde en localhost:5001${NC}"
+    echo -e "${RED}✗ Backend NO responde en localhost:5000${NC}"
+fi
+
+# Test a través de Nginx local (importante para proxy manager)
+echo "Probando a través de Nginx local..."
+if curl -s -f http://localhost/health &> /dev/null; then
+    echo -e "${GREEN}✓ Nginx local responde en puerto 80${NC}"
+else
+    echo -e "${RED}✗ Nginx local NO responde en puerto 80${NC}"
 fi
 
 # Test del dominio (si está configurado)

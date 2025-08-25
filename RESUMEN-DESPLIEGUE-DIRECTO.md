@@ -1,24 +1,40 @@
-# Resumen: Despliegue Directo en Servidor de Producción
+# Resumen: Despliegue en Servidor Detrás de Nginx Proxy Manager
 
-## 📋 Archivos Creados para el Despliegue
+## ⚠️ CONFIGURACIÓN IMPORTANTE
+
+**Tu servidor está detrás de un Nginx Proxy Manager**, por lo que:
+- ✅ Backend usa puerto **5000** (no 5001)
+- ✅ Nginx local sirve en puerto **80** (sin SSL)
+- ✅ SSL se maneja en el Proxy Manager
+- ✅ Acceso público a través del proxy, no directo
+
+## 📋 Archivos Actualizados para Proxy Manager
 
 ### 1. **COMANDOS-SERVIDOR-DIRECTO.md**
-- Guía completa con todos los comandos para ejecutar directamente en el servidor
-- Incluye configuración de Nginx, SSL, MongoDB, PM2
-- Comandos de verificación y mantenimiento
+- Guía completa adaptada para proxy manager
+- Configuración de Nginx local sin SSL
+- Configuración de firewall para redes privadas
+- Comandos de verificación específicos
 
 ### 2. **verificar-servidor.sh** (ejecutable)
-- Script de verificación automática del estado del servidor
-- Verifica configuración, dependencias, servicios y conectividad
-- Proporciona diagnóstico completo del despliegue
+- Script actualizado para verificar puerto 5000
+- Verificación de Nginx local en puerto 80
+- Diagnóstico específico para proxy manager
 
-## 🚀 Pasos para Despliegue Directo
+### 3. Archivos de configuración actualizados:
+- **`.env.production`** - Puerto 5000
+- **`.env`** - Puerto 5000
+- **`frontend/.env.local`** - API en puerto 5000
+- **`ecosystem.config.js`** - PM2 configurado para puerto 5000
+- **`nginx-production.conf`** - Proxy a puerto 5000
+
+## 🚀 Pasos para Despliegue
 
 ### Paso 1: Subir Archivos al Servidor
 Sube estos archivos a tu servidor en `/opt/tractoreando/`:
+- Todos los archivos del proyecto
 - `COMANDOS-SERVIDOR-DIRECTO.md`
 - `verificar-servidor.sh`
-- Todo el código fuente del proyecto
 
 ### Paso 2: Ejecutar en el Servidor
 ```bash
@@ -28,136 +44,151 @@ ssh usuario@tractoreando.softreria.com
 # Ir al directorio del proyecto
 cd /opt/tractoreando
 
-# Hacer el script ejecutable (si no lo está)
-chmod +x verificar-servidor.sh
-
 # Ejecutar verificación inicial
 ./verificar-servidor.sh
 
 # Seguir los comandos del archivo COMANDOS-SERVIDOR-DIRECTO.md
 ```
 
-## 🔧 Configuración Clave Aplicada
+## 🔧 Configuración Específica para Proxy Manager
 
-### Puerto Cambiado
-- **Problema resuelto**: Puerto 5000 ocupado por AirPlay en macOS
-- **Solución**: Cambio a puerto 5001 en todos los archivos de configuración
-
-### Archivos de Configuración Actualizados
-1. **`.env.production`** - Variables de entorno para producción
-2. **`frontend/.env.production`** - Configuración del frontend
-3. **`nginx-production.conf`** - Configuración de Nginx con proxy a puerto 5001
-4. **`ecosystem.config.js`** - Configuración de PM2
-
-## 📁 Estructura de Archivos en el Servidor
-
+### Arquitectura de Red
 ```
-/opt/tractoreando/
-├── .env.production              # Variables de entorno principales
-├── .env                         # Copia de .env.production
-├── server.js                    # Servidor backend
-├── ecosystem.config.js          # Configuración PM2
-├── package.json                 # Dependencias backend
-├── frontend/
-│   ├── .env.production         # Variables frontend
-│   ├── package.json            # Dependencias frontend
-│   └── build/                  # Build de producción (se genera)
-├── logs/                       # Logs de PM2 (se crea)
-├── COMANDOS-SERVIDOR-DIRECTO.md # Guía de comandos
-└── verificar-servidor.sh       # Script de verificación
+┌─────────────────────┐    ┌─────────────────────┐
+│   Nginx Proxy      │    │   Servidor          │
+│   Manager           │────│   Tractoreando      │
+│   (Otro servidor)   │    │   (Este servidor)   │
+│   - SSL/TLS         │    │   - App: Puerto 5000│
+│   - Dominios        │    │   - Nginx: Puerto 80│
+│   - Certificados    │    │   - Sin SSL local   │
+└─────────────────────┘    └─────────────────────┘
+```
+
+### Configuración en Nginx Proxy Manager
+1. **Domain Names**: `tractoreando.softreria.com`
+2. **Scheme**: `http`
+3. **Forward Hostname/IP**: `[IP_DE_ESTE_SERVIDOR]`
+4. **Forward Port**: `80`
+5. **SSL**: Habilitado en el proxy manager
+
+### Headers Importantes en Proxy Manager
+```nginx
+proxy_set_header Host $host;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header X-Forwarded-Host $host;
+client_max_body_size 50M;
 ```
 
 ## 🌐 URLs y Puertos
 
-- **Dominio**: https://tractoreando.softreria.com
-- **Backend**: Puerto 5001 (interno)
-- **Frontend**: Servido por Nginx en puerto 443 (HTTPS)
-- **API**: https://tractoreando.softreria.com/api/
+- **Dominio público**: https://tractoreando.softreria.com
+- **Backend interno**: http://localhost:5000
+- **Nginx local**: http://localhost:80
+- **API pública**: https://tractoreando.softreria.com/api/
 
-## ✅ Verificaciones Importantes
+## ✅ Verificaciones Críticas
 
-Antes de considerar el despliegue completo, verifica:
+### En el Servidor Tractoreando:
+```bash
+# Backend debe responder
+curl http://localhost:5000/api/health
 
-1. **Servicios ejecutándose**:
-   - MongoDB: `sudo systemctl status mongod`
-   - Nginx: `sudo systemctl status nginx`
-   - PM2: `pm2 status`
+# Nginx local debe responder
+curl http://localhost/health
+curl http://localhost/api/health
 
-2. **Conectividad**:
-   - Backend local: `curl http://localhost:5001/api/health`
-   - Frontend público: `curl https://tractoreando.softreria.com`
-   - API pública: `curl https://tractoreando.softreria.com/api/health`
+# Servicios ejecutándose
+pm2 status
+sudo systemctl status nginx mongod
+```
 
-3. **Certificados SSL**:
-   - Verificar con: `sudo certbot certificates`
+### Desde el Proxy Manager:
+```bash
+# Conectividad de red
+telnet [IP_SERVIDOR_TRACTOREANDO] 80
 
-## 🔍 Comandos de Diagnóstico Rápido
+# Test HTTP
+curl http://[IP_SERVIDOR_TRACTOREANDO]/health
+```
+
+### Acceso Público:
+```bash
+# Frontend
+curl -I https://tractoreando.softreria.com
+
+# API
+curl https://tractoreando.softreria.com/api/health
+```
+
+## 🔍 Diagnóstico Rápido
 
 ```bash
 # Verificación completa automática
 ./verificar-servidor.sh
 
-# Ver logs de la aplicación
-pm2 logs tractoreando
-
-# Estado de todos los servicios
-sudo systemctl status nginx mongod
+# Estado de servicios
 pm2 status
+sudo systemctl status nginx mongod
 
-# Verificar puertos
-netstat -tlnp | grep -E ':(80|443|5001)'
+# Verificar puertos específicos
+netstat -tlnp | grep -E ':(80|5000)'
 
-# Test de conectividad
-curl -I https://tractoreando.softreria.com
-curl https://tractoreando.softreria.com/api/health
+# Logs de aplicación
+pm2 logs tractoreando --lines 20
 ```
 
-## 🚨 Solución de Problemas Comunes
+## 🚨 Problemas Comunes y Soluciones
 
-### Error: Puerto 5001 ocupado
+### ❌ Backend no responde en localhost:5000
 ```bash
-# Ver qué proceso usa el puerto
-lsof -i:5001
+# Verificar PM2
+pm2 status
+pm2 restart tractoreando
 
-# Cambiar a puerto 5002 si es necesario
-# Editar .env.production, ecosystem.config.js y nginx config
+# Verificar puerto
+lsof -i:5000
 ```
 
-### Error: Frontend no carga
+### ❌ Nginx local no responde en puerto 80
 ```bash
-# Verificar que el build existe
-ls -la frontend/build/
+# Verificar configuración
+sudo nginx -t
 
-# Reconstruir si es necesario
-cd frontend && npm run build
+# Reiniciar Nginx
+sudo systemctl restart nginx
+
+# Ver logs
+sudo tail -f /var/log/nginx/error.log
 ```
 
-### Error: MongoDB no conecta
+### ❌ Proxy Manager no puede conectar
 ```bash
-# Verificar estado
-sudo systemctl status mongod
+# Verificar firewall
+sudo ufw status
 
-# Reiniciar si es necesario
-sudo systemctl restart mongod
+# Permitir tráfico desde proxy manager
+sudo ufw allow from [IP_PROXY_MANAGER] to any port 80
+
+# Verificar conectividad
+curl http://localhost/health
 ```
 
-### Error: SSL no funciona
-```bash
-# Verificar certificados
-sudo certbot certificates
-
-# Renovar si es necesario
-sudo certbot renew
-```
+### ❌ API pública no responde
+1. Verificar que el backend local funcione
+2. Verificar que Nginx local funcione
+3. Verificar configuración en Proxy Manager
+4. Verificar DNS del dominio
 
 ## 📞 Próximos Pasos
 
-1. **Sube los archivos** al servidor
-2. **Ejecuta** `./verificar-servidor.sh` para diagnóstico inicial
-3. **Sigue** los comandos en `COMANDOS-SERVIDOR-DIRECTO.md` paso a paso
-4. **Verifica** que todo funcione con las URLs públicas
-5. **Configura** monitoreo y backups según necesidades
+1. **Sube los archivos** actualizados al servidor
+2. **Ejecuta** `./verificar-servidor.sh` para diagnóstico
+3. **Sigue** `COMANDOS-SERVIDOR-DIRECTO.md` paso a paso
+4. **Configura** el proxy host en Nginx Proxy Manager
+5. **Verifica** que todo funcione con las URLs públicas
 
 ---
 
-**Nota**: Todos los comandos están diseñados para ejecutarse directamente en el servidor de producción. No necesitas `scp` ni transferencia de archivos desde tu máquina local.
+**✅ Configuración Completada**: Todos los archivos han sido actualizados para funcionar correctamente detrás de un Nginx Proxy Manager usando el puerto 5000.

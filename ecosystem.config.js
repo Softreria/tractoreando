@@ -45,7 +45,7 @@ module.exports = {
       
       // Configuración de cluster
       kill_timeout: 5000,
-      listen_timeout: 3000,
+      listen_timeout: 8000,
       
       // Variables de entorno específicas
       source_map_support: false,
@@ -58,9 +58,14 @@ module.exports = {
       
       // Configuración de merge logs
       merge_logs: true,
+      combine_logs: true,
       
       // Configuración de tiempo
-      time: true
+      time: true,
+      
+      // Configuración adicional de monitoreo
+      wait_ready: true,
+      env_file: '/opt/tractoreando/.env'
     }
   ],
   
@@ -85,7 +90,7 @@ module.exports = {
       'post-deploy': 'npm install && cd frontend && npm install && npm run build && cd .. && pm2 reload ecosystem.config.js --env staging',
       env: {
         NODE_ENV: 'staging',
-        PORT: 5001
+        PORT: 5000
       }
     }
   }
