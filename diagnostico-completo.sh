@@ -3,7 +3,7 @@
 # Script de Diagnóstico Completo - Tractoreando
 # Identifica y resuelve problemas de acceso
 
-set -e
+# set -e # Comentado para permitir que el script continúe en caso de errores
 
 echo "🔍 Diagnóstico Completo de Tractoreando"
 echo "======================================="
@@ -20,17 +20,23 @@ log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
-# Contadores
-ERRORS=0
-WARNINGS=0
-SUCCESS=0
+# Variables globales
+errors=0
+warnings=0
+successes=0
 
-# Función para incrementar contadores
+# Función para contar resultados
 count_result() {
     case $1 in
-        "success") ((SUCCESS++)) ;;
-        "warning") ((WARNINGS++)) ;;
-        "error") ((ERRORS++)) ;;
+        "success")
+            ((successes++))
+            ;;
+        "error")
+            ((errors++))
+            ;;
+        "warning")
+            ((warnings++))
+            ;;
     esac
 }
 
@@ -39,27 +45,35 @@ check_system_services() {
     echo ""
     log_info "=== VERIFICACIÓN DE SERVICIOS DEL SISTEMA ==="
     
-    local services=("mongod" "nginx")
-    
-    for service in "${services[@]}"; do
-        if systemctl is-active --quiet "$service" 2>/dev/null; then
-            log_success "✓ $service está ejecutándose"
-            count_result "success"
-        else
-            log_error "✗ $service no está ejecutándose"
-            count_result "error"
-            
-            # Intentar iniciar el servicio
-            log_info "Intentando iniciar $service..."
-            if systemctl start "$service" 2>/dev/null; then
-                log_success "✓ $service iniciado correctamente"
-                count_result "success"
-            else
-                log_error "✗ Error al iniciar $service"
-                systemctl status "$service" --no-pager -l
-            fi
+    # MongoDB
+    if pgrep -f mongod >/dev/null 2>&1; then
+        log_success "✓ mongod está ejecutándose"
+        count_result "success"
+    else
+        log_error "✗ mongod no está ejecutándose"
+        log_info "Intentando iniciar MongoDB..."
+        brew services start mongodb-community >/dev/null 2>&1
+        sleep 2
+        if pgrep -f mongod >/dev/null 2>&1; then
+            log_success "✓ MongoDB iniciado correctamente"
         fi
-    done
+        count_result "error"
+    fi
+    
+    # Nginx
+    if pgrep -f nginx >/dev/null 2>&1; then
+        log_success "✓ nginx está ejecutándose"
+        count_result "success"
+    else
+        log_error "✗ nginx no está ejecutándose"
+        log_info "Intentando iniciar Nginx..."
+        brew services start nginx >/dev/null 2>&1 || sudo nginx >/dev/null 2>&1
+        sleep 2
+        if pgrep -f nginx >/dev/null 2>&1; then
+            log_success "✓ Nginx iniciado correctamente"
+        fi
+        count_result "error"
+    fi
 }
 
 # Función para verificar puertos
@@ -73,8 +87,9 @@ check_ports() {
         local port=$(echo "$port_info" | cut -d':' -f1)
         local service=$(echo "$port_info" | cut -d':' -f2)
         
-        if netstat -tlnp 2>/dev/null | grep -q ":$port "; then
-            log_success "✓ Puerto $port ($service) está en uso"
+        if lsof -i :$port >/dev/null 2>&1; then
+            local process=$(lsof -i :$port | tail -n 1 | awk '{print $1}')
+            log_success "✓ Puerto $port ($service) está en uso por $process"
             count_result "success"
         else
             log_error "✗ Puerto $port ($service) no está en uso"
@@ -102,16 +117,33 @@ check_pm2() {
                 log_error "✗ Aplicación Tractoreando no está online en PM2"
                 count_result "error"
                 
+                # Intentar reiniciar
+                log_info "Intentando reiniciar la aplicación..."
+                if [[ -f "/opt/tractoreando/ecosystem.config.js" ]]; then
+                    pm2 restart tractoreando 2>/dev/null || pm2 start /opt/tractoreando/ecosystem.config.js
+                    sleep 3
+                    pm2 status
+                fi
+                
                 # Mostrar estado detallado
                 pm2 show tractoreando 2>/dev/null || true
             fi
         else
             log_error "✗ Aplicación Tractoreando no está configurada en PM2"
             count_result "error"
+            
+            # Intentar iniciar si existe el archivo de configuración
+            if [[ -f "/opt/tractoreando/ecosystem.config.js" ]]; then
+                log_info "Intentando iniciar la aplicación..."
+                pm2 start /opt/tractoreando/ecosystem.config.js
+                sleep 3
+                pm2 status
+            fi
         fi
     else
         log_error "✗ PM2 no está instalado"
         count_result "error"
+        log_info "Para instalar PM2: sudo npm install -g pm2"
     fi
 }
 
@@ -177,25 +209,39 @@ check_connectivity() {
     log_info "=== VERIFICACIÓN DE CONECTIVIDAD ==="
     
     # Verificar frontend local
-    if curl -s -o /dev/null -w "%{http_code}" http://localhost:80 | grep -q "200\|301\|302"; then
-        log_success "✓ Frontend accesible localmente (puerto 80)"
+    local frontend_response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:80 2>/dev/null)
+    if [[ "$frontend_response" =~ ^(200|301|302)$ ]]; then
+        log_success "✓ Frontend accesible localmente (puerto 80) - código: $frontend_response"
         count_result "success"
     else
-        log_error "✗ Frontend no accesible localmente (puerto 80)"
+        log_error "✗ Frontend no accesible localmente (puerto 80) - código: $frontend_response"
+        log_info "Verificando configuración de Nginx..."
+        if [[ -f "/etc/nginx/sites-available/tractoreando" ]]; then
+            log_info "Configuración de Nginx encontrada"
+        else
+            log_warning "⚠ Configuración de Nginx no encontrada"
+        fi
         count_result "error"
     fi
     
     # Verificar backend local
-    if curl -s -o /dev/null -w "%{http_code}" http://localhost:5000 | grep -q "200\|404"; then
-        log_success "✓ Backend accesible localmente (puerto 5000)"
+    local backend_response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5000 2>/dev/null)
+    if [[ "$backend_response" =~ ^(200|404)$ ]]; then
+        log_success "✓ Backend accesible localmente (puerto 5000) - código: $backend_response"
         count_result "success"
     else
-        log_error "✗ Backend no accesible localmente (puerto 5000)"
+        log_error "✗ Backend no accesible localmente (puerto 5000) - código: $backend_response"
+        log_info "Verificando logs del backend..."
+        if [[ -f "$HOME/.pm2/logs/tractoreando-error.log" ]]; then
+            echo "Últimos errores del backend:"
+            tail -n 5 "$HOME/.pm2/logs/tractoreando-error.log"
+        fi
         count_result "error"
     fi
     
     # Verificar API health endpoint
-    if curl -s http://localhost:5000/api/health 2>/dev/null | grep -q "ok\|healthy\|success"; then
+    local health_response=$(curl -s http://localhost:5000/api/health 2>/dev/null)
+    if echo "$health_response" | grep -q "ok\|healthy\|success"; then
         log_success "✓ API health endpoint responde correctamente"
         count_result "success"
     else
@@ -360,15 +406,15 @@ main() {
     echo ""
     echo "🏁 RESUMEN DEL DIAGNÓSTICO"
     echo "========================="
-    echo "✅ Éxitos: $SUCCESS"
-    echo "⚠️  Advertencias: $WARNINGS"
-    echo "❌ Errores: $ERRORS"
+    echo "✅ Éxitos: $successes"
+    echo "⚠️  Advertencias: $warnings"
+    echo "❌ Errores: $errors"
     
     generate_recommendations
     show_access_info
     
     echo ""
-    if [[ $ERRORS -eq 0 ]]; then
+    if [[ $errors -eq 0 ]]; then
         log_success "🎉 Diagnóstico completado - Sistema funcionando correctamente"
         exit 0
     else

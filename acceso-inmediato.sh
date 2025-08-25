@@ -335,10 +335,10 @@ verify_everything() {
     
     # Verificar puertos
     for port in 5000 80 27017; do
-        if netstat -tlnp | grep -q ":$port "; then
+        if lsof -i :$port >/dev/null 2>&1; then
             log_success "✓ Puerto $port está en uso"
         else
-            log_error "✗ Puerto $port no está en uso"
+            log_warning "⚠ Puerto $port no detectado con lsof"
             ((errors++))
         fi
     done

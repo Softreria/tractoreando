@@ -3,17 +3,17 @@ module.exports = {
     {
       name: 'tractoreando-backend',
       script: 'server.js',
-      cwd: '/opt/tractoreando',
+      cwd: process.cwd(),
       instances: 'max', // Usar todos los cores disponibles
       exec_mode: 'cluster',
       env: {
         NODE_ENV: 'production',
-        PORT: 5000,
+        PORT: 8000,
         MONGODB_URI: 'mongodb://localhost:27017/tractoreando_prod',
         JWT_SECRET: 'your-super-secret-jwt-key-change-this',
         JWT_EXPIRE: '7d',
         BCRYPT_ROUNDS: 12,
-        UPLOAD_PATH: '/opt/tractoreando/uploads',
+        UPLOAD_PATH: './uploads',
         MAX_FILE_SIZE: '10mb',
         ALLOWED_FILE_TYPES: 'jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx',
         CORS_ORIGIN: 'http://localhost',
@@ -23,14 +23,14 @@ module.exports = {
       },
       env_development: {
         NODE_ENV: 'development',
-        PORT: 5000,
+        PORT: 8000,
         MONGODB_URI: 'mongodb://localhost:27017/tractoreando_dev',
         LOG_LEVEL: 'debug'
       },
       // Configuración de logs
-      log_file: '/opt/tractoreando/logs/combined.log',
-      out_file: '/opt/tractoreando/logs/out.log',
-      error_file: '/opt/tractoreando/logs/error.log',
+      log_file: './logs/combined.log',
+      out_file: './logs/out.log',
+      error_file: './logs/error.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       
       // Configuración de reinicio automático
@@ -65,7 +65,7 @@ module.exports = {
       
       // Configuración adicional de monitoreo
       wait_ready: true,
-      env_file: '/opt/tractoreando/.env'
+      env_file: './.env'
     }
   ],
   
