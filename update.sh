@@ -243,10 +243,32 @@ update_from_git() {
             return 1
         fi
         
-        if ! sudo -u "$APP_USER" git checkout -b "$BRANCH" "origin/$BRANCH"; then
-            log_error "Error al cambiar a la rama $BRANCH"
-            log_error "Verifica que la rama exista en el repositorio remoto"
-            return 1
+        # Guardar cambios locales si los hay antes de cambiar de rama
+        if ! sudo -u "$APP_USER" git diff --quiet 2>/dev/null || ! sudo -u "$APP_USER" git diff --cached --quiet 2>/dev/null; then
+            log_info "Detectados cambios locales, guardándolos..."
+            sudo -u "$APP_USER" git add . || true
+            sudo -u "$APP_USER" git stash push -m "Auto-stash before branch switch $(date)" || true
+        fi
+        
+        # Verificar si la rama existe localmente
+        if sudo -u "$APP_USER" git show-ref --verify --quiet "refs/heads/$BRANCH"; then
+            # La rama existe localmente, cambiar a ella
+            if ! sudo -u "$APP_USER" git checkout "$BRANCH"; then
+                log_error "Error al cambiar a la rama $BRANCH"
+                return 1
+            fi
+            # Actualizar la rama local con la remota
+            if ! sudo -u "$APP_USER" git reset --hard "origin/$BRANCH"; then
+                log_error "Error al actualizar la rama $BRANCH desde el remoto"
+                return 1
+            fi
+        else
+            # La rama no existe localmente, crearla desde el remoto
+            if ! sudo -u "$APP_USER" git checkout -b "$BRANCH" "origin/$BRANCH"; then
+                log_error "Error al crear y cambiar a la rama $BRANCH"
+                log_error "Verifica que la rama exista en el repositorio remoto"
+                return 1
+            fi
         fi
     else
         # Verificar/actualizar remote origin
@@ -256,9 +278,9 @@ update_from_git() {
             sudo -u "$APP_USER" git remote set-url origin "$GIT_REPO"
         fi
         
-        # Guardar cambios locales si los hay
-        if ! sudo -u "$APP_USER" git diff --quiet 2>/dev/null; then
-            log_info "Guardando cambios locales..."
+        # Guardar cambios locales si los hay (tanto staged como unstaged)
+        if ! sudo -u "$APP_USER" git diff --quiet 2>/dev/null || ! sudo -u "$APP_USER" git diff --cached --quiet 2>/dev/null; then
+            log_info "Detectados cambios locales, guardándolos..."
             sudo -u "$APP_USER" git add . || true
             sudo -u "$APP_USER" git stash push -m "Auto-stash before update $(date)" || true
         fi
