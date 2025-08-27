@@ -26,59 +26,61 @@ log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Configuración global
-APP_NAME="tractoreando"
-APP_DIR="/opt/$APP_NAME"
-APP_USER="$APP_NAME"
-APP_GROUP="$APP_NAME"
-NODE_VERSION="18"
-PORT_BACKEND="5000"
-PORT_FRONTEND="3000"
-DB_NAME="tractoreando_prod"
-NGINX_PORT="80"
-NGINX_SSL_PORT="443"
+export APP_NAME="tractoreando"
+export APP_DIR="/opt/$APP_NAME"
+export APP_USER="$APP_NAME"
+export APP_GROUP="$APP_NAME"
+export NODE_VERSION="18"
+export PORT_BACKEND="5000"
+export PORT_FRONTEND="3000"
+export DB_NAME="tractoreando_prod"
+export NGINX_PORT="80"
+export NGINX_SSL_PORT="443"
 
 # Variables de configuración
-INSTALL_MODE=""
-USE_NGINX_PROXY_MANAGER=false
-USE_STANDALONE_SERVER=false
-USE_POSTGRESQL=false
-DOMAIN=""
-PROXY_IP=""
-PROTOCOL="http"
-INTERNAL_NETWORK=""
+export INSTALL_MODE=""
+export USE_NGINX_PROXY_MANAGER=false
+export USE_STANDALONE_SERVER=false
+export USE_POSTGRESQL=false
+export DOMAIN=""
+export PROXY_IP=""
+export PROTOCOL="http"
+export INTERNAL_NETWORK=""
 
 # Detectar sistema operativo
 detect_os() {
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        OS="linux"
+        export OS="linux"
         if [[ -f /etc/os-release ]]; then
             . /etc/os-release
-            DISTRO=$ID
-            VERSION=$VERSION_ID
+            export DISTRO=$ID
+            export VERSION=$VERSION_ID
         else
-            DISTRO="unknown"
-            VERSION="unknown"
+            export DISTRO="unknown"
+            export VERSION="unknown"
         fi
     elif [[ "$OSTYPE" == "darwin"* ]]; then
-        OS="macos"
-        DISTRO="macOS"
-        VERSION=$(sw_vers -productVersion)
+        export OS="macos"
+        export DISTRO="macOS"
+        export VERSION=$(sw_vers -productVersion)
     else
         log_error "Sistema operativo no soportado: $OSTYPE"
         exit 1
     fi
     
     log_info "Sistema detectado: $OS ($DISTRO $VERSION)"
+    # Debug: Mostrar variables del OS
+    log_info "detect_os: OS='$OS', DISTRO='$DISTRO', VERSION='$VERSION'"
 }
 
 # Verificar permisos
 check_permissions() {
     if [[ $EUID -eq 0 ]]; then
         log_warning "Ejecutándose como root"
-        SUDO_CMD=""
+        export SUDO_CMD=""
     else
         log_info "Ejecutándose como usuario normal"
-        SUDO_CMD="sudo"
+        export SUDO_CMD="sudo"
         
         # Verificar si sudo está disponible
         if ! command -v sudo &> /dev/null; then
@@ -86,6 +88,9 @@ check_permissions() {
             exit 1
         fi
     fi
+    
+    # Debug: Mostrar valor de SUDO_CMD después de configurarlo
+    log_info "check_permissions: SUDO_CMD configurado como '$SUDO_CMD'"
 }
 
 # Función para verificar puerto disponible
