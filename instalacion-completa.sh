@@ -393,6 +393,20 @@ install_app_dependencies() {
         npm install --production
     else
         # En Linux, usar el usuario de aplicación
+        # Debug: Mostrar valores de variables
+        log_info "Debug: SUDO_CMD='$SUDO_CMD', APP_USER='$APP_USER', OS='$OS'"
+        
+        # Verificar que las variables no estén vacías
+        if [[ -z "$SUDO_CMD" ]]; then
+            log_error "Variable SUDO_CMD está vacía"
+            exit 1
+        fi
+        
+        if [[ -z "$APP_USER" ]]; then
+            log_error "Variable APP_USER está vacía"
+            exit 1
+        fi
+        
         log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' npm install --production"
         $SUDO_CMD -u "$APP_USER" npm install --production
     fi
@@ -411,6 +425,20 @@ install_app_dependencies() {
             npm run build
         else
             # En Linux, usar el usuario de aplicación
+            # Debug: Mostrar valores de variables
+            log_info "Debug Frontend: SUDO_CMD='$SUDO_CMD', APP_USER='$APP_USER', OS='$OS'"
+            
+            # Verificar que las variables no estén vacías
+            if [[ -z "$SUDO_CMD" ]]; then
+                log_error "Variable SUDO_CMD está vacía en frontend"
+                exit 1
+            fi
+            
+            if [[ -z "$APP_USER" ]]; then
+                log_error "Variable APP_USER está vacía en frontend"
+                exit 1
+            fi
+            
             log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' npm install (frontend)"
             $SUDO_CMD -u "$APP_USER" npm install
             
