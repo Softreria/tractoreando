@@ -48,31 +48,57 @@ chmod +x instalacion-completa.sh
 ./diagnostico-integral.sh
 ```
 
-## 📚 Documentación Completa
+## 📚 Documentación Consolidada
 
-**Para información detallada sobre instalación, configuración, despliegue y mantenimiento, consulte:**
+**Documentación completamente reorganizada y consolidada:**
 
 👉 **[DOCUMENTACION-COMPLETA.md](./DOCUMENTACION-COMPLETA.md)**
 
-Esta documentación incluye:
+### Documentación Anterior Consolidada
+La siguiente documentación ha sido integrada en el archivo principal:
+- ✅ `DESPLIEGUE-SERVIDOR-PRODUCCION.md`
+- ✅ `GUIA-SOLUCION-PROBLEMAS.md`
+- ✅ `NGINX-PROXY-MANAGER-SETUP.md`
+- ✅ `RESUMEN-DESPLIEGUE-DIRECTO.md`
+- ✅ `COMANDOS-SERVIDOR-DIRECTO.md`
+- ✅ `SOLUCION-ERRORES-PRODUCCION.md`
 
-- 📋 Requisitos del sistema
-- 🚀 Guías de instalación detalladas
-- 🌐 Configuración de red y proxy
-- 🏭 Despliegue en producción
-- 🔧 Solución de problemas
-- 🔧 Mantenimiento y monitoreo
+### Contenido de la Documentación Completa
+- 📋 Información general y requisitos del sistema
+- 🚀 Guías de instalación detalladas (manual y automática)
+- 🌐 Configuración de red y proxy (Nginx Proxy Manager y standalone)
+- 🏭 Despliegue en producción paso a paso
+- 🔧 Solución de problemas comunes con diagnósticos automáticos
+- 🔧 Mantenimiento, monitoreo y backups automatizados
 
-## 🛠️ Scripts de Gestión
+## 🛠️ Scripts de Gestión Consolidados
 
-El proyecto incluye scripts consolidados para facilitar la administración:
+El proyecto ha sido optimizado con scripts consolidados que reemplazan múltiples scripts anteriores:
 
-- `instalacion-completa.sh` - Instalación completa del sistema
-- `diagnostico-integral.sh` - Diagnóstico completo del sistema
-- `fix-mongodb-comprehensive.sh` - Solución de problemas de MongoDB
-- `gestion-produccion.sh` - Gestión de producción
-- `mantenimiento-integral.sh` - Mantenimiento del sistema
-- `utilidades-tractoreando.sh` - Utilidades varias
+### Scripts Principales
+- **`instalacion-completa.sh`** - Instalación completa del sistema
+  - Consolida: `install.sh`, `install-standalone.sh`, `instalacion-rapida.sh`, `configure-proxy.sh`, `verify-installation.sh`
+  - Modos: `--quick`, `--standalone`, `--production`, `--proxy-config`, `--verify`
+
+- **`diagnostico-integral.sh`** - Diagnóstico completo del sistema
+  - Consolida: `diagnostico-completo.sh`, `diagnose-production.sh`, `verificar-servidor.sh`
+  - Modos: `--quick`, `--full`, `--health`, `--performance`
+
+- **`fix-mongodb-comprehensive.sh`** - Solución integral de problemas de MongoDB
+  - Consolida: `fix-mongodb-quick.sh`, `fix-mongodb-connection.sh`
+  - Modos: `--auto`, `--interactive`, `--connection`, `--permissions`
+
+- **`gestion-produccion.sh`** - Gestión completa de producción
+  - Consolida: `build-production.sh`, `fix-api-routes-production.sh`, `fix-production-login.sh`
+  - Modos: `--build`, `--deploy`, `--update`, `--rollback`, `--status`
+
+- **`mantenimiento-integral.sh`** - Mantenimiento completo del sistema
+  - Consolida: `clean-for-git.sh`, `preparar-despliegue.sh`, `update.sh`
+  - Modos: `--full`, `--quick`, `--backup`, `--cleanup`, `--update`
+
+- **`utilidades-tractoreando.sh`** - Utilidades varias del sistema
+  - Consolida: `acceso-inmediato.sh`, `solucion-rapida.sh`, `force-rebuild-frontend.sh`
+  - Modos: `--rebuild`, `--reset`, `--quick-access`, `--emergency`
 
 ## 🔧 Comandos Básicos
 
@@ -101,19 +127,34 @@ curl http://localhost:5000/api/health
 
 ## 🆘 Soporte Rápido
 
-### Problemas Comunes
+### Comandos de Emergencia Consolidados
 
 ```bash
-# Diagnóstico automático
+# Diagnóstico completo automático
 ./diagnostico-integral.sh --quick
 
-# Solución de problemas de MongoDB
+# Solución automática de problemas de MongoDB
 ./fix-mongodb-comprehensive.sh --auto
 
-# Reiniciar todos los servicios
-sudo systemctl restart mongod nginx
-pm2 restart all
+# Mantenimiento de emergencia
+./mantenimiento-integral.sh --emergency
+
+# Reconstrucción rápida del sistema
+./utilidades-tractoreando.sh --rebuild
+
+# Verificación completa de la instalación
+./instalacion-completa.sh --verify
+
+# Gestión de producción - estado completo
+./gestion-produccion.sh --status
 ```
+
+### Beneficios de la Consolidación
+- ✅ **Menos archivos que mantener**: De 19+ scripts a 6 scripts principales
+- ✅ **Documentación unificada**: Toda la información en un solo lugar
+- ✅ **Funcionalidad mejorada**: Scripts con múltiples modos de operación
+- ✅ **Mantenimiento simplificado**: Actualizaciones centralizadas
+- ✅ **Experiencia de usuario mejorada**: Comandos más intuitivos y potentes
 
 ### Contacto
 
