@@ -1,4 +1,4 @@
-# Resumen: Despliegue en Servidor Detrás de Nginx Proxy Manager
+# Guía de Despliegue - Sistema Tractoreando
 
 ## ⚠️ CONFIGURACIÓN IMPORTANTE
 
@@ -7,6 +7,20 @@
 - ✅ Nginx local sirve en puerto **80** (sin SSL)
 - ✅ SSL se maneja en el Proxy Manager
 - ✅ Acceso público a través del proxy, no directo
+
+### Configuraciones Soportadas
+
+#### Configuración 1: Servidor Independiente
+- **Backend**: Puerto 5001
+- **Frontend**: Servido por Nginx en puerto 80/443
+- **SSL**: Certificado Let's Encrypt directo
+- **Base de Datos**: MongoDB local
+
+#### Configuración 2: Detrás de Nginx Proxy Manager (Actual)
+- **Backend**: Puerto 5000 (interno)
+- **Frontend**: Servido por Nginx local en puerto 80
+- **Nginx Local**: Puerto 80 (sin SSL)
+- **Nginx Proxy Manager**: Maneja SSL y redirección externa
 
 ## 📋 Archivos Actualizados para Proxy Manager
 

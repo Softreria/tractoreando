@@ -131,8 +131,6 @@ export const apiUtils = {
     getDashboard: (params) => api.get('/reports/dashboard', { params }),
     getVehicles: (params) => api.get('/reports/vehicles', { params }),
     getMaintenance: (params) => api.get('/reports/maintenance', { params }),
-    getCosts: (params) => api.get('/reports/costs', { params }),
-    getPerformance: (params) => api.get('/reports/performance', { params }),
     exportToCsv: (type, params) => api.get(`/reports/export/${type}`, {
       params,
       responseType: 'blob'
@@ -158,7 +156,6 @@ export const apiUtils = {
     getAll: (params) => api.get('/notifications', { params }),
     markAsRead: (id) => api.patch(`/notifications/${id}/read`),
     markAllAsRead: () => api.patch('/notifications/read-all'),
-    delete: (id) => api.delete(`/notifications/${id}`),
     getUnreadCount: () => api.get('/notifications/unread-count'),
   },
 
