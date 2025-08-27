@@ -8,8 +8,8 @@ module.exports = {
       exec_mode: 'cluster',
       env: {
         NODE_ENV: 'production',
-        PORT: 8000,
-        MONGODB_URI: 'mongodb://localhost:27017/tractoreando_prod',
+        PORT: 5000,
+        MONGODB_URI: 'mongodb://127.0.0.1:27017/tractoreando_prod',
         JWT_SECRET: 'your-super-secret-jwt-key-change-this',
         JWT_EXPIRE: '7d',
         BCRYPT_ROUNDS: 12,
