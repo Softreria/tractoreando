@@ -315,30 +315,33 @@ setup_app_directory() {
     log_success "Directorio de aplicación configurado"
 }
 
-# Función para clonar repositorio
+# Función para copiar archivos del repositorio local
 clone_repository() {
-    log_info "Clonando repositorio de la aplicación..."
+    log_info "Copiando archivos del repositorio local..."
     
-    local repo_url="https://github.com/DavidHernandezL/tractoreando.git"
-    local temp_dir="/tmp/tractoreando-install"
+    local current_dir="$(pwd)"
     
-    # Limpiar directorio temporal si existe
-    rm -rf "$temp_dir"
+    # Verificar si estamos en el directorio del proyecto
+    if [[ ! -f "$current_dir/package.json" ]] || [[ ! -f "$current_dir/server.js" ]]; then
+        log_error "Este script debe ejecutarse desde el directorio raíz del proyecto Tractoreando"
+        log_error "Directorio actual: $current_dir"
+        log_error "Asegúrate de que existan los archivos package.json y server.js"
+        exit 1
+    fi
     
-    # Clonar repositorio
-    git clone "$repo_url" "$temp_dir"
+    # Copiar archivos al directorio de aplicación (excluyendo node_modules y .git)
+    log_info "Copiando archivos desde $current_dir a $APP_DIR"
     
-    # Copiar archivos al directorio de aplicación
-    $SUDO_CMD cp -r "$temp_dir"/* "$APP_DIR/"
-    $SUDO_CMD cp "$temp_dir"/.* "$APP_DIR/" 2>/dev/null || true
+    # Crear directorio de destino si no existe
+    $SUDO_CMD mkdir -p "$APP_DIR"
+    
+    # Copiar archivos excluyendo directorios innecesarios
+    $SUDO_CMD rsync -av --exclude='node_modules' --exclude='.git' --exclude='*.log' --exclude='logs/' "$current_dir/" "$APP_DIR/"
     
     # Establecer permisos
     $SUDO_CMD chown -R "$APP_USER:$APP_GROUP" "$APP_DIR"
     
-    # Limpiar directorio temporal
-    rm -rf "$temp_dir"
-    
-    log_success "Repositorio clonado exitosamente"
+    log_success "Archivos copiados exitosamente desde el repositorio local"
 }
 
 # Función para instalar dependencias de la aplicación
