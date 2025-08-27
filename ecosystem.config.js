@@ -4,11 +4,11 @@ module.exports = {
       name: 'tractoreando-backend',
       script: 'server.js',
       cwd: process.cwd(),
-      instances: 'max', // Usar todos los cores disponibles
-      exec_mode: 'cluster',
+      instances: 1, // Usar solo una instancia para evitar conflictos de puerto
+      exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
-        PORT: 5000,
+        PORT: 3002,
         MONGODB_URI: 'mongodb://127.0.0.1:27017/tractoreando_prod',
         JWT_SECRET: 'your-super-secret-jwt-key-change-this',
         JWT_EXPIRE: '7d',
