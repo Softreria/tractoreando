@@ -306,7 +306,14 @@ setup_app_directory() {
     $SUDO_CMD mkdir -p "$APP_DIR/backups"
     
     # Establecer permisos
-    $SUDO_CMD chown -R "$APP_USER:$APP_GROUP" "$APP_DIR"
+    if [[ "$OS" == "macos" ]]; then
+        # En macOS, usar el usuario actual
+        $SUDO_CMD chown -R "$(whoami):staff" "$APP_DIR"
+    else
+        # En Linux, usar el usuario de aplicación
+        $SUDO_CMD chown -R "$APP_USER:$APP_GROUP" "$APP_DIR"
+    fi
+    
     $SUDO_CMD chmod 755 "$APP_DIR"
     $SUDO_CMD chmod 755 "$APP_DIR/logs"
     $SUDO_CMD chmod 755 "$APP_DIR/uploads"
@@ -339,7 +346,13 @@ clone_repository() {
     $SUDO_CMD rsync -av --exclude='node_modules' --exclude='.git' --exclude='*.log' --exclude='logs/' "$current_dir/" "$APP_DIR/"
     
     # Establecer permisos
-    $SUDO_CMD chown -R "$APP_USER:$APP_GROUP" "$APP_DIR"
+    if [[ "$OS" == "macos" ]]; then
+        # En macOS, usar el usuario actual
+        $SUDO_CMD chown -R "$(whoami):staff" "$APP_DIR"
+    else
+        # En Linux, usar el usuario de aplicación
+        $SUDO_CMD chown -R "$APP_USER:$APP_GROUP" "$APP_DIR"
+    fi
     
     log_success "Archivos copiados exitosamente desde el repositorio local"
 }
@@ -352,17 +365,34 @@ install_app_dependencies() {
     
     # Instalar dependencias del backend
     log_info "Instalando dependencias del backend..."
-    $SUDO_CMD -u "$APP_USER" npm install --production
+    if [[ "$OS" == "macos" ]]; then
+        # En macOS, ejecutar como usuario actual
+        npm install --production
+    else
+        # En Linux, usar el usuario de aplicación
+        $SUDO_CMD -u "$APP_USER" npm install --production
+    fi
     
     # Instalar dependencias del frontend
     if [[ -d "frontend" ]]; then
         log_info "Instalando dependencias del frontend..."
         cd frontend
-        $SUDO_CMD -u "$APP_USER" npm install
         
-        # Construir frontend para producción
-        log_info "Construyendo frontend para producción..."
-        $SUDO_CMD -u "$APP_USER" npm run build
+        if [[ "$OS" == "macos" ]]; then
+            # En macOS, ejecutar como usuario actual
+            npm install
+            
+            # Construir frontend para producción
+            log_info "Construyendo frontend para producción..."
+            npm run build
+        else
+            # En Linux, usar el usuario de aplicación
+            $SUDO_CMD -u "$APP_USER" npm install
+            
+            # Construir frontend para producción
+            log_info "Construyendo frontend para producción..."
+            $SUDO_CMD -u "$APP_USER" npm run build
+        fi
         
         cd ..
     fi
@@ -401,7 +431,13 @@ EOF
     fi
     
     # Establecer permisos
-    $SUDO_CMD chown "$APP_USER:$APP_GROUP" "$env_file"
+    if [[ "$OS" == "macos" ]]; then
+        # En macOS, usar el usuario actual
+        $SUDO_CMD chown "$(whoami):staff" "$env_file"
+    else
+        # En Linux, usar el usuario de aplicación
+        $SUDO_CMD chown "$APP_USER:$APP_GROUP" "$env_file"
+    fi
     $SUDO_CMD chmod 600 "$env_file"
     
     log_success "Variables de entorno configuradas"
