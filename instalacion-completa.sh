@@ -275,14 +275,28 @@ EOF
 create_app_user() {
     log_info "Creando usuario de aplicación..."
     
+    # Verificar variables
+    log_info "Variables: APP_USER='$APP_USER', APP_GROUP='$APP_GROUP', APP_DIR='$APP_DIR'"
+    
     if id "$APP_USER" &>/dev/null; then
         log_success "Usuario $APP_USER ya existe"
         return
     fi
     
     if [[ "$OS" == "linux" ]]; then
+        log_info "Creando grupo $APP_GROUP..."
         $SUDO_CMD groupadd -f "$APP_GROUP"
+        
+        log_info "Creando usuario $APP_USER..."
         $SUDO_CMD useradd -r -g "$APP_GROUP" -d "$APP_DIR" -s /bin/bash "$APP_USER"
+        
+        # Verificar que el usuario fue creado
+        if id "$APP_USER" &>/dev/null; then
+            log_success "Usuario $APP_USER creado exitosamente: $(id $APP_USER)"
+        else
+            log_error "Error al crear el usuario $APP_USER"
+            exit 1
+        fi
     elif [[ "$OS" == "macos" ]]; then
         $SUDO_CMD dscl . -create /Users/$APP_USER
         $SUDO_CMD dscl . -create /Users/$APP_USER UserShell /bin/bash
@@ -290,9 +304,8 @@ create_app_user() {
         $SUDO_CMD dscl . -create /Users/$APP_USER UniqueID 1001
         $SUDO_CMD dscl . -create /Users/$APP_USER PrimaryGroupID 1001
         $SUDO_CMD dscl . -create /Users/$APP_USER NFSHomeDirectory "$APP_DIR"
+        log_success "Usuario $APP_USER creado en macOS"
     fi
-    
-    log_success "Usuario $APP_USER creado"
 }
 
 # Función para configurar directorio de aplicación
@@ -363,6 +376,16 @@ install_app_dependencies() {
     
     cd "$APP_DIR"
     
+    # Verificar que el usuario de aplicación existe
+    if [[ "$OS" != "macos" ]]; then
+        if ! id "$APP_USER" &>/dev/null; then
+            log_error "Usuario $APP_USER no existe. Creando usuario..."
+            create_app_user
+        else
+            log_info "Usuario $APP_USER verificado: $(id $APP_USER)"
+        fi
+    fi
+    
     # Instalar dependencias del backend
     log_info "Instalando dependencias del backend..."
     if [[ "$OS" == "macos" ]]; then
@@ -370,6 +393,7 @@ install_app_dependencies() {
         npm install --production
     else
         # En Linux, usar el usuario de aplicación
+        log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' npm install --production"
         $SUDO_CMD -u "$APP_USER" npm install --production
     fi
     
@@ -387,10 +411,12 @@ install_app_dependencies() {
             npm run build
         else
             # En Linux, usar el usuario de aplicación
+            log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' npm install (frontend)"
             $SUDO_CMD -u "$APP_USER" npm install
             
             # Construir frontend para producción
             log_info "Construyendo frontend para producción..."
+            log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' npm run build"
             $SUDO_CMD -u "$APP_USER" npm run build
         fi
         
