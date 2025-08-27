@@ -610,18 +610,48 @@ setup_pm2() {
     
     cd "$APP_DIR"
     
-    # Configurar PM2 para el usuario de la aplicación
-    $SUDO_CMD -u "$APP_USER" pm2 startup
-    
-    # Iniciar aplicación con PM2
-    if [[ -f "ecosystem.config.js" ]]; then
-        $SUDO_CMD -u "$APP_USER" pm2 start ecosystem.config.js
-    else
-        $SUDO_CMD -u "$APP_USER" pm2 start server.js --name "$APP_NAME-backend"
+    # Verificar que el usuario de aplicación existe (solo en Linux)
+    if [[ "$OS" != "macos" ]]; then
+        if ! id "$APP_USER" &>/dev/null; then
+            log_error "Usuario $APP_USER no existe para configurar PM2. Creando usuario..."
+            create_app_user
+        else
+            log_info "Usuario $APP_USER verificado para PM2: $(id $APP_USER)"
+        fi
     fi
     
-    # Guardar configuración de PM2
-    $SUDO_CMD -u "$APP_USER" pm2 save
+    # Configurar PM2 según el sistema operativo
+    if [[ "$OS" == "macos" ]]; then
+        # En macOS, ejecutar como usuario actual
+        pm2 startup
+        
+        # Iniciar aplicación con PM2
+        if [[ -f "ecosystem.config.js" ]]; then
+            pm2 start ecosystem.config.js
+        else
+            pm2 start server.js --name "$APP_NAME-backend"
+        fi
+        
+        # Guardar configuración de PM2
+        pm2 save
+    else
+        # En Linux, usar el usuario de aplicación
+        log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' pm2 startup"
+        $SUDO_CMD -u "$APP_USER" pm2 startup
+        
+        # Iniciar aplicación con PM2
+        if [[ -f "ecosystem.config.js" ]]; then
+            log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' pm2 start ecosystem.config.js"
+            $SUDO_CMD -u "$APP_USER" pm2 start ecosystem.config.js
+        else
+            log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' pm2 start server.js --name '$APP_NAME-backend'"
+            $SUDO_CMD -u "$APP_USER" pm2 start server.js --name "$APP_NAME-backend"
+        fi
+        
+        # Guardar configuración de PM2
+        log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' pm2 save"
+        $SUDO_CMD -u "$APP_USER" pm2 save
+    fi
     
     log_success "PM2 configurado y aplicación iniciada"
 }
@@ -707,11 +737,27 @@ verify_installation() {
         log_success "✅ PM2 instalado"
         
         # Verificar aplicación en PM2
-        if $SUDO_CMD -u "$APP_USER" pm2 status | grep -q "online"; then
-            log_success "✅ Aplicación en línea en PM2"
+        if [[ "$OS" == "macos" ]]; then
+            # En macOS, ejecutar como usuario actual
+            if pm2 status | grep -q "online"; then
+                log_success "✅ Aplicación en línea en PM2"
+            else
+                log_warning "⚠️ Aplicación no está en línea en PM2"
+                ((warnings_count++))
+            fi
         else
-            log_warning "⚠️ Aplicación no está en línea en PM2"
-            ((warnings_count++))
+            # En Linux, verificar que el usuario existe antes de usar sudo -u
+            if id "$APP_USER" &>/dev/null; then
+                if $SUDO_CMD -u "$APP_USER" pm2 status | grep -q "online"; then
+                    log_success "✅ Aplicación en línea en PM2"
+                else
+                    log_warning "⚠️ Aplicación no está en línea en PM2"
+                    ((warnings_count++))
+                fi
+            else
+                log_warning "⚠️ Usuario $APP_USER no existe, no se puede verificar PM2"
+                ((warnings_count++))
+            fi
         fi
     else
         log_error "❌ PM2 no está instalado"
@@ -954,7 +1000,19 @@ proxy_config_only() {
     configure_proxy_environment "$APP_DIR/.env"
     
     # Reiniciar aplicación
-    $SUDO_CMD -u "$APP_USER" pm2 restart all
+    if [[ "$OS" == "macos" ]]; then
+        # En macOS, ejecutar como usuario actual
+        pm2 restart all
+    else
+        # En Linux, verificar que el usuario existe antes de usar sudo -u
+        if id "$APP_USER" &>/dev/null; then
+            log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' pm2 restart all"
+            $SUDO_CMD -u "$APP_USER" pm2 restart all
+        else
+            log_error "Usuario $APP_USER no existe, no se puede reiniciar PM2"
+            exit 1
+        fi
+    fi
     
     log_success "🎉 ¡Configuración de proxy completada!"
     log_info "Backup de configuración anterior en: $BACKUP_DIR"
