@@ -401,19 +401,26 @@ install_app_dependencies() {
         # Debug: Mostrar valores de variables
         log_info "Debug: SUDO_CMD='$SUDO_CMD', APP_USER='$APP_USER', OS='$OS'"
         
-        # Verificar que las variables no estén vacías
-        if [[ -z "$SUDO_CMD" ]]; then
-            log_error "Variable SUDO_CMD está vacía"
-            exit 1
-        fi
-        
+        # Verificar que APP_USER no esté vacío
         if [[ -z "$APP_USER" ]]; then
             log_error "Variable APP_USER está vacía"
             exit 1
         fi
         
-        log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' npm install --production"
-        $SUDO_CMD -u "$APP_USER" npm install --production
+        # Ejecutar comando según si somos root o no
+        if [[ $EUID -eq 0 ]]; then
+            # Si somos root, ejecutar como el usuario de aplicación sin sudo
+            log_info "Ejecutando como root: su -c 'npm install --production' '$APP_USER'"
+            su -c "cd '$PWD' && npm install --production" "$APP_USER"
+        else
+            # Si no somos root, usar sudo
+            if [[ -z "$SUDO_CMD" ]]; then
+                log_error "Variable SUDO_CMD está vacía y no somos root"
+                exit 1
+            fi
+            log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' npm install --production"
+            $SUDO_CMD -u "$APP_USER" npm install --production
+        fi
     fi
     
     # Instalar dependencias del frontend
@@ -433,24 +440,37 @@ install_app_dependencies() {
             # Debug: Mostrar valores de variables
             log_info "Debug Frontend: SUDO_CMD='$SUDO_CMD', APP_USER='$APP_USER', OS='$OS'"
             
-            # Verificar que las variables no estén vacías
-            if [[ -z "$SUDO_CMD" ]]; then
-                log_error "Variable SUDO_CMD está vacía en frontend"
-                exit 1
-            fi
-            
+            # Verificar que APP_USER no esté vacío
             if [[ -z "$APP_USER" ]]; then
                 log_error "Variable APP_USER está vacía en frontend"
                 exit 1
             fi
             
-            log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' npm install (frontend)"
-            $SUDO_CMD -u "$APP_USER" npm install
-            
-            # Construir frontend para producción
-            log_info "Construyendo frontend para producción..."
-            log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' npm run build"
-            $SUDO_CMD -u "$APP_USER" npm run build
+            # Ejecutar comandos según si somos root o no
+            if [[ $EUID -eq 0 ]]; then
+                # Si somos root, ejecutar como el usuario de aplicación sin sudo
+                log_info "Ejecutando como root: su -c 'npm install' '$APP_USER' (frontend)"
+                su -c "cd '$PWD' && npm install" "$APP_USER"
+                
+                # Construir frontend para producción
+                log_info "Construyendo frontend para producción..."
+                log_info "Ejecutando como root: su -c 'npm run build' '$APP_USER'"
+                su -c "cd '$PWD' && npm run build" "$APP_USER"
+            else
+                # Si no somos root, usar sudo
+                if [[ -z "$SUDO_CMD" ]]; then
+                    log_error "Variable SUDO_CMD está vacía en frontend y no somos root"
+                    exit 1
+                fi
+                
+                log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' npm install (frontend)"
+                $SUDO_CMD -u "$APP_USER" npm install
+                
+                # Construir frontend para producción
+                log_info "Construyendo frontend para producción..."
+                log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' npm run build"
+                $SUDO_CMD -u "$APP_USER" npm run build
+            fi
         fi
         
         cd ..
@@ -669,21 +689,41 @@ setup_pm2() {
         pm2 save
     else
         # En Linux, usar el usuario de aplicación
-        log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' pm2 startup"
-        $SUDO_CMD -u "$APP_USER" pm2 startup
-        
-        # Iniciar aplicación con PM2
-        if [[ -f "ecosystem.config.js" ]]; then
-            log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' pm2 start ecosystem.config.js"
-            $SUDO_CMD -u "$APP_USER" pm2 start ecosystem.config.js
+        if [[ $EUID -eq 0 ]]; then
+            # Si somos root, ejecutar como el usuario de aplicación sin sudo
+            log_info "Ejecutando como root: su -c 'pm2 startup' '$APP_USER'"
+            su -c "cd '$PWD' && pm2 startup" "$APP_USER"
+            
+            # Iniciar aplicación con PM2
+            if [[ -f "ecosystem.config.js" ]]; then
+                log_info "Ejecutando como root: su -c 'pm2 start ecosystem.config.js' '$APP_USER'"
+                su -c "cd '$PWD' && pm2 start ecosystem.config.js" "$APP_USER"
+            else
+                log_info "Ejecutando como root: su -c 'pm2 start server.js --name $APP_NAME-backend' '$APP_USER'"
+                su -c "cd '$PWD' && pm2 start server.js --name '$APP_NAME-backend'" "$APP_USER"
+            fi
+            
+            # Guardar configuración de PM2
+            log_info "Ejecutando como root: su -c 'pm2 save' '$APP_USER'"
+            su -c "cd '$PWD' && pm2 save" "$APP_USER"
         else
-            log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' pm2 start server.js --name '$APP_NAME-backend'"
-            $SUDO_CMD -u "$APP_USER" pm2 start server.js --name "$APP_NAME-backend"
+            # Si no somos root, usar sudo
+            log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' pm2 startup"
+            $SUDO_CMD -u "$APP_USER" pm2 startup
+            
+            # Iniciar aplicación con PM2
+            if [[ -f "ecosystem.config.js" ]]; then
+                log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' pm2 start ecosystem.config.js"
+                $SUDO_CMD -u "$APP_USER" pm2 start ecosystem.config.js
+            else
+                log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' pm2 start server.js --name '$APP_NAME-backend'"
+                $SUDO_CMD -u "$APP_USER" pm2 start server.js --name "$APP_NAME-backend"
+            fi
+            
+            # Guardar configuración de PM2
+            log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' pm2 save"
+            $SUDO_CMD -u "$APP_USER" pm2 save
         fi
-        
-        # Guardar configuración de PM2
-        log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' pm2 save"
-        $SUDO_CMD -u "$APP_USER" pm2 save
     fi
     
     log_success "PM2 configurado y aplicación iniciada"
@@ -781,11 +821,22 @@ verify_installation() {
         else
             # En Linux, verificar que el usuario existe antes de usar sudo -u
             if id "$APP_USER" &>/dev/null; then
-                if $SUDO_CMD -u "$APP_USER" pm2 status | grep -q "online"; then
-                    log_success "✅ Aplicación en línea en PM2"
+                if [[ $EUID -eq 0 ]]; then
+                    # Si somos root, ejecutar como el usuario de aplicación sin sudo
+                    if su -c "pm2 status" "$APP_USER" | grep -q "online"; then
+                        log_success "✅ Aplicación en línea en PM2"
+                    else
+                        log_warning "⚠️ Aplicación no está en línea en PM2"
+                        ((warnings_count++))
+                    fi
                 else
-                    log_warning "⚠️ Aplicación no está en línea en PM2"
-                    ((warnings_count++))
+                    # Si no somos root, usar sudo
+                    if $SUDO_CMD -u "$APP_USER" pm2 status | grep -q "online"; then
+                        log_success "✅ Aplicación en línea en PM2"
+                    else
+                        log_warning "⚠️ Aplicación no está en línea en PM2"
+                        ((warnings_count++))
+                    fi
                 fi
             else
                 log_warning "⚠️ Usuario $APP_USER no existe, no se puede verificar PM2"
@@ -922,9 +973,17 @@ quick_install() {
         echo ""
         log_success "✅ Aplicación lista en: http://localhost"
         log_info "📋 Comandos útiles:"
-        echo "   • Estado PM2: sudo -u $APP_USER pm2 status"
-        echo "   • Logs: sudo -u $APP_USER pm2 logs"
-        echo "   • Reiniciar: sudo -u $APP_USER pm2 restart all"
+        if [[ $EUID -eq 0 ]]; then
+            # Si somos root, mostrar comandos con su
+            echo "   • Estado PM2: su -c 'pm2 status' $APP_USER"
+            echo "   • Logs: su -c 'pm2 logs' $APP_USER"
+            echo "   • Reiniciar: su -c 'pm2 restart all' $APP_USER"
+        else
+            # Si no somos root, mostrar comandos con sudo
+            echo "   • Estado PM2: sudo -u $APP_USER pm2 status"
+            echo "   • Logs: sudo -u $APP_USER pm2 logs"
+            echo "   • Reiniciar: sudo -u $APP_USER pm2 restart all"
+        fi
     fi
 }
 
@@ -1039,8 +1098,15 @@ proxy_config_only() {
     else
         # En Linux, verificar que el usuario existe antes de usar sudo -u
         if id "$APP_USER" &>/dev/null; then
-            log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' pm2 restart all"
-            $SUDO_CMD -u "$APP_USER" pm2 restart all
+            if [[ $EUID -eq 0 ]]; then
+                # Si somos root, ejecutar como el usuario de aplicación sin sudo
+                log_info "Ejecutando como root: su -c 'pm2 restart all' '$APP_USER'"
+                su -c "pm2 restart all" "$APP_USER"
+            else
+                # Si no somos root, usar sudo
+                log_info "Ejecutando: $SUDO_CMD -u '$APP_USER' pm2 restart all"
+                $SUDO_CMD -u "$APP_USER" pm2 restart all
+            fi
         else
             log_error "Usuario $APP_USER no existe, no se puede reiniciar PM2"
             exit 1
