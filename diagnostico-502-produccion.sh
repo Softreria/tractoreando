@@ -59,7 +59,18 @@ echo "Verificando servicio MongoDB:"
 sudo systemctl status mongod --no-pager -l || echo "❌ Error verificando MongoDB"
 echo ""
 echo "Test de conexión a MongoDB:"
-mongo --eval "db.adminCommand('ismaster')" --quiet || echo "❌ No se puede conectar a MongoDB"
+if command -v mongosh >/dev/null 2>&1; then
+    mongosh --eval "db.adminCommand('ismaster')" --quiet || echo "❌ No se puede conectar a MongoDB"
+elif command -v mongo >/dev/null 2>&1; then
+    mongo --eval "db.adminCommand('ismaster')" --quiet || echo "❌ No se puede conectar a MongoDB"
+else
+    echo "⚠️  Cliente MongoDB (mongo/mongosh) no encontrado, verificando servicio..."
+    if pgrep mongod >/dev/null; then
+        echo "✅ Proceso mongod está ejecutándose"
+    else
+        echo "❌ Proceso mongod no está ejecutándose"
+    fi
+fi
 echo ""
 
 # 7. Verificar procesos Node.js

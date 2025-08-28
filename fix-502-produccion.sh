@@ -89,6 +89,20 @@ else
     echo "⚠️  systemctl no disponible, verificar MongoDB manualmente"
 fi
 
+echo "Test de conexión a MongoDB:"
+if command -v mongosh >/dev/null 2>&1; then
+    mongosh --eval "db.stats()" --quiet || echo "❌ No se puede conectar a MongoDB"
+elif command -v mongo >/dev/null 2>&1; then
+    mongo --eval "db.stats()" --quiet || echo "❌ No se puede conectar a MongoDB"
+else
+    echo "⚠️  Cliente MongoDB no encontrado, verificando proceso..."
+    if pgrep mongod >/dev/null; then
+        echo "✅ Proceso mongod está ejecutándose"
+    else
+        echo "❌ Proceso mongod no está ejecutándose"
+    fi
+fi
+
 echo "🚀 PASO 6: REINICIAR APLICACIÓN"
 echo "-------------------------------"
 echo "Cambiando al directorio de la aplicación..."
