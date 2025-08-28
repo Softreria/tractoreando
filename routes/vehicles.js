@@ -46,6 +46,11 @@ router.get('/', [
       query.branch = { $in: req.user.branches };
     }
 
+    // Filtrar por tipos de vehículos según permisos del usuario
+    if (req.user.vehicleTypeAccess && req.user.vehicleTypeAccess.length > 0) {
+      query.vehicleType = { $in: req.user.vehicleTypeAccess };
+    }
+
     const vehicles = await Vehicle.find(query)
       .populate('company', 'name')
       .populate('branch', 'name code')
@@ -132,6 +137,13 @@ router.get('/:id', [
       const hasAccess = req.user.branches.some(userBranch => userBranch._id.toString() === vehicle.branch._id.toString());
       if (!hasAccess) {
         return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
+      }
+    }
+
+    // Verificar acceso al tipo de vehículo
+    if (req.user.vehicleTypeAccess && req.user.vehicleTypeAccess.length > 0) {
+      if (!req.user.vehicleTypeAccess.includes(vehicle.vehicleType)) {
+        return res.status(403).json({ message: 'No tienes acceso a este tipo de vehículo' });
       }
     }
 
@@ -237,6 +249,13 @@ router.post('/', [
       }
     }
 
+    // Verificar acceso al tipo de vehículo
+    if (req.user.vehicleTypeAccess && req.user.vehicleTypeAccess.length > 0) {
+      if (!req.user.vehicleTypeAccess.includes(vehicleType)) {
+        return res.status(403).json({ message: 'No tienes acceso para crear este tipo de vehículo' });
+      }
+    }
+
     // Verificar que la placa no exista en la empresa
     const existingVehicle = await Vehicle.findOne({ 
       company: companyId, 
@@ -325,6 +344,13 @@ router.put('/:id', [
       return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
     }
 
+    // Verificar acceso al tipo de vehículo actual
+    if (req.user.vehicleTypeAccess && req.user.vehicleTypeAccess.length > 0) {
+      if (!req.user.vehicleTypeAccess.includes(vehicle.vehicleType)) {
+        return res.status(403).json({ message: 'No tienes acceso a este tipo de vehículo' });
+      }
+    }
+
     const {
       plateNumber,
       vin,
@@ -370,6 +396,15 @@ router.put('/:id', [
       
       if (existingVin) {
         return res.status(400).json({ message: 'El VIN ya está registrado' });
+      }
+    }
+
+    // Verificar acceso al nuevo tipo de vehículo si se está cambiando
+    if (vehicleType && vehicleType !== vehicle.vehicleType) {
+      if (req.user.vehicleTypeAccess && req.user.vehicleTypeAccess.length > 0) {
+        if (!req.user.vehicleTypeAccess.includes(vehicleType)) {
+          return res.status(403).json({ message: 'No tienes acceso para cambiar a este tipo de vehículo' });
+        }
       }
     }
 

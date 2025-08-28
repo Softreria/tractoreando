@@ -126,7 +126,7 @@ const Users = () => {
         status: filterStatus !== 'all' ? filterStatus : undefined,
         branch: filterBranch || undefined
       };
-      const response = await api.get('/api/users', { params });
+      const response = await api.get('/users', { params });
       return response.data;
     },
     enabled: isAuthenticated && !!user && !authLoading
@@ -136,7 +136,7 @@ const Users = () => {
   const { data: rolesData } = useQuery({
     queryKey: ['user-roles'],
     queryFn: async () => {
-      const response = await api.get('/api/users/roles');
+      const response = await api.get('/users/roles');
       return response.data;
     },
     enabled: isAuthenticated && !!user && !authLoading
@@ -162,7 +162,7 @@ const Users = () => {
       } else if (!hasRole('super_admin')) {
         params.company = user?.company?._id;
       }
-      const response = await api.get('/api/branches', { params });
+      const response = await api.get('/branches', { params });
       return response.data.branches;
     },
     enabled: isAuthenticated && !!user && !authLoading
@@ -172,7 +172,7 @@ const Users = () => {
   const { data: companiesData } = useQuery({
     queryKey: ['companies-list'],
     queryFn: async () => {
-      const response = await api.get('/api/companies', { params: { limit: 100 } });
+      const response = await api.get('/companies', { params: { limit: 100 } });
       return response.data.companies;
     },
     enabled: isAuthenticated && !!user && !authLoading && hasRole('super_admin')
@@ -182,9 +182,9 @@ const Users = () => {
   const saveUserMutation = useMutation({
     mutationFn: async (data) => {
       if (editingUser) {
-        return api.put(`/api/users/${editingUser._id}`, data);
+        return api.put(`/users/${editingUser._id}`, data);
       } else {
-        return api.post('/api/users', data);
+        return api.post('/users', data);
       }
     },
     onSuccess: () => {
@@ -200,7 +200,7 @@ const Users = () => {
   // Mutación para eliminar usuario
   const deleteUserMutation = useMutation({
     mutationFn: async (id) => {
-      return api.delete(`/api/users/${id}`);
+      return api.delete(`/users/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['users']);
@@ -215,7 +215,7 @@ const Users = () => {
   // Mutación para cambiar estado
   const toggleStatusMutation = useMutation({
     mutationFn: async ({ id, isActive }) => {
-      return api.patch(`/api/users/${id}/status`, { isActive });
+      return api.patch(`/users/${id}/status`, { isActive });
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['users']);
@@ -229,7 +229,7 @@ const Users = () => {
   // Mutación para cambiar contraseña
   const changePasswordMutation = useMutation({
     mutationFn: async (data) => {
-      return api.patch(`/api/users/${selectedUser._id}/password`, data);
+      return api.patch(`/users/${selectedUser._id}/password`, data);
     },
     onSuccess: () => {
       toast.success('Contraseña actualizada');
@@ -253,6 +253,7 @@ const Users = () => {
         company: user.company?._id || '',
         branches: user.branches?.map(branch => branch._id) || [],
         permissions: user.permissions || {},
+        vehicleTypeAccess: user.vehicleTypeAccess || [],
         isActive: user.isActive
       });
     } else {
@@ -261,7 +262,8 @@ const Users = () => {
         isActive: true,
         company: '',
         branches: [],
-        permissions: {}
+        permissions: {},
+        vehicleTypeAccess: []
       });
     }
     setOpenDialog(true);
@@ -325,6 +327,7 @@ const Users = () => {
       branches: data.branches || [],
       permissions: data.permissions || {},
       preferences: data.preferences || {},
+      vehicleTypeAccess: data.vehicleTypeAccess || [],
       isActive: data.isActive !== false
     };
 
@@ -841,6 +844,91 @@ const Users = () => {
                         )}
                       </FormControl>
                     )}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <Controller
+                    name="vehicleTypeAccess"
+                    control={control}
+                    render={({ field }) => {
+                      const vehicleTypes = [
+                        { value: 'automovil', label: 'Automóvil', category: 'Vehículos' },
+                        { value: 'furgoneta', label: 'Furgoneta', category: 'Vehículos' },
+                        { value: 'camion', label: 'Camión', category: 'Vehículos' },
+                        { value: 'autobus', label: 'Autobús', category: 'Vehículos' },
+                        { value: 'motocicleta', label: 'Motocicleta', category: 'Vehículos' },
+                        { value: 'tractor', label: 'Tractor', category: 'Maquinaria' },
+                        { value: 'apero_agricola', label: 'Apero Agrícola', category: 'Maquinaria' },
+                        { value: 'maquinaria_construccion', label: 'Maquinaria de Construcción', category: 'Maquinaria' },
+                        { value: 'vehiculo_especial', label: 'Vehículo Especial', category: 'Especiales' }
+                      ];
+                      
+                      const groupedTypes = vehicleTypes.reduce((acc, type) => {
+                        if (!acc[type.category]) {
+                          acc[type.category] = [];
+                        }
+                        acc[type.category].push(type);
+                        return acc;
+                      }, {});
+                      
+                      return (
+                        <FormControl fullWidth error={!!errors.vehicleTypeAccess}>
+                          <InputLabel>Tipos de Vehículos Autorizados</InputLabel>
+                          <Select
+                            {...field}
+                            label="Tipos de Vehículos Autorizados"
+                            multiple
+                            value={field.value || []}
+                            renderValue={(selected) => {
+                              if (selected.length === 0) return 'Seleccionar tipos de vehículos';
+                              if (selected.length === vehicleTypes.length) return 'Todos los tipos';
+                              return `${selected.length} tipos seleccionados`;
+                            }}
+                          >
+                            <MenuItem value="all" onClick={(e) => {
+                              e.preventDefault();
+                              const allValues = vehicleTypes.map(type => type.value);
+                              const currentValues = field.value || [];
+                              if (currentValues.length === allValues.length) {
+                                field.onChange([]);
+                              } else {
+                                field.onChange(allValues);
+                              }
+                            }}>
+                              <Checkbox 
+                                checked={field.value?.length === vehicleTypes.length}
+                                indeterminate={field.value?.length > 0 && field.value?.length < vehicleTypes.length}
+                              />
+                              <strong>Seleccionar Todos</strong>
+                            </MenuItem>
+                            <Divider />
+                            {Object.entries(groupedTypes).map(([category, types]) => [
+                              <MenuItem key={`category-${category}`} disabled>
+                                <Typography variant="subtitle2" color="primary" sx={{ fontWeight: 'bold' }}>
+                                  {category}
+                                </Typography>
+                              </MenuItem>,
+                              ...types.map((type) => (
+                                <MenuItem key={type.value} value={type.value}>
+                                  <Checkbox checked={(field.value || []).includes(type.value)} />
+                                  <Box sx={{ ml: 2 }}>
+                                    {type.label}
+                                  </Box>
+                                </MenuItem>
+                              ))
+                            ]).flat()}
+                          </Select>
+                          {errors.vehicleTypeAccess && (
+                            <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.5 }}>
+                              {errors.vehicleTypeAccess.message}
+                            </Typography>
+                          )}
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, ml: 1.5 }}>
+                            Selecciona los tipos de vehículos que este usuario podrá ver y gestionar
+                          </Typography>
+                        </FormControl>
+                      );
+                    }}
                   />
                 </Grid>
                 {!editingUser && (

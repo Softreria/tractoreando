@@ -56,15 +56,58 @@ const VehicleSchema = new mongoose.Schema({
     type: String,
     required: true,
     enum: [
-      'automovil',
-      'camioneta',
-      'camion',
-      'trailer',
+      // Vehículos de pasajeros
+      'coche',
       'motocicleta',
-      'autobus',
+      'scooter',
+      'bicicleta_electrica',
+      
+      // Vehículos comerciales ligeros
+      'camioneta',
       'van',
       'pickup',
-      'maquinaria_pesada',
+      'furgoneta',
+      
+      // Vehículos comerciales pesados
+      'camion',
+      'trailer',
+      'autobus',
+      'microbus',
+      
+      // Maquinaria agrícola
+      'tractor',
+      'cosechadora',
+      'sembradora',
+      'pulverizadora',
+      'arado',
+      'cultivador',
+      'rastra',
+      'segadora',
+      'empacadora',
+      'remolque_agricola',
+      
+      // Aperos agrícolas
+      'apero_labranza',
+      'apero_siembra',
+      'apero_fertilizacion',
+      'apero_fumigacion',
+      'apero_cosecha',
+      'apero_transporte',
+      
+      // Maquinaria de construcción
+      'excavadora',
+      'bulldozer',
+      'cargadora',
+      'grua',
+      'compactadora',
+      'motoniveladora',
+      'retroexcavadora',
+      
+      // Vehículos especiales
+      'ambulancia',
+      'bomberos',
+      'policia',
+      'militar',
       'otro'
     ]
   },

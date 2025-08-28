@@ -113,7 +113,7 @@ const Vehicles = () => {
 
   // Consulta de vehículos
   const { data: vehiclesData, isLoading } = useQuery({
-    queryKey: ['vehicles', page, rowsPerPage, searchTerm, filterStatus, filterBranch, filterType],
+    queryKey: ['vehicles', page, rowsPerPage, searchTerm, filterStatus, filterBranch, filterType, user?.vehicleTypeAccess],
     queryFn: async () => {
       const params = {
         page: page + 1,
@@ -121,7 +121,11 @@ const Vehicles = () => {
         search: searchTerm,
         status: filterStatus !== 'all' ? filterStatus : undefined,
         branch: filterBranch || undefined,
-        type: filterType || undefined
+        type: filterType || undefined,
+        // Enviar tipos de vehículos autorizados para filtrar en el backend
+        vehicleTypeAccess: user?.vehicleTypeAccess && user.vehicleTypeAccess.length > 0 
+          ? user.vehicleTypeAccess.join(',') 
+          : undefined
       };
       const response = await api.get('/api/vehicles', { params });
       return response.data;
@@ -200,6 +204,14 @@ const Vehicles = () => {
   });
 
   const handleOpenDialog = (vehicle = null) => {
+    // Validar acceso al tipo de vehículo al editar
+    if (vehicle && user?.vehicleTypeAccess && user.vehicleTypeAccess.length > 0) {
+      if (!user.vehicleTypeAccess.includes(vehicle.vehicleType)) {
+        toast.error('No tienes acceso para editar vehículos de este tipo');
+        return;
+      }
+    }
+
     setEditingVehicle(vehicle);
     if (vehicle) {
       reset({
@@ -221,8 +233,10 @@ const Vehicles = () => {
         notes: vehicle.notes
       });
     } else {
+      // Al crear un nuevo vehículo, usar el primer tipo disponible para el usuario
+      const defaultType = vehicleTypes.length > 0 ? vehicleTypes[0].value : 'automovil';
       reset({
-        type: 'automovil',
+        type: defaultType,
         'engine.type': 'gasolina',
         transmission: 'manual',
         'odometer.current': 0,
@@ -363,6 +377,14 @@ const Vehicles = () => {
   };
 
   const onSubmit = (data) => {
+    // Validar acceso al tipo de vehículo antes de enviar
+    if (user?.vehicleTypeAccess && user.vehicleTypeAccess.length > 0) {
+      if (!user.vehicleTypeAccess.includes(data.type)) {
+        toast.error('No tienes acceso para crear/editar vehículos de este tipo');
+        return;
+      }
+    }
+
     const vehicleData = {
       plateNumber: data.plateNumber,
       vin: data.vin || undefined,
@@ -443,18 +465,23 @@ const Vehicles = () => {
   const filteredVehicles = vehiclesData?.vehicles || [];
   const totalCount = vehiclesData?.total || 0;
 
-  const vehicleTypes = [
+  // Todos los tipos de vehículos disponibles
+  const allVehicleTypes = [
     { value: 'automovil', label: 'Automóvil' },
-    { value: 'camioneta', label: 'Camioneta' },
+    { value: 'furgoneta', label: 'Furgoneta' },
     { value: 'camion', label: 'Camión' },
-    { value: 'trailer', label: 'Tráiler' },
-    { value: 'motocicleta', label: 'Motocicleta' },
     { value: 'autobus', label: 'Autobús' },
-    { value: 'van', label: 'Van' },
-    { value: 'pickup', label: 'Pickup' },
-    { value: 'maquinaria_pesada', label: 'Maquinaria Pesada' },
-    { value: 'otro', label: 'Otro' }
+    { value: 'motocicleta', label: 'Motocicleta' },
+    { value: 'tractor', label: 'Tractor' },
+    { value: 'apero_agricola', label: 'Apero Agrícola' },
+    { value: 'maquinaria_construccion', label: 'Maquinaria de Construcción' },
+    { value: 'vehiculo_especial', label: 'Vehículo Especial' }
   ];
+
+  // Filtrar tipos de vehículos según permisos del usuario
+  const vehicleTypes = user?.vehicleTypeAccess && user.vehicleTypeAccess.length > 0
+    ? allVehicleTypes.filter(type => user.vehicleTypeAccess.includes(type.value))
+    : allVehicleTypes; // Si no tiene restricciones, mostrar todos
 
   const fuelTypes = [
     { value: 'gasolina', label: 'Gasolina' },
@@ -876,7 +903,18 @@ const Vehicles = () => {
                   <Controller
                     name="type"
                     control={control}
-                    rules={{ required: 'El tipo es requerido' }}
+                    rules={{ 
+                      required: 'El tipo es requerido',
+                      validate: (value) => {
+                        // Validar que el usuario tenga acceso al tipo de vehículo seleccionado
+                        if (user?.vehicleTypeAccess && user.vehicleTypeAccess.length > 0) {
+                          if (!user.vehicleTypeAccess.includes(value)) {
+                            return 'No tienes acceso a este tipo de vehículo';
+                          }
+                        }
+                        return true;
+                      }
+                    }}
                     render={({ field }) => (
                       <FormControl fullWidth error={!!errors.type}>
                         <InputLabel>Tipo de Vehículo</InputLabel>
@@ -887,6 +925,16 @@ const Vehicles = () => {
                             </MenuItem>
                           ))}
                         </Select>
+                        {errors.type && (
+                          <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.5 }}>
+                            {errors.type.message}
+                          </Typography>
+                        )}
+                        {user?.vehicleTypeAccess && user.vehicleTypeAccess.length > 0 && (
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, ml: 1.5 }}>
+                            Solo puedes crear vehículos de los tipos autorizados para tu usuario
+                          </Typography>
+                        )}
                       </FormControl>
                     )}
                   />

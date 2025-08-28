@@ -46,6 +46,64 @@ const UserSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Branch'
   }],
+  vehicleTypeAccess: [{
+    type: String,
+    enum: [
+      // Vehículos de pasajeros
+      'coche',
+      'motocicleta',
+      'scooter',
+      'bicicleta_electrica',
+      
+      // Vehículos comerciales ligeros
+      'camioneta',
+      'van',
+      'pickup',
+      'furgoneta',
+      
+      // Vehículos comerciales pesados
+      'camion',
+      'trailer',
+      'autobus',
+      'microbus',
+      
+      // Maquinaria agrícola
+      'tractor',
+      'cosechadora',
+      'sembradora',
+      'pulverizadora',
+      'arado',
+      'cultivador',
+      'rastra',
+      'segadora',
+      'empacadora',
+      'remolque_agricola',
+      
+      // Aperos agrícolas
+      'apero_labranza',
+      'apero_siembra',
+      'apero_fertilizacion',
+      'apero_fumigacion',
+      'apero_cosecha',
+      'apero_transporte',
+      
+      // Maquinaria de construcción
+      'excavadora',
+      'bulldozer',
+      'cargadora',
+      'grua',
+      'compactadora',
+      'motoniveladora',
+      'retroexcavadora',
+      
+      // Vehículos especiales
+      'ambulancia',
+      'bomberos',
+      'policia',
+      'militar',
+      'otro'
+    ]
+  }],
   role: {
     type: String,
     enum: [
@@ -173,7 +231,18 @@ UserSchema.pre('save', async function(next) {
 
 // Middleware para establecer permisos por defecto según el rol
 UserSchema.pre('save', function(next) {
-  if (!this.isModified('role')) return next();
+  if (!this.isModified('role') && !this.isNew) return next();
+  
+  // Lista completa de tipos de vehículos
+  const allVehicleTypes = [
+    'coche', 'motocicleta', 'scooter', 'bicicleta_electrica',
+    'camioneta', 'van', 'pickup', 'furgoneta',
+    'camion', 'trailer', 'autobus', 'microbus',
+    'tractor', 'cosechadora', 'sembradora', 'pulverizadora', 'arado', 'cultivador', 'rastra', 'segadora', 'empacadora', 'remolque_agricola',
+    'apero_labranza', 'apero_siembra', 'apero_fertilizacion', 'apero_fumigacion', 'apero_cosecha', 'apero_transporte',
+    'excavadora', 'bulldozer', 'cargadora', 'grua', 'compactadora', 'motoniveladora', 'retroexcavadora',
+    'ambulancia', 'bomberos', 'policia', 'militar', 'otro'
+  ];
   
   // Establecer permisos por defecto según el rol
   switch (this.role) {
@@ -186,6 +255,10 @@ UserSchema.pre('save', function(next) {
         users: { create: true, read: true, update: true, delete: true },
         reports: { read: true, export: true }
       };
+      // Super admin tiene acceso a todos los tipos de vehículos
+      if (!this.vehicleTypeAccess || this.vehicleTypeAccess.length === 0) {
+        this.vehicleTypeAccess = allVehicleTypes;
+      }
       break;
     case 'company_admin':
       this.permissions = {
@@ -196,6 +269,10 @@ UserSchema.pre('save', function(next) {
         users: { create: true, read: true, update: true, delete: true },
         reports: { read: true, export: true }
       };
+      // Company admin tiene acceso a todos los tipos por defecto
+      if (!this.vehicleTypeAccess || this.vehicleTypeAccess.length === 0) {
+        this.vehicleTypeAccess = allVehicleTypes;
+      }
       break;
     case 'branch_manager':
       this.permissions = {
@@ -206,6 +283,10 @@ UserSchema.pre('save', function(next) {
         users: { create: true, read: true, update: true, delete: false },
         reports: { read: true, export: true }
       };
+      // Branch manager tiene acceso a vehículos comerciales y de pasajeros por defecto
+      if (!this.vehicleTypeAccess || this.vehicleTypeAccess.length === 0) {
+        this.vehicleTypeAccess = ['coche', 'motocicleta', 'camioneta', 'van', 'pickup', 'furgoneta', 'camion', 'trailer', 'autobus', 'microbus'];
+      }
       break;
     case 'mechanic':
       this.permissions = {
@@ -216,6 +297,10 @@ UserSchema.pre('save', function(next) {
         users: { create: false, read: false, update: false, delete: false },
         reports: { read: true, export: false }
       };
+      // Mecánico tiene acceso a vehículos básicos por defecto
+      if (!this.vehicleTypeAccess || this.vehicleTypeAccess.length === 0) {
+        this.vehicleTypeAccess = ['coche', 'motocicleta', 'camioneta', 'van', 'pickup'];
+      }
       break;
     default:
       // operator, viewer
@@ -227,6 +312,10 @@ UserSchema.pre('save', function(next) {
         users: { create: false, read: false, update: false, delete: false },
         reports: { read: true, export: false }
       };
+      // Operador/viewer tiene acceso limitado por defecto
+      if (!this.vehicleTypeAccess || this.vehicleTypeAccess.length === 0) {
+        this.vehicleTypeAccess = ['coche', 'motocicleta', 'camioneta'];
+      }
   }
   
   next();

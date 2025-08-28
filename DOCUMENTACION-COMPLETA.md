@@ -25,6 +25,7 @@ Tractoreando es un sistema integral de gestión para empresas de transporte y lo
 - 🔧 **Mantenimiento**: Programación y seguimiento de mantenimientos
 - 📊 **Reportes**: Informes detallados y análisis de datos
 - 👥 **Gestión de Usuarios**: Control de acceso y permisos
+- 🚗 **[Sistema de Tipos de Vehículos](./SISTEMA-TIPOS-VEHICULOS.md)**: Control de acceso granular por tipos
 
 **Tecnologías Utilizadas:**
 - **Backend**: Node.js, Express.js, MongoDB

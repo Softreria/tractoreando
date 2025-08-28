@@ -182,7 +182,7 @@ export const AuthProvider = ({ children }) => {
   const loadUser = useCallback(async () => {
     try {
       dispatch({ type: AUTH_ACTIONS.LOAD_USER_START });
-      const response = await api.get('/api/auth/profile');
+      const response = await api.get('/auth/profile');
       dispatch({
         type: AUTH_ACTIONS.LOAD_USER_SUCCESS,
         payload: response.data.user,
@@ -198,7 +198,7 @@ export const AuthProvider = ({ children }) => {
   // Función para cerrar sesión
   const logout = useCallback(async (showToast = true) => {
     try {
-      await api.post('/api/auth/logout');
+      await api.post('/auth/logout');
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
     } finally {
@@ -230,7 +230,7 @@ export const AuthProvider = ({ children }) => {
         const loadUserDirectly = async () => {
           try {
             dispatch({ type: AUTH_ACTIONS.LOAD_USER_START });
-            const response = await api.get('/api/auth/profile');
+            const response = await api.get('/auth/profile');
             dispatch({
               type: AUTH_ACTIONS.LOAD_USER_SUCCESS,
               payload: response.data.user,
@@ -256,7 +256,7 @@ export const AuthProvider = ({ children }) => {
     try {
       dispatch({ type: AUTH_ACTIONS.LOGIN_START });
 
-      const response = await api.post('/api/auth/login', {
+      const response = await api.post('/auth/login', {
         email,
         password,
       });
@@ -289,7 +289,7 @@ export const AuthProvider = ({ children }) => {
   // Función para actualizar perfil
   const updateProfile = async (userData) => {
     try {
-      const response = await api.put('/api/auth/profile', userData);
+      const response = await api.put('/auth/profile', userData);
 
       dispatch({
         type: AUTH_ACTIONS.UPDATE_USER,
@@ -308,7 +308,7 @@ export const AuthProvider = ({ children }) => {
   // Función para cambiar contraseña
   const changePassword = async (currentPassword, newPassword) => {
     try {
-      await api.put('/api/auth/change-password', {
+      await api.put('/auth/change-password', {
         currentPassword,
         newPassword,
       });
@@ -325,7 +325,7 @@ export const AuthProvider = ({ children }) => {
   // Función para solicitar restablecimiento de contraseña
   const forgotPassword = async (email) => {
     try {
-      await api.post('/api/auth/forgot-password', { email });
+      await api.post('/auth/forgot-password', { email });
       toast.success('Se ha enviado un enlace de restablecimiento a tu email');
       return { success: true };
     } catch (error) {
@@ -338,7 +338,7 @@ export const AuthProvider = ({ children }) => {
   // Función para restablecer contraseña
   const resetPassword = async (token, newPassword) => {
     try {
-      await api.post('/api/auth/reset-password', {
+      await api.post('/auth/reset-password', {
         token,
         newPassword,
       });

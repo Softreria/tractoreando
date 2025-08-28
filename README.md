@@ -7,10 +7,12 @@ Tractoreando es un sistema integral de gestión para empresas de transporte y lo
 ## ✨ Características Principales
 
 - 🏢 **Multi-empresa**: Gestión de múltiples empresas desde una sola instalación
-- 🚛 **Gestión de Vehículos**: Control completo del parque vehicular
+- 🚛 **Gestión de Vehículos**: Control completo del parque vehicular con diferenciación por tipos
+- 🚗 **Tipos de Vehículos**: Soporte para automóviles, motocicletas, tractores, aperos agrícolas y más
+- 🔐 **Control de Acceso por Tipo**: Los usuarios solo ven vehículos de tipos autorizados
 - 🔧 **Mantenimiento**: Programación y seguimiento de mantenimientos
 - 📊 **Reportes**: Informes detallados y análisis de datos
-- 👥 **Gestión de Usuarios**: Control de acceso y permisos
+- 👥 **Gestión de Usuarios**: Control de acceso y permisos granulares
 
 ## 🛠️ Tecnologías
 
@@ -70,6 +72,7 @@ La siguiente documentación ha sido integrada en el archivo principal:
 - 🏭 Despliegue en producción paso a paso
 - 🔧 Solución de problemas comunes con diagnósticos automáticos
 - 🔧 Mantenimiento, monitoreo y backups automatizados
+- 🚗 **[Sistema de Tipos de Vehículos](./SISTEMA-TIPOS-VEHICULOS.md)** - Control de acceso granular por tipos
 
 ## 🛠️ Scripts de Gestión Consolidados
 
