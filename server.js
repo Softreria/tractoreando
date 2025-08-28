@@ -20,6 +20,17 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Health check específico para Nginx Proxy Manager
+app.get('/health-check', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    server: 'tractoreando-backend',
+    port: process.env.PORT || 3002,
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
 // Rutas de la API
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/companies', require('./routes/companies'));
