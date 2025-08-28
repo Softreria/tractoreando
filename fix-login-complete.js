@@ -224,6 +224,9 @@ API_URL=https://tractoreando.softreria.com/api
   async testApiEndpoint() {
     console.log('\n5️⃣ PROBANDO ENDPOINT DE API...');
     
+    // Primero verificar normalización de email
+    await this.debugEmailNormalization();
+    
     try {
       const response = await axios.post(`${this.apiUrl}/auth/login`, this.testCredentials, {
         headers: {
@@ -249,12 +252,65 @@ API_URL=https://tractoreando.softreria.com/api
             console.log(`   - ${err.msg} (${err.param})`);
           });
         }
+        
+        // Si falla, intentar con email sin normalizar
+        console.log('\n🔄 Intentando corregir email en BD...');
+        await this.fixEmailInDatabase();
+        
       } else {
         console.log(`🔌 Error de conexión: ${error.message}`);
       }
       
       return false;
     }
+  }
+
+  async debugEmailNormalization() {
+    console.log('\n🔍 DEBUGEANDO NORMALIZACIÓN DE EMAIL...');
+    
+    const originalEmail = this.testCredentials.email;
+    const normalizedEmail = originalEmail.toLowerCase().trim();
+    
+    console.log(`📧 Email original: "${originalEmail}"`);
+    console.log(`📧 Email normalizado: "${normalizedEmail}"`);
+    
+    // Verificar qué email está en la BD
+    const userOriginal = await User.findOne({ email: originalEmail });
+    const userNormalized = await User.findOne({ email: normalizedEmail });
+    
+    console.log(`🔍 Usuario con email original: ${userOriginal ? '✅ Encontrado' : '❌ No encontrado'}`);
+    console.log(`🔍 Usuario con email normalizado: ${userNormalized ? '✅ Encontrado' : '❌ No encontrado'}`);
+    
+    if (userOriginal && !userNormalized) {
+      console.log('⚠️  PROBLEMA: Email en BD no está normalizado');
+      return false;
+    }
+    
+    return true;
+  }
+
+  async fixEmailInDatabase() {
+    console.log('🔧 Corrigiendo email en base de datos...');
+    
+    try {
+      const user = await User.findOne({ email: this.testCredentials.email });
+      if (user) {
+        const normalizedEmail = this.testCredentials.email.toLowerCase().trim();
+        if (user.email !== normalizedEmail) {
+          user.email = normalizedEmail;
+          await user.save();
+          console.log(`✅ Email actualizado de "${this.testCredentials.email}" a "${normalizedEmail}"`);
+          
+          // Probar API nuevamente
+          console.log('🔄 Probando API con email corregido...');
+          return await this.testApiEndpoint();
+        }
+      }
+    } catch (error) {
+      console.log('❌ Error corrigiendo email:', error.message);
+    }
+    
+    return false;
   }
 
   async provideSolution() {
