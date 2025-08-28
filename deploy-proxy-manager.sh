@@ -131,12 +131,12 @@ log_success "Aplicación iniciada con PM2"
 
 # Verificar configuración de Nginx
 log_info "Verificando configuración de Nginx para Proxy Manager..."
-nginx -t -c /Users/davidhernandezlujan/Documents/tractoreando/nginx-proxy-manager.conf
+nginx -t -c /Users/davidhernandezlujan/Documents/tractoreando/nginx-proxy-manager-simple.conf
 log_success "Configuración de Nginx válida"
 
 # Iniciar Nginx con configuración para Proxy Manager
 log_info "Iniciando Nginx con configuración para Proxy Manager..."
-sudo nginx -c /Users/davidhernandezlujan/Documents/tractoreando/nginx-proxy-manager.conf
+sudo nginx -c /Users/davidhernandezlujan/Documents/tractoreando/nginx-proxy-manager-simple.conf
 log_success "Nginx iniciado en puerto 3001"
 
 # Verificar que la aplicación esté funcionando
@@ -185,7 +185,7 @@ echo "   • Aplicación: tractoreando-backend"
 echo "   • Puerto interno Nginx: 3001 (para Proxy Manager)"
 echo "   • Puerto backend: 3002"
 echo "   • Estado PM2: $(pm2 list | grep tractoreando-backend | awk '{print $10}')"
-echo "   • Configuración: nginx-proxy-manager.conf"
+echo "   • Configuración: nginx-proxy-manager-simple.conf"
 echo ""
 echo "🔧 Configuración en Nginx Proxy Manager:"
 echo "   • Scheme: http"
@@ -197,7 +197,7 @@ echo ""
 echo "📊 Comandos útiles:"
 echo "   • Ver estado PM2: pm2 status"
 echo "   • Ver logs PM2: pm2 logs tractoreando-backend"
-echo "   • Ver logs Nginx: tail -f /opt/homebrew/var/log/nginx/tractoreando_proxy_error.log"
+echo "   • Ver logs Nginx: sudo nginx -T (verificar configuración)"
 echo "   • Monitoreo PM2: pm2 monit"
 echo ""
 echo "🔗 Endpoints internos:"

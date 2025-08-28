@@ -52,6 +52,18 @@ sudo nginx -t
 sudo nginx -s reload
 ```
 
+### 4. `nginx-proxy-manager-simple.conf`
+**Uso**: Configuración simplificada para Nginx Proxy Manager
+- ✅ Sin logs para evitar errores de permisos
+- ✅ Configuración mínima y robusta
+- ✅ Ideal para entornos con Nginx Proxy Manager
+
+**Cómo usar**:
+```bash
+# Usar directamente como configuración principal
+sudo nginx -c /path/to/nginx-proxy-manager-simple.conf
+```
+
 ## Estructura Correcta de Archivos Nginx
 
 ### Archivo Principal (nginx.conf)
@@ -116,6 +128,13 @@ sudo nginx -s reload
 ### Error: "server directive is not allowed here"
 **Causa**: Bloque `server` fuera del bloque `http`
 **Solución**: Asegurar que `server` esté dentro de `http`
+
+### Error: "open() log file failed (No such file or directory)"
+**Causa**: Directorio de logs no existe o permisos incorrectos
+**Solución**: 
+- Crear directorio: `sudo mkdir -p /opt/homebrew/var/log/nginx`
+- O deshabilitar logs: `access_log off; error_log /dev/null;`
+- Para Nginx Proxy Manager: usar configuración simplificada sin logs
 
 ## Recomendaciones
 
