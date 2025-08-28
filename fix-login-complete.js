@@ -225,7 +225,16 @@ API_URL=https://tractoreando.softreria.com/api
     console.log('\n5️⃣ PROBANDO ENDPOINT DE API...');
     
     // Primero verificar normalización de email
-    await this.debugEmailNormalization();
+    const emailOk = await this.debugEmailNormalization();
+    
+    if (!emailOk) {
+      console.log('🔄 Intentando corregir email en BD...');
+      const fixed = await this.fixEmailInDatabase();
+      if (!fixed) {
+        console.log('❌ No se pudo corregir el email');
+        return false;
+      }
+    }
     
     try {
       const response = await axios.post(`${this.apiUrl}/auth/login`, this.testCredentials, {
@@ -252,11 +261,6 @@ API_URL=https://tractoreando.softreria.com/api
             console.log(`   - ${err.msg} (${err.param})`);
           });
         }
-        
-        // Si falla, intentar con email sin normalizar
-        console.log('\n🔄 Intentando corregir email en BD...');
-        await this.fixEmailInDatabase();
-        
       } else {
         console.log(`🔌 Error de conexión: ${error.message}`);
       }
@@ -293,24 +297,36 @@ API_URL=https://tractoreando.softreria.com/api
     console.log('🔧 Corrigiendo email en base de datos...');
     
     try {
-      const user = await User.findOne({ email: this.testCredentials.email });
-      if (user) {
+      // Buscar usuario con email original (puede tener mayúsculas)
+      const userOriginal = await User.findOne({ 
+        email: { $regex: new RegExp(`^${this.testCredentials.email}$`, 'i') } 
+      });
+      
+      if (userOriginal) {
         const normalizedEmail = this.testCredentials.email.toLowerCase().trim();
-        if (user.email !== normalizedEmail) {
-          user.email = normalizedEmail;
-          await user.save();
-          console.log(`✅ Email actualizado de "${this.testCredentials.email}" a "${normalizedEmail}"`);
-          
-          // Probar API nuevamente
-          console.log('🔄 Probando API con email corregido...');
-          return await this.testApiEndpoint();
+        console.log(`📧 Email encontrado: "${userOriginal.email}"`);
+        console.log(`📧 Email normalizado: "${normalizedEmail}"`);
+        
+        if (userOriginal.email !== normalizedEmail) {
+          userOriginal.email = normalizedEmail;
+          await userOriginal.save();
+          console.log(`✅ Email actualizado de "${userOriginal.email}" a "${normalizedEmail}"`);
+        } else {
+          console.log('✅ Email ya está normalizado');
         }
+        
+        // Actualizar las credenciales de prueba para usar el email normalizado
+        this.testCredentials.email = normalizedEmail;
+        
+        return true;
+      } else {
+        console.log('❌ Usuario no encontrado con ninguna variación del email');
+        return false;
       }
     } catch (error) {
       console.log('❌ Error corrigiendo email:', error.message);
+      return false;
     }
-    
-    return false;
   }
 
   async provideSolution() {
@@ -347,6 +363,29 @@ API_URL=https://tractoreando.softreria.com/api
       } else {
         console.log('\n⚠️  PROBLEMA PERSISTE');
         console.log('💡 Soluciones adicionales:');
+        console.log('   1. Verificar que el servidor esté ejecutándose en el puerto correcto');
+        console.log('   2. Revisar logs del servidor: pm2 logs');
+        console.log('   3. Verificar variables de entorno JWT_SECRET');
+        console.log('   4. Comprobar configuración de CORS');
+        console.log('   5. Revisar middleware de validación en auth.js');
+        
+        // Mostrar información adicional de debug
+        console.log('\n🔍 INFORMACIÓN DE DEBUG:');
+        console.log(`📧 Email de prueba: ${this.testCredentials.email}`);
+        console.log(`🔑 Password de prueba: ${this.testCredentials.password}`);
+        console.log(`🌐 URL API: ${this.apiUrl}`);
+        
+        // Verificar si el usuario existe en la BD
+        const user = await User.findOne({ email: this.testCredentials.email });
+        if (user) {
+          console.log('✅ Usuario existe en BD');
+          console.log(`📧 Email en BD: "${user.email}"`);
+          console.log(`🔐 Activo: ${user.isActive}`);
+          console.log(`🔒 Bloqueado: ${user.isLocked}`);
+          console.log(`👤 Rol: ${user.role}`);
+        } else {
+          console.log('❌ Usuario NO existe en BD');
+        }
         console.log('   1. Verificar nginx: sudo nginx -t && sudo systemctl reload nginx');
         console.log('   2. Verificar logs: pm2 logs');
         console.log('   3. Verificar puertos: netstat -tlnp | grep :5000');
