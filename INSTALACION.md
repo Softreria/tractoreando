@@ -179,6 +179,12 @@ E: The repository 'https://repo.mongodb.org/apt/ubuntu oracular/mongodb-org/6.0 
 
 **Solución automática**: El script `install.sh` detecta automáticamente versiones nuevas de Ubuntu (24.10 'oracular', etc.) y usa el repositorio 'noble' como fallback.
 
+**Solución rápida** (si la instalación ya falló):
+```bash
+# Ejecutar script de reparación
+./fix-mongodb-repo.sh
+```
+
 **Solución manual** (si es necesario):
 ```bash
 # Para Ubuntu 24.10+ usar repositorio noble manualmente
