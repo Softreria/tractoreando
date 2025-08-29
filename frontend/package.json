@@ -17,10 +17,18 @@
     "react-router-dom": "^6.8.1",
     "react-scripts": "5.0.1"
   },
+  "devDependencies": {
+    "@craco/craco": "^7.1.0",
+    "compression-webpack-plugin": "^10.0.0",
+    "image-webpack-loader": "^8.1.0",
+    "webpack-bundle-analyzer": "^4.9.1"
+  },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
+    "start": "craco start",
+    "build": "craco build",
+    "build:prod": "GENERATE_SOURCEMAP=false INLINE_RUNTIME_CHUNK=false craco build",
+    "build:analyze": "ANALYZE_BUNDLE=true npm run build:prod",
+    "test": "craco test",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
@@ -33,12 +41,15 @@
     "production": [
       ">0.2%",
       "not dead",
-      "not op_mini all"
+      "not op_mini all",
+      "not ie <= 11"
     ],
     "development": [
       "last 1 chrome version",
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  }
+  },
+  "homepage": ".",
+  "proxy": "http://localhost:8000"
 }

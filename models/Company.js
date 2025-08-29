@@ -1,96 +1,210 @@
-const mongoose = require('mongoose');
+const { DataTypes, Model } = require('sequelize');
+const { sequelize } = require('../config/database');
 
-const CompanySchema = new mongoose.Schema({
+class Company extends Model {
+  // Método toJSON personalizado
+  toJSON() {
+    const values = Object.assign({}, this.get());
+    return values;
+  }
+}
+
+Company.init({
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
   name: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 100
+    type: DataTypes.STRING(100),
+    allowNull: false,
+    validate: {
+      notEmpty: true,
+      len: [1, 100]
+    }
   },
   cif: {
-    type: String,
-    required: true,
+    type: DataTypes.STRING,
+    allowNull: false,
     unique: true,
-    trim: true,
-    uppercase: true
+    validate: {
+      notEmpty: true
+    },
+    set(value) {
+      this.setDataValue('cif', value.toUpperCase().trim());
+    }
   },
   address: {
-    street: { type: String, trim: true },
-    city: { type: String, trim: true },
-    state: { type: String, trim: true },
-    zipCode: { type: String, trim: true },
-    country: { type: String, default: 'España', trim: true },
-    additionalInfo: { type: String, trim: true, maxlength: 200 }
+    type: DataTypes.JSONB,
+    defaultValue: {
+      street: null,
+      city: null,
+      state: null,
+      zipCode: null,
+      country: 'España',
+      additionalInfo: null
+    },
+    validate: {
+      isValidAddress(value) {
+        if (value && typeof value !== 'object') {
+          throw new Error('Address must be an object');
+        }
+        if (value && value.additionalInfo && value.additionalInfo.length > 200) {
+          throw new Error('Additional info cannot exceed 200 characters');
+        }
+      }
+    }
   },
   contact: {
-    phone: { type: String, trim: true },
-    email: { type: String, trim: true, lowercase: true },
-    website: { type: String, trim: true }
+    type: DataTypes.JSONB,
+    defaultValue: {
+      phone: null,
+      email: null,
+      website: null
+    },
+    validate: {
+      isValidContact(value) {
+        if (value && typeof value !== 'object') {
+          throw new Error('Contact must be an object');
+        }
+        if (value && value.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email)) {
+          throw new Error('Invalid email format in contact');
+        }
+      }
+    },
+    set(value) {
+      if (value && value.email) {
+        value.email = value.email.toLowerCase().trim();
+      }
+      this.setDataValue('contact', value);
+    }
   },
   logo: {
-    type: String, // URL o path del logo
-    default: null
+    type: DataTypes.STRING,
+    allowNull: true
   },
   settings: {
-    currency: { type: String, default: 'EUR' },
-    timezone: { type: String, default: 'Europe/Madrid' },
-    maintenanceReminders: { type: Boolean, default: true },
-    emailNotifications: { type: Boolean, default: true }
+    type: DataTypes.JSONB,
+    defaultValue: {
+      currency: 'EUR',
+      timezone: 'Europe/Madrid',
+      maintenanceReminders: true,
+      emailNotifications: true
+    },
+    validate: {
+      isValidSettings(value) {
+        if (value && typeof value !== 'object') {
+          throw new Error('Settings must be an object');
+        }
+      }
+    }
   },
-  // Datos del administrador de la empresa
   administrator: {
-    firstName: { type: String, trim: true, maxlength: 50 },
-    lastName: { type: String, trim: true, maxlength: 50 },
-    email: { type: String, trim: true, lowercase: true },
-    phone: { type: String, trim: true },
-    canManageUsers: { type: Boolean, default: true },
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    type: DataTypes.JSONB,
+    defaultValue: {
+      firstName: null,
+      lastName: null,
+      email: null,
+      phone: null,
+      canManageUsers: true,
+      userId: null
+    },
+    validate: {
+      isValidAdministrator(value) {
+        if (value && typeof value !== 'object') {
+          throw new Error('Administrator must be an object');
+        }
+        if (value && value.firstName && value.firstName.length > 50) {
+          throw new Error('Administrator firstName cannot exceed 50 characters');
+        }
+        if (value && value.lastName && value.lastName.length > 50) {
+          throw new Error('Administrator lastName cannot exceed 50 characters');
+        }
+        if (value && value.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email)) {
+          throw new Error('Invalid email format in administrator');
+        }
+      }
+    },
+    set(value) {
+      if (value && value.email) {
+        value.email = value.email.toLowerCase().trim();
+      }
+      if (value && value.firstName) {
+        value.firstName = value.firstName.trim();
+      }
+      if (value && value.lastName) {
+        value.lastName = value.lastName.trim();
+      }
+      if (value && value.phone) {
+        value.phone = value.phone.trim();
+      }
+      this.setDataValue('administrator', value);
+    }
   },
   isActive: {
-    type: Boolean,
-    default: true
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
   },
-  createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+  createdById: {
+    type: DataTypes.UUID,
+    allowNull: true,
+    references: {
+      model: 'Users',
+      key: 'id'
+    }
   }
 }, {
-  timestamps: true
-});
-
-// Índices
-CompanySchema.index({ cif: 1 });
-CompanySchema.index({ name: 1 });
-CompanySchema.index({ isActive: 1 });
-CompanySchema.index({ 'administrator.email': 1 });
-
-// Middleware pre-save
-CompanySchema.pre('save', function(next) {
-  if (this.cif) {
-    this.cif = this.cif.toUpperCase().trim();
+  sequelize,
+  modelName: 'Company',
+  tableName: 'Companies',
+  timestamps: true,
+  indexes: [
+    {
+      unique: true,
+      fields: ['cif']
+    },
+    {
+      fields: ['name']
+    },
+    {
+      fields: ['isActive']
+    },
+    {
+      fields: [sequelize.literal("(administrator->>'email')")],
+      name: 'companies_administrator_email_idx'
+    }
+  ],
+  hooks: {
+    beforeSave: async (company, options) => {
+      // Normalizar CIF
+      if (company.changed('cif') && company.cif) {
+        company.cif = company.cif.toUpperCase().trim();
+      }
+    }
   }
-  next();
 });
 
-// Métodos virtuales
-CompanySchema.virtual('branchCount', {
-  ref: 'Branch',
-  localField: '_id',
-  foreignField: 'company',
-  count: true
-});
-
-CompanySchema.virtual('vehicleCount', {
-  ref: 'Vehicle',
-  localField: '_id',
-  foreignField: 'company',
-  count: true
-});
-
-// Métodos de instancia
-CompanySchema.methods.toJSON = function() {
-  const company = this.toObject();
-  return company;
+// Definir asociaciones
+Company.associate = (models) => {
+  Company.belongsTo(models.User, {
+    foreignKey: 'createdById',
+    as: 'createdBy'
+  });
+  
+  Company.hasMany(models.Branch, {
+    foreignKey: 'companyId',
+    as: 'branches'
+  });
+  
+  Company.hasMany(models.Vehicle, {
+    foreignKey: 'companyId',
+    as: 'vehicles'
+  });
+  
+  Company.hasMany(models.User, {
+    foreignKey: 'companyId',
+    as: 'users'
+  });
 };
 
-module.exports = mongoose.model('Company', CompanySchema);
+module.exports = Company;

@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Tractoreando - Script de Actualización
+# Tractoreando - Script de Actualización Simplificado
 # Actualiza la aplicación manteniendo la configuración y datos existentes
-# Uso: ./update.sh [--backup] [--force]
+# Uso: ./update.sh [--backup]
 
 set -e
 
@@ -19,360 +19,219 @@ log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
-echo "🚛 Tractoreando - Actualización"
-echo "=============================="
+echo "🚛 Tractoreando - Actualización Simplificada"
+echo "==========================================="
 echo "Fecha: $(date)"
 echo "Usuario: $(whoami)"
 echo ""
 
 # Configuración
-APP_DIR="/opt/tractoreando"
-APP_USER="tractoreando"
-BACKUP_DIR="$APP_DIR/backups"
+BACKUP_DIR="./backups"
 DATE=$(date +"%Y%m%d_%H%M%S")
-BACKUP_FILE="$BACKUP_DIR/tractoreando_backup_$DATE.tar.gz"
-TEMP_DIR="/tmp/tractoreando_update_$DATE"
+CREATE_BACKUP=false
 
 # Procesar argumentos
-CREATE_BACKUP=false
-FORCE_UPDATE=false
-
 for arg in "$@"; do
     case $arg in
         --backup)
             CREATE_BACKUP=true
             shift
             ;;
-        --force)
-            FORCE_UPDATE=true
-            shift
-            ;;
         --help)
-            echo "Uso: $0 [opciones]"
-            echo ""
-            echo "Opciones:"
-            echo "  --backup    Crear backup antes de actualizar"
-            echo "  --force     Forzar actualización sin confirmación"
-            echo "  --help      Mostrar esta ayuda"
+            echo "Uso: $0 [--backup] [--help]"
+            echo "  --backup  Crear backup antes de actualizar"
+            echo "  --help    Mostrar esta ayuda"
             exit 0
-            ;;
-        *)
-            log_error "Opción desconocida: $arg"
-            exit 1
             ;;
     esac
 done
 
-# Función para verificar si un comando existe
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
-}
+# Verificar que estamos en el directorio correcto
+if [[ ! -f "package.json" ]] || [[ ! -f "server.js" ]]; then
+    log_error "Este script debe ejecutarse desde el directorio raíz de Tractoreando"
+    exit 1
+fi
 
-# Función para verificar prerrequisitos
-check_prerequisites() {
-    log_info "Verificando prerrequisitos..."
-    
-    # Verificar si la aplicación está instalada
-    if [[ ! -d "$APP_DIR" ]]; then
-        log_error "Tractoreando no está instalado en $APP_DIR"
-        log_info "Ejecuta ./install.sh primero"
-        exit 1
-    fi
-    
-    # Verificar si PM2 está instalado
-    if ! command_exists pm2; then
-        log_error "PM2 no está instalado"
-        exit 1
-    fi
-    
-    # Verificar si el usuario de aplicación existe
-    if ! id "$APP_USER" &>/dev/null; then
-        log_error "Usuario $APP_USER no existe"
-        exit 1
-    fi
-    
-    log_success "Prerrequisitos verificados"
-}
-
-# Función para crear backup
+# Crear backup si se solicita
 create_backup() {
     if [[ "$CREATE_BACKUP" == "true" ]]; then
-        log_info "Creando backup..."
+        log_info "Creando backup de la base de datos..."
         
-        # Crear directorio de backup si no existe
-        sudo mkdir -p "$BACKUP_DIR"
+        mkdir -p "$BACKUP_DIR"
         
-        # Crear backup de la aplicación (excluyendo node_modules y logs)
-        sudo tar -czf "$BACKUP_FILE" \
-            --exclude="$APP_DIR/node_modules" \
-            --exclude="$APP_DIR/frontend/node_modules" \
-            --exclude="$APP_DIR/frontend/build" \
-            --exclude="$APP_DIR/logs" \
-            --exclude="$APP_DIR/backups" \
-            -C "$(dirname $APP_DIR)" "$(basename $APP_DIR)"
-        
-        log_success "Backup creado: $BACKUP_FILE"
+        # Backup de PostgreSQL
+        if command -v pg_dump >/dev/null 2>&1; then
+            pg_dump -h localhost -U tractoreando_user tractoreando > "$BACKUP_DIR/backup_$DATE.sql"
+            log_success "Backup creado: $BACKUP_DIR/backup_$DATE.sql"
+        else
+            log_warning "pg_dump no encontrado, saltando backup"
+        fi
+    fi
+}
+
+# Verificar estado actual
+verify_current_state() {
+    log_info "Verificando estado actual de la aplicación..."
+    
+    if command -v pm2 >/dev/null 2>&1; then
+        if pm2 list | grep -q "tractoreando"; then
+            log_success "Aplicación encontrada en PM2"
+        else
+            log_warning "Aplicación no encontrada en PM2"
+        fi
     else
-        log_warning "Saltando creación de backup (usa --backup para crear uno)"
+        log_warning "PM2 no encontrado"
     fi
 }
 
-# Función para obtener confirmación del usuario
-get_confirmation() {
-    if [[ "$FORCE_UPDATE" == "true" ]]; then
-        return 0
-    fi
-    
-    echo ""
-    log_warning "Esta operación actualizará Tractoreando"
-    log_warning "La aplicación se detendrá temporalmente durante la actualización"
-    echo ""
-    read -p "¿Continuar con la actualización? (y/N): " -n 1 -r
-    echo ""
-    
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        log_info "Actualización cancelada por el usuario"
-        exit 0
-    fi
-}
-
-# Función para detener la aplicación
+# Detener aplicación
 stop_application() {
     log_info "Deteniendo aplicación..."
     
-    cd "$APP_DIR"
-    
-    # Detener PM2
-    sudo -u "$APP_USER" pm2 stop all || true
-    
-    log_success "Aplicación detenida"
-}
-
-# Función para preparar actualización
-prepare_update() {
-    log_info "Preparando actualización..."
-    
-    # Crear directorio temporal
-    mkdir -p "$TEMP_DIR"
-    
-    # Copiar archivos actuales al directorio temporal
-    cp -r . "$TEMP_DIR/"
-    
-    log_success "Preparación completada"
-}
-
-# Función para actualizar código
-update_code() {
-    log_info "Actualizando código..."
-    
-    cd "$APP_DIR"
-    
-    # Si hay un repositorio git, hacer pull
-    if [[ -d ".git" ]]; then
-        log_info "Actualizando desde repositorio git..."
-        sudo -u "$APP_USER" git pull origin main || sudo -u "$APP_USER" git pull origin master
-    else
-        log_info "Copiando nuevos archivos desde directorio temporal..."
-        
-        # Preservar archivos de configuración importantes
-        if [[ -f ".env.production" ]]; then
-            cp ".env.production" "$TEMP_DIR/.env.production.backup"
-        fi
-        
-        # Copiar nuevos archivos (excluyendo ciertos directorios)
-        rsync -av --exclude='node_modules' --exclude='logs' --exclude='backups' --exclude='.env.production' "$TEMP_DIR/" .
-        
-        # Restaurar configuración si existe backup
-        if [[ -f "$TEMP_DIR/.env.production.backup" ]]; then
-            cp "$TEMP_DIR/.env.production.backup" ".env.production"
-        fi
-        
-        # Establecer permisos
-        sudo chown -R "$APP_USER:$APP_USER" .
+    if command -v pm2 >/dev/null 2>&1; then
+        pm2 stop tractoreando-backend 2>/dev/null || true
+        log_success "Aplicación detenida"
     fi
-    
-    log_success "Código actualizado"
 }
 
-# Función para actualizar dependencias
+# Actualizar código
+update_code() {
+    log_info "Actualizando código desde repositorio..."
+    
+    if [[ -d ".git" ]]; then
+        git fetch origin
+        git pull origin main
+        log_success "Código actualizado"
+    else
+        log_warning "No es un repositorio Git, saltando actualización de código"
+    fi
+}
+
+# Actualizar dependencias
 update_dependencies() {
     log_info "Actualizando dependencias..."
     
-    cd "$APP_DIR"
-    
-    # Actualizar dependencias del backend
+    # Backend
     log_info "Actualizando dependencias del backend..."
-    sudo -u "$APP_USER" npm install --production
+    npm ci --production
     
-    # Actualizar dependencias del frontend
+    # Frontend
     log_info "Actualizando dependencias del frontend..."
     cd frontend
-    sudo -u "$APP_USER" npm install
-    
-    # Reconstruir frontend
-    log_info "Reconstruyendo frontend..."
-    sudo -u "$APP_USER" npm run build
-    
+    npm ci
     cd ..
     
     log_success "Dependencias actualizadas"
 }
 
-# Función para ejecutar migraciones de base de datos
+# Ejecutar migraciones
 run_migrations() {
     log_info "Ejecutando migraciones de base de datos..."
     
-    cd "$APP_DIR"
-    
-    # Si existe un script de migración, ejecutarlo
-    if [[ -f "migrate.js" ]]; then
-        sudo -u "$APP_USER" node migrate.js
+    if [[ -f "node_modules/.bin/sequelize" ]]; then
+        npx sequelize-cli db:migrate --env production
         log_success "Migraciones ejecutadas"
     else
-        log_info "No se encontraron migraciones"
+        log_warning "Sequelize CLI no encontrado, saltando migraciones"
     fi
 }
 
-# Función para actualizar configuración de Nginx
-update_nginx() {
-    log_info "Actualizando configuración de Nginx..."
+# Construir frontend
+build_frontend() {
+    log_info "Construyendo frontend..."
     
-    if [[ -f "$APP_DIR/nginx.conf" ]]; then
-        # Verificar si la configuración ha cambiado
-        if ! diff -q "$APP_DIR/nginx.conf" "/etc/nginx/sites-available/tractoreando" >/dev/null 2>&1; then
-            log_info "Configuración de Nginx actualizada, aplicando cambios..."
-            
-            sudo cp "$APP_DIR/nginx.conf" "/etc/nginx/sites-available/tractoreando"
-            
-            # Probar configuración
-            sudo nginx -t
-            
-            # Recargar Nginx
-            sudo systemctl reload nginx
-            
-            log_success "Configuración de Nginx actualizada"
-        else
-            log_info "Configuración de Nginx sin cambios"
-        fi
+    cd frontend
+    if npm run build:prod; then
+        log_success "Frontend construido exitosamente"
+    elif npm run build; then
+        log_success "Frontend construido con script build estándar"
+    else
+        log_error "Error al construir frontend"
+        exit 1
     fi
+    cd ..
 }
 
-# Función para iniciar la aplicación
+# Iniciar aplicación
 start_application() {
     log_info "Iniciando aplicación..."
     
-    cd "$APP_DIR"
-    
-    # Iniciar aplicación con PM2
-    sudo -u "$APP_USER" pm2 start ecosystem.config.js
-    
-    # Guardar configuración
-    sudo -u "$APP_USER" pm2 save
-    
-    log_success "Aplicación iniciada"
+    if [[ -f "ecosystem.config.js" ]]; then
+        pm2 start ecosystem.config.js --env production
+        pm2 save
+        log_success "Aplicación iniciada con PM2"
+    else
+        pm2 start server.js --name tractoreando-backend
+        pm2 save
+        log_success "Aplicación iniciada"
+    fi
 }
 
-# Función para verificar que la aplicación esté funcionando
+# Verificar aplicación
 verify_application() {
     log_info "Verificando que la aplicación esté funcionando..."
     
-    # Esperar un momento para que la aplicación inicie
     sleep 5
     
-    # Verificar estado de PM2
-    if sudo -u "$APP_USER" pm2 list | grep -q "online"; then
-        log_success "Aplicación funcionando correctamente"
+    if curl -f http://localhost:8000/api/health >/dev/null 2>&1; then
+        log_success "✅ Aplicación funcionando correctamente"
+        log_success "🌐 Frontend: http://localhost:8080"
+        log_success "🔌 API: http://localhost:8000/api"
     else
-        log_error "La aplicación no está funcionando correctamente"
-        log_info "Verificando logs..."
-        sudo -u "$APP_USER" pm2 logs --lines 10
+        log_warning "⚠️ La aplicación puede no estar respondiendo correctamente"
+        log_info "Verifica los logs con: pm2 logs"
         return 1
     fi
 }
 
-# Función para limpiar archivos temporales
+# Limpiar archivos temporales
 cleanup() {
     log_info "Limpiando archivos temporales..."
     
-    if [[ -d "$TEMP_DIR" ]]; then
-        rm -rf "$TEMP_DIR"
+    # Limpiar cache de npm
+    npm cache clean --force 2>/dev/null || true
+    
+    # Limpiar logs antiguos
+    if [[ -d "logs" ]]; then
+        find logs -name "*.log" -mtime +7 -delete 2>/dev/null || true
     fi
     
     log_success "Limpieza completada"
 }
 
-# Función principal de actualización
+# Función principal
 main() {
     log_info "Iniciando actualización de Tractoreando..."
     
-    # Verificar prerrequisitos
-    check_prerequisites
-    
-    # Obtener confirmación del usuario
-    get_confirmation
-    
-    # Crear backup si se solicita
-    create_backup
-    
-    # Preparar actualización
-    prepare_update
-    
-    # Detener aplicación
-    stop_application
-    
-    # Actualizar código
-    update_code
-    
-    # Actualizar dependencias
-    update_dependencies
-    
-    # Ejecutar migraciones
-    run_migrations
-    
-    # Actualizar configuración de Nginx
-    update_nginx
-    
-    # Iniciar aplicación
-    start_application
-    
-    # Verificar que funcione
-    if verify_application; then
-        echo ""
-        log_success "¡Actualización completada exitosamente!"
-        echo ""
-        echo "🌐 La aplicación está disponible en:"
-        echo "   - http://$(hostname -I | awk '{print $1}')"
-        echo "   - http://localhost (si estás en el servidor)"
-        echo ""
-        echo "📋 Comandos útiles:"
-        echo "   - Ver estado: pm2 status"
-        echo "   - Ver logs: pm2 logs"
-        echo "   - Reiniciar: pm2 restart all"
-        echo ""
-        
-        if [[ "$CREATE_BACKUP" == "true" ]]; then
-            echo "💾 Backup creado en: $BACKUP_FILE"
-            echo ""
-        fi
-    else
-        log_error "La actualización falló"
-        
-        if [[ "$CREATE_BACKUP" == "true" && -f "$BACKUP_FILE" ]]; then
-            log_info "Puedes restaurar el backup con:"
-            echo "   sudo tar -xzf $BACKUP_FILE -C $(dirname $APP_DIR)"
-        fi
-        
+    # Verificar permisos
+    if [[ ! -w "." ]]; then
+        log_error "No tienes permisos de escritura en este directorio"
         exit 1
     fi
     
-    # Limpiar archivos temporales
+    # Ejecutar actualización
+    create_backup
+    verify_current_state
+    stop_application
+    update_code
+    update_dependencies
+    run_migrations
+    build_frontend
+    start_application
+    verify_application
     cleanup
+    
+    echo ""
+    log_success "🎉 ¡Actualización completada exitosamente!"
+    log_info "Comandos útiles:"
+    log_info "  - Ver estado: pm2 status"
+    log_info "  - Ver logs: pm2 logs"
+    log_info "  - Reiniciar: pm2 restart tractoreando-backend"
+    echo ""
 }
 
 # Manejo de errores
-trap 'log_error "Error durante la actualización"; cleanup; exit 1' ERR
+trap 'log_error "Error durante la actualización. Verifica los logs."; exit 1' ERR
 
-# Verificar si el script se ejecuta directamente
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    main "$@"
-fi
+# Ejecutar función principal
+main "$@"

@@ -1,7 +1,7 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+const { sequelize } = require('./config/database');
 require('dotenv').config();
 
 const app = express();
@@ -74,17 +74,19 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// Conexión a MongoDB
+// Conexión a PostgreSQL
 const connectDB = async () => {
   try {
-    const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/tractoreando';
-    await mongoose.connect(mongoURI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
-    console.log('✅ MongoDB conectado exitosamente');
+    await sequelize.authenticate();
+    console.log('✅ PostgreSQL conectado exitosamente');
+    
+    // Sincronizar modelos con la base de datos
+    if (process.env.NODE_ENV === 'development') {
+      await sequelize.sync({ alter: true });
+      console.log('✅ Modelos sincronizados con la base de datos');
+    }
   } catch (error) {
-    console.error('❌ Error conectando a MongoDB:', error.message);
+    console.error('❌ Error conectando a PostgreSQL:', error.message);
     process.exit(1);
   }
 };

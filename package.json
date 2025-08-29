@@ -11,10 +11,15 @@
     "client": "cd frontend && npm start",
     "server": "nodemon server.js",
     "build": "cd frontend && npm run build",
-    "build:prod": "cd frontend && npm run build",
+    "build:prod": "cd frontend && npm run build:prod",
+    "build:analyze": "cd frontend && npm run build:analyze",
+    "build:optimized": "./build-production.sh",
     "install:all": "npm install && cd frontend && npm install",
     "install-all": "npm install && cd frontend && npm install",
-    "deploy": "npm run build && npm run init-admin && npm run production",
+    "deploy": "npm run build:prod && npm run init-admin && npm run production",
+    "deploy:full": "npm run install:all && npm run build:prod && npm run init-admin && npm run production",
+    "deploy:optimized": "npm run build:optimized && npm run init-admin && npm run production",
+    "update:production": "./update-production.sh",
     "clean": "rm -rf node_modules frontend/node_modules frontend/build",
     "deploy:install": "./install.sh",
     "deploy:install-standalone": "./install-standalone.sh",
@@ -35,7 +40,9 @@
     "express-validator": "^7.0.1",
     "jsonwebtoken": "^9.0.2",
     "moment": "^2.29.4",
-    "mongoose": "^7.5.0"
+    "sequelize": "^6.35.0",
+    "pg": "^8.11.0",
+    "pg-hstore": "^2.3.4"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

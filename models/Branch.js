@@ -1,115 +1,220 @@
-const mongoose = require('mongoose');
+const { DataTypes, Model } = require('sequelize');
+const { sequelize } = require('../config/database');
 
-// Esquema para Delegaciones/Fincas/Subempresas
-const BranchSchema = new mongoose.Schema({
+class Branch extends Model {
+  // Método para verificar si está abierto ahora
+  isOpenNow() {
+    const now = new Date();
+    const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][now.getDay()];
+    const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
+    
+    const todayHours = this.operatingHours[dayOfWeek];
+    if (!todayHours || !todayHours.isOpen) return false;
+    
+    return currentTime >= todayHours.open && currentTime <= todayHours.close;
+  }
+
+  // Método para obtener dirección completa
+  getFullAddress() {
+    const addr = this.address;
+    return `${addr.street}, ${addr.city}, ${addr.state} ${addr.zipCode}, ${addr.country}`;
+  }
+
+  // Método toJSON personalizado
+  toJSON() {
+    const values = Object.assign({}, this.get());
+    return values;
+  }
+}
+
+Branch.init({
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
   name: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 100
+    type: DataTypes.STRING(100),
+    allowNull: false,
+    validate: {
+      notEmpty: true,
+      len: [1, 100]
+    }
   },
   type: {
-    type: String,
-    enum: ['delegacion', 'finca', 'subempresa', 'oficina', 'almacen', 'taller'],
-    default: 'delegacion'
+    type: DataTypes.ENUM('delegacion', 'finca', 'subempresa', 'oficina', 'almacen', 'taller'),
+    defaultValue: 'delegacion'
   },
   code: {
-    type: String,
-    required: true,
-    trim: true,
-    uppercase: true,
-    maxlength: 10,
-    // Código único de la delegación/finca
+    type: DataTypes.STRING(10),
+    allowNull: false,
+    validate: {
+      notEmpty: true,
+      len: [1, 10]
+    },
+    set(value) {
+      this.setDataValue('code', value.toUpperCase().trim());
+    }
   },
-  company: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Company',
-    required: true
+  companyId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    references: {
+      model: 'Companies',
+      key: 'id'
+    }
   },
   address: {
-    street: { type: String, required: true, trim: true },
-    city: { type: String, required: true, trim: true },
-    state: { type: String, required: true, trim: true },
-    zipCode: { type: String, required: true, trim: true },
-    country: { type: String, default: 'España', trim: true },
-    coordinates: {
-      latitude: { type: Number },
-      longitude: { type: Number }
+    type: DataTypes.JSONB,
+    allowNull: false,
+    validate: {
+      isValidAddress(value) {
+        if (!value || typeof value !== 'object') {
+          throw new Error('Address is required and must be an object');
+        }
+        if (!value.street || !value.city || !value.state || !value.zipCode) {
+          throw new Error('Street, city, state, and zipCode are required in address');
+        }
+      }
+    },
+    defaultValue: {
+      street: null,
+      city: null,
+      state: null,
+      zipCode: null,
+      country: 'España',
+      coordinates: {
+        latitude: null,
+        longitude: null
+      }
     }
   },
   contact: {
-    phone: { type: String, trim: true, required: false },
-    email: { type: String, trim: true, lowercase: true, required: false },
-    manager: { type: String, trim: true, required: false }
+    type: DataTypes.JSONB,
+    defaultValue: {
+      phone: null,
+      email: null,
+      manager: null
+    },
+    validate: {
+      isValidContact(value) {
+        if (value && typeof value !== 'object') {
+          throw new Error('Contact must be an object');
+        }
+        if (value && value.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email)) {
+          throw new Error('Invalid email format in contact');
+        }
+      }
+    },
+    set(value) {
+      if (value && value.email) {
+        value.email = value.email.toLowerCase().trim();
+      }
+      if (value && value.phone) {
+        value.phone = value.phone.trim();
+      }
+      if (value && value.manager) {
+        value.manager = value.manager.trim();
+      }
+      this.setDataValue('contact', value);
+    }
   },
   operatingHours: {
-    monday: { open: String, close: String, isOpen: { type: Boolean, default: true } },
-    tuesday: { open: String, close: String, isOpen: { type: Boolean, default: true } },
-    wednesday: { open: String, close: String, isOpen: { type: Boolean, default: true } },
-    thursday: { open: String, close: String, isOpen: { type: Boolean, default: true } },
-    friday: { open: String, close: String, isOpen: { type: Boolean, default: true } },
-    saturday: { open: String, close: String, isOpen: { type: Boolean, default: false } },
-    sunday: { open: String, close: String, isOpen: { type: Boolean, default: false } }
+    type: DataTypes.JSONB,
+    defaultValue: {
+      monday: { open: null, close: null, isOpen: true },
+      tuesday: { open: null, close: null, isOpen: true },
+      wednesday: { open: null, close: null, isOpen: true },
+      thursday: { open: null, close: null, isOpen: true },
+      friday: { open: null, close: null, isOpen: true },
+      saturday: { open: null, close: null, isOpen: false },
+      sunday: { open: null, close: null, isOpen: false }
+    },
+    validate: {
+      isValidOperatingHours(value) {
+        if (value && typeof value !== 'object') {
+          throw new Error('Operating hours must be an object');
+        }
+        const validDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+        if (value) {
+          for (const day of validDays) {
+            if (value[day] && typeof value[day] !== 'object') {
+              throw new Error(`Operating hours for ${day} must be an object`);
+            }
+          }
+        }
+      }
+    }
   },
-
   isActive: {
-    type: Boolean,
-    default: true
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
   },
-  createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+  createdById: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    references: {
+      model: 'Users',
+      key: 'id'
+    }
   }
 }, {
-  timestamps: true
-});
-
-// Índices compuestos
-BranchSchema.index({ company: 1, code: 1 }, { unique: true });
-BranchSchema.index({ company: 1, name: 1 });
-BranchSchema.index({ company: 1, isActive: 1 });
-BranchSchema.index({ 'address.city': 1, 'address.state': 1 });
-
-// Middleware pre-save
-BranchSchema.pre('save', function(next) {
-  if (this.code) {
-    this.code = this.code.toUpperCase().trim();
+  sequelize,
+  modelName: 'Branch',
+  tableName: 'Branches',
+  timestamps: true,
+  indexes: [
+    {
+      unique: true,
+      fields: ['companyId', 'code']
+    },
+    {
+      fields: ['companyId', 'name']
+    },
+    {
+      fields: ['companyId', 'isActive']
+    },
+    {
+      fields: [sequelize.literal("(address->>'city')"), sequelize.literal("(address->>'state')")],
+      name: 'branches_address_city_state_idx'
+    }
+  ],
+  hooks: {
+    beforeSave: async (branch, options) => {
+      // Normalizar código
+      if (branch.changed('code') && branch.code) {
+        branch.code = branch.code.toUpperCase().trim();
+      }
+    }
   }
-  next();
 });
 
-// Métodos virtuales
-BranchSchema.virtual('vehicleCount', {
-  ref: 'Vehicle',
-  localField: '_id',
-  foreignField: 'branch',
-  count: true
-});
-
-BranchSchema.virtual('activeMaintenanceCount', {
-  ref: 'Maintenance',
-  localField: '_id',
-  foreignField: 'branch',
-  count: true,
-  match: { status: { $in: ['programado', 'en_proceso'] } }
-});
-
-// Métodos de instancia
-BranchSchema.methods.isOpenNow = function() {
-  const now = new Date();
-  const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][now.getDay()];
-  const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
+// Definir asociaciones
+Branch.associate = (models) => {
+  Branch.belongsTo(models.Company, {
+    foreignKey: 'companyId',
+    as: 'company'
+  });
   
-  const todayHours = this.operatingHours[dayOfWeek];
-  if (!todayHours || !todayHours.isOpen) return false;
+  Branch.belongsTo(models.User, {
+    foreignKey: 'createdById',
+    as: 'createdBy'
+  });
   
-  return currentTime >= todayHours.open && currentTime <= todayHours.close;
+  Branch.hasMany(models.Vehicle, {
+    foreignKey: 'branchId',
+    as: 'vehicles'
+  });
+  
+  Branch.hasMany(models.Maintenance, {
+    foreignKey: 'branchId',
+    as: 'maintenances'
+  });
+  
+  Branch.hasMany(models.User, {
+    foreignKey: 'branchId',
+    as: 'users'
+  });
 };
 
-BranchSchema.methods.getFullAddress = function() {
-  const addr = this.address;
-  return `${addr.street}, ${addr.city}, ${addr.state} ${addr.zipCode}, ${addr.country}`;
-};
-
-module.exports = mongoose.model('Branch', BranchSchema);
+module.exports = Branch;

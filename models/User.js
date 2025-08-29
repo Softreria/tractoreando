@@ -1,304 +1,339 @@
-const mongoose = require('mongoose');
+const { DataTypes, Model } = require('sequelize');
 const bcrypt = require('bcryptjs');
+const { sequelize } = require('../config/database');
 
-const UserSchema = new mongoose.Schema({
+class User extends Model {
+  // Virtual para nombre completo
+  get fullName() {
+    return `${this.firstName} ${this.lastName}`;
+  }
+
+  // Virtual para verificar si la cuenta está bloqueada
+  get isLocked() {
+    return !!(this.lockUntil && this.lockUntil > new Date());
+  }
+
+  // Método para comparar contraseñas
+  async comparePassword(candidatePassword) {
+    return bcrypt.compare(candidatePassword, this.password);
+  }
+
+  // Método para incrementar intentos de login
+  async incLoginAttempts() {
+    // Si ya tenemos un lockUntil y no ha expirado, solo incrementamos
+    if (this.lockUntil && this.lockUntil < new Date()) {
+      await this.update({
+        lockUntil: null,
+        loginAttempts: 1
+      });
+      return;
+    }
+
+    const updates = { loginAttempts: this.loginAttempts + 1 };
+
+    // Si llegamos al máximo de intentos y no estamos bloqueados, bloquear
+    if (this.loginAttempts + 1 >= 5 && !this.isLocked) {
+      updates.lockUntil = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 horas
+    }
+
+    await this.update(updates);
+  }
+
+  // Método para resetear intentos de login
+  async resetLoginAttempts() {
+    await this.update({
+      loginAttempts: 0,
+      lockUntil: null
+    });
+  }
+
+  // Método toJSON personalizado
+  toJSON() {
+    const values = Object.assign({}, this.get());
+    delete values.password;
+    delete values.emailVerificationToken;
+    delete values.passwordResetToken;
+    delete values.passwordResetExpires;
+    delete values.loginAttempts;
+    delete values.lockUntil;
+    return values;
+  }
+
+  // Método para establecer permisos por defecto según el rol
+  setDefaultPermissions() {
+    const allVehicleTypes = [
+      'Tractor', 'Camión', 'Furgoneta', 'Coche', 'Motocicleta', 'Remolque', 'Maquinaria', 'Otro'
+    ];
+
+    switch (this.role) {
+      case 'super_admin':
+        this.permissions = {
+          companies: { create: true, read: true, update: true, delete: true },
+          branches: { create: true, read: true, update: true, delete: true },
+          vehicles: { create: true, read: true, update: true, delete: true },
+          maintenance: { create: true, read: true, update: true, delete: true },
+          users: { create: true, read: true, update: true, delete: true },
+          reports: { read: true, export: true }
+        };
+        if (!this.vehicleTypeAccess || this.vehicleTypeAccess.length === 0) {
+          this.vehicleTypeAccess = allVehicleTypes;
+        }
+        break;
+      case 'company_admin':
+        this.permissions = {
+          companies: { create: false, read: true, update: true, delete: false },
+          branches: { create: true, read: true, update: true, delete: true },
+          vehicles: { create: true, read: true, update: true, delete: true },
+          maintenance: { create: true, read: true, update: true, delete: true },
+          users: { create: true, read: true, update: true, delete: true },
+          reports: { read: true, export: true }
+        };
+        if (!this.vehicleTypeAccess || this.vehicleTypeAccess.length === 0) {
+          this.vehicleTypeAccess = allVehicleTypes;
+        }
+        break;
+      case 'branch_manager':
+        this.permissions = {
+          companies: { create: false, read: true, update: false, delete: false },
+          branches: { create: false, read: true, update: true, delete: false },
+          vehicles: { create: true, read: true, update: true, delete: false },
+          maintenance: { create: true, read: true, update: true, delete: false },
+          users: { create: true, read: true, update: true, delete: false },
+          reports: { read: true, export: true }
+        };
+        if (!this.vehicleTypeAccess || this.vehicleTypeAccess.length === 0) {
+          this.vehicleTypeAccess = ['Coche', 'Motocicleta', 'Furgoneta', 'Camión'];
+        }
+        break;
+      case 'mechanic':
+        this.permissions = {
+          companies: { create: false, read: true, update: false, delete: false },
+          branches: { create: false, read: true, update: false, delete: false },
+          vehicles: { create: false, read: true, update: true, delete: false },
+          maintenance: { create: true, read: true, update: true, delete: false },
+          users: { create: false, read: false, update: false, delete: false },
+          reports: { read: true, export: false }
+        };
+        if (!this.vehicleTypeAccess || this.vehicleTypeAccess.length === 0) {
+          this.vehicleTypeAccess = ['Coche', 'Motocicleta', 'Furgoneta'];
+        }
+        break;
+      default:
+        // operator, viewer
+        this.permissions = {
+          companies: { create: false, read: true, update: false, delete: false },
+          branches: { create: false, read: true, update: false, delete: false },
+          vehicles: { create: false, read: true, update: false, delete: false },
+          maintenance: { create: false, read: true, update: false, delete: false },
+          users: { create: false, read: false, update: false, delete: false },
+          reports: { read: true, export: false }
+        };
+        if (!this.vehicleTypeAccess || this.vehicleTypeAccess.length === 0) {
+          this.vehicleTypeAccess = ['Coche', 'Motocicleta'];
+        }
+    }
+  }
+}
+
+User.init({
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
   firstName: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 50
+    type: DataTypes.STRING(50),
+    allowNull: false,
+    validate: {
+      notEmpty: true,
+      len: [1, 50]
+    }
   },
   lastName: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 50
+    type: DataTypes.STRING(50),
+    allowNull: false,
+    validate: {
+      notEmpty: true,
+      len: [1, 50]
+    }
   },
   email: {
-    type: String,
-    required: true,
+    type: DataTypes.STRING,
+    allowNull: false,
     unique: true,
-    trim: true,
-    lowercase: true,
-    match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Email inválido']
+    validate: {
+      isEmail: true,
+      notEmpty: true
+    },
+    set(value) {
+      this.setDataValue('email', value.toLowerCase().trim());
+    }
   },
   password: {
-    type: String,
-    required: true,
-    minlength: 6
+    type: DataTypes.STRING,
+    allowNull: false,
+    validate: {
+      len: [6, 255]
+    }
   },
   phone: {
-    type: String,
-    trim: true
+    type: DataTypes.STRING,
+    allowNull: true
   },
   avatar: {
-    type: String, // URL o path del avatar
-    default: null
+    type: DataTypes.STRING,
+    allowNull: true
   },
-  company: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Company',
-    required: function() {
-      return this.role !== 'super_admin';
+  companyId: {
+    type: DataTypes.UUID,
+    allowNull: true,
+    references: {
+      model: 'Companies',
+      key: 'id'
+    },
+    validate: {
+      isRequiredForNonSuperAdmin(value) {
+        if (this.role !== 'super_admin' && !value) {
+          throw new Error('Company is required for non-super admin users');
+        }
+      }
     }
   },
-  branch: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Branch',
-    required: function() {
-      return this.role !== 'super_admin';
+  branchId: {
+    type: DataTypes.UUID,
+    allowNull: true,
+    references: {
+      model: 'Branches',
+      key: 'id'
+    },
+    validate: {
+      isRequiredForNonSuperAdmin(value) {
+        if (this.role !== 'super_admin' && !value) {
+          throw new Error('Branch is required for non-super admin users');
+        }
+      }
     }
   },
-  vehicleTypeAccess: [{
-    type: String,
-    enum: [
-      'Tractor',
-      'Camión',
-      'Furgoneta',
-      'Coche',
-      'Motocicleta',
-      'Remolque',
-      'Maquinaria',
-      'Otro'
-    ]
-  }],
+  vehicleTypeAccess: {
+    type: DataTypes.ARRAY(DataTypes.ENUM(
+      'Tractor', 'Camión', 'Furgoneta', 'Coche', 'Motocicleta', 'Remolque', 'Maquinaria', 'Otro'
+    )),
+    defaultValue: []
+  },
   role: {
-    type: String,
-    enum: [
-      'super_admin',    // Administrador del sistema
-      'company_admin',  // Administrador de empresa
-      'branch_manager', // Gerente de sucursal
-      'mechanic',       // Mecánico
-      'operator',       // Operador
-      'viewer'          // Solo lectura
-    ],
-    required: true
+    type: DataTypes.ENUM(
+      'super_admin', 'company_admin', 'branch_manager', 'mechanic', 'operator', 'viewer'
+    ),
+    allowNull: false
   },
   permissions: {
-    companies: {
-      create: { type: Boolean, default: false },
-      read: { type: Boolean, default: true },
-      update: { type: Boolean, default: false },
-      delete: { type: Boolean, default: false }
-    },
-    branches: {
-      create: { type: Boolean, default: false },
-      read: { type: Boolean, default: true },
-      update: { type: Boolean, default: false },
-      delete: { type: Boolean, default: false }
-    },
-    vehicles: {
-      create: { type: Boolean, default: false },
-      read: { type: Boolean, default: true },
-      update: { type: Boolean, default: false },
-      delete: { type: Boolean, default: false }
-    },
-    maintenance: {
-      create: { type: Boolean, default: false },
-      read: { type: Boolean, default: true },
-      update: { type: Boolean, default: false },
-      delete: { type: Boolean, default: false }
-    },
-    users: {
-      create: { type: Boolean, default: false },
-      read: { type: Boolean, default: false },
-      update: { type: Boolean, default: false },
-      delete: { type: Boolean, default: false }
-    },
-    reports: {
-      read: { type: Boolean, default: true },
-      export: { type: Boolean, default: false }
+    type: DataTypes.JSONB,
+    defaultValue: {
+      companies: { create: false, read: true, update: false, delete: false },
+      branches: { create: false, read: true, update: false, delete: false },
+      vehicles: { create: false, read: true, update: false, delete: false },
+      maintenance: { create: false, read: true, update: false, delete: false },
+      users: { create: false, read: false, update: false, delete: false },
+      reports: { read: true, export: false }
     }
   },
   preferences: {
-    language: { type: String, default: 'es', enum: ['es', 'en'] },
-    timezone: { type: String, default: 'Europe/Madrid' },
-    notifications: {
-      email: { type: Boolean, default: true },
-      push: { type: Boolean, default: true },
-      sms: { type: Boolean, default: false }
-    },
-    dashboard: {
-      defaultView: { type: String, default: 'overview' },
-      itemsPerPage: { type: Number, default: 10 }
+    type: DataTypes.JSONB,
+    defaultValue: {
+      language: 'es',
+      timezone: 'Europe/Madrid',
+      notifications: {
+        email: true,
+        push: true,
+        sms: false
+      },
+      dashboard: {
+        defaultView: 'overview',
+        itemsPerPage: 10
+      }
     }
   },
   lastLogin: {
-    type: Date
+    type: DataTypes.DATE,
+    allowNull: true
   },
   loginAttempts: {
-    type: Number,
-    default: 0
+    type: DataTypes.INTEGER,
+    defaultValue: 0
   },
   lockUntil: {
-    type: Date
+    type: DataTypes.DATE,
+    allowNull: true
   },
   isActive: {
-    type: Boolean,
-    default: true
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
   },
-  createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+  createdById: {
+    type: DataTypes.UUID,
+    allowNull: true,
+    references: {
+      model: 'Users',
+      key: 'id'
+    }
   }
 }, {
-  timestamps: true
-});
+  sequelize,
+  modelName: 'User',
+  tableName: 'Users',
+  timestamps: true,
+  indexes: [
+    {
+      unique: true,
+      fields: ['email']
+    },
+    {
+      fields: ['companyId', 'role']
+    },
+    {
+      fields: ['companyId', 'isActive']
+    },
+    {
+      fields: ['branchId']
+    }
+  ],
+  hooks: {
+    beforeSave: async (user, options) => {
+      // Hash password si ha sido modificado
+      if (user.changed('password')) {
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(user.password, salt);
+      }
 
-// Índices
-UserSchema.index({ email: 1 });
-UserSchema.index({ company: 1, role: 1 });
-UserSchema.index({ company: 1, isActive: 1 });
-UserSchema.index({ branch: 1 });
-
-// Virtual para nombre completo
-UserSchema.virtual('fullName').get(function() {
-  return `${this.name} ${this.lastName}`;
-});
-
-// Virtual para verificar si la cuenta está bloqueada
-UserSchema.virtual('isLocked').get(function() {
-  return !!(this.lockUntil && this.lockUntil > Date.now());
-});
-
-// Middleware pre-save para hashear password
-UserSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
-  
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (error) {
-    next(error);
+      // Establecer permisos por defecto si el rol ha cambiado o es un nuevo usuario
+      if (user.changed('role') || user.isNewRecord) {
+        user.setDefaultPermissions();
+      }
+    }
   }
 });
 
-// Middleware para establecer permisos por defecto según el rol
-UserSchema.pre('save', function(next) {
-  if (!this.isModified('role') && !this.isNew) return next();
+// Definir asociaciones
+User.associate = (models) => {
+  User.belongsTo(models.Company, {
+    foreignKey: 'companyId',
+    as: 'company'
+  });
   
-  // Lista completa de tipos de vehículos
-  const allVehicleTypes = [
-    'Tractor', 'Camión', 'Furgoneta', 'Coche', 'Motocicleta', 'Remolque', 'Maquinaria', 'Otro'
-  ];
+  User.belongsTo(models.Branch, {
+    foreignKey: 'branchId',
+    as: 'branch'
+  });
   
-  // Establecer permisos por defecto según el rol
-  switch (this.role) {
-    case 'super_admin':
-      this.permissions = {
-        companies: { create: true, read: true, update: true, delete: true },
-        branches: { create: true, read: true, update: true, delete: true },
-        vehicles: { create: true, read: true, update: true, delete: true },
-        maintenance: { create: true, read: true, update: true, delete: true },
-        users: { create: true, read: true, update: true, delete: true },
-        reports: { read: true, export: true }
-      };
-      // Super admin tiene acceso a todos los tipos de vehículos
-      if (!this.vehicleTypeAccess || this.vehicleTypeAccess.length === 0) {
-        this.vehicleTypeAccess = allVehicleTypes;
-      }
-      break;
-    case 'company_admin':
-      this.permissions = {
-        companies: { create: false, read: true, update: true, delete: false },
-        branches: { create: true, read: true, update: true, delete: true },
-        vehicles: { create: true, read: true, update: true, delete: true },
-        maintenance: { create: true, read: true, update: true, delete: true },
-        users: { create: true, read: true, update: true, delete: true },
-        reports: { read: true, export: true }
-      };
-      // Company admin tiene acceso a todos los tipos por defecto
-      if (!this.vehicleTypeAccess || this.vehicleTypeAccess.length === 0) {
-        this.vehicleTypeAccess = allVehicleTypes;
-      }
-      break;
-    case 'branch_manager':
-      this.permissions = {
-        companies: { create: false, read: true, update: false, delete: false },
-        branches: { create: false, read: true, update: true, delete: false },
-        vehicles: { create: true, read: true, update: true, delete: false },
-        maintenance: { create: true, read: true, update: true, delete: false },
-        users: { create: true, read: true, update: true, delete: false },
-        reports: { read: true, export: true }
-      };
-      // Branch manager tiene acceso a vehículos comerciales y de pasajeros por defecto
-      if (!this.vehicleTypeAccess || this.vehicleTypeAccess.length === 0) {
-        this.vehicleTypeAccess = ['coche', 'motocicleta', 'camioneta', 'van', 'pickup', 'furgoneta', 'camion', 'trailer', 'autobus', 'microbus'];
-      }
-      break;
-    case 'mechanic':
-      this.permissions = {
-        companies: { create: false, read: true, update: false, delete: false },
-        branches: { create: false, read: true, update: false, delete: false },
-        vehicles: { create: false, read: true, update: true, delete: false },
-        maintenance: { create: true, read: true, update: true, delete: false },
-        users: { create: false, read: false, update: false, delete: false },
-        reports: { read: true, export: false }
-      };
-      // Mecánico tiene acceso a vehículos básicos por defecto
-      if (!this.vehicleTypeAccess || this.vehicleTypeAccess.length === 0) {
-        this.vehicleTypeAccess = ['coche', 'motocicleta', 'camioneta', 'van', 'pickup'];
-      }
-      break;
-    default:
-      // operator, viewer
-      this.permissions = {
-        companies: { create: false, read: true, update: false, delete: false },
-        branches: { create: false, read: true, update: false, delete: false },
-        vehicles: { create: false, read: true, update: false, delete: false },
-        maintenance: { create: false, read: true, update: false, delete: false },
-        users: { create: false, read: false, update: false, delete: false },
-        reports: { read: true, export: false }
-      };
-      // Operador/viewer tiene acceso limitado por defecto
-      if (!this.vehicleTypeAccess || this.vehicleTypeAccess.length === 0) {
-        this.vehicleTypeAccess = ['coche', 'motocicleta', 'camioneta'];
-      }
-  }
+  User.belongsTo(models.User, {
+    foreignKey: 'createdById',
+    as: 'createdBy'
+  });
   
-  next();
-});
-
-// Métodos de instancia
-UserSchema.methods.comparePassword = async function(candidatePassword) {
-  return bcrypt.compare(candidatePassword, this.password);
-};
-
-UserSchema.methods.incLoginAttempts = function() {
-  // Si ya tenemos un lockUntil y no ha expirado, solo incrementamos
-  if (this.lockUntil && this.lockUntil < Date.now()) {
-    return this.updateOne({
-      $unset: { lockUntil: 1 },
-      $set: { loginAttempts: 1 }
-    });
-  }
-  
-  const updates = { $inc: { loginAttempts: 1 } };
-  
-  // Si llegamos al máximo de intentos y no estamos bloqueados, bloquear
-  if (this.loginAttempts + 1 >= 5 && !this.isLocked) {
-    updates.$set = { lockUntil: Date.now() + 2 * 60 * 60 * 1000 }; // 2 horas
-  }
-  
-  return this.updateOne(updates);
-};
-
-UserSchema.methods.resetLoginAttempts = function() {
-  return this.updateOne({
-    $unset: { loginAttempts: 1, lockUntil: 1 }
+  User.hasMany(models.User, {
+    foreignKey: 'createdById',
+    as: 'createdUsers'
   });
 };
 
-UserSchema.methods.toJSON = function() {
-  const user = this.toObject();
-  delete user.password;
-  delete user.emailVerificationToken;
-  delete user.passwordResetToken;
-  delete user.passwordResetExpires;
-  delete user.loginAttempts;
-  delete user.lockUntil;
-  return user;
-};
-
-module.exports = mongoose.model('User', UserSchema);
+module.exports = User;

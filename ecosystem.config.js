@@ -8,23 +8,31 @@ module.exports = {
       exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
-        PORT: 3002,
-        MONGODB_URI: 'mongodb://127.0.0.1:27017/tractoreando_prod',
-        JWT_SECRET: 'your-super-secret-jwt-key-change-this',
-        JWT_EXPIRE: '7d',
+        PORT: 8000,
+        DB_NAME: 'tractoreando_prod',
+        DB_USER: 'tractoreando_user',
+        DB_PASSWORD: 'CHANGE_THIS_SECURE_PASSWORD',
+        DB_HOST: 'localhost',
+        DB_PORT: 5432,
+        JWT_SECRET: 'CHANGE_THIS_JWT_SECRET_IN_PRODUCTION_MINIMUM_32_CHARS',
+        JWT_EXPIRES_IN: '24h',
         BCRYPT_ROUNDS: 12,
         UPLOAD_PATH: './uploads',
         MAX_FILE_SIZE: '10mb',
         ALLOWED_FILE_TYPES: 'jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx',
-        CORS_ORIGIN: 'http://localhost',
+        CORS_ORIGIN: 'https://tractoreando.softreria.com',
         RATE_LIMIT_WINDOW: '15',
         RATE_LIMIT_MAX: '100',
-        LOG_LEVEL: 'info'
+        LOG_LEVEL: 'warn'
       },
       env_development: {
         NODE_ENV: 'development',
         PORT: 8000,
-        MONGODB_URI: 'mongodb://localhost:27017/tractoreando_dev',
+        DB_NAME: 'tractoreando_dev',
+        DB_USER: 'postgres',
+        DB_PASSWORD: 'postgres',
+        DB_HOST: 'localhost',
+        DB_PORT: 5432,
         LOG_LEVEL: 'debug'
       },
       // Configuración de logs
@@ -33,19 +41,21 @@ module.exports = {
       error_file: './logs/error.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       
-      // Configuración de reinicio automático
-      max_memory_restart: '500M',
-      restart_delay: 4000,
-      max_restarts: 10,
-      min_uptime: '10s',
+      // Configuración de reinicio automático optimizada
+      max_memory_restart: '1G',
+      restart_delay: 2000,
+      max_restarts: 5,
+      min_uptime: '30s',
+      exp_backoff_restart_delay: 100,
       
       // Configuración de monitoreo
       watch: false, // No usar watch en producción
       ignore_watch: ['node_modules', 'logs', 'uploads'],
       
-      // Configuración de cluster
-      kill_timeout: 5000,
-      listen_timeout: 8000,
+      // Configuración de cluster optimizada
+      kill_timeout: 3000,
+      listen_timeout: 5000,
+      shutdown_with_message: true,
       
       // Variables de entorno específicas
       source_map_support: false,

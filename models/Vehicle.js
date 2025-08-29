@@ -1,365 +1,484 @@
-const mongoose = require('mongoose');
+const { DataTypes, Model } = require('sequelize');
+const { sequelize } = require('../config/database');
 
-const VehicleSchema = new mongoose.Schema({
-  // Información básica (orden: 1-matrícula, 2-marca, 3-modelo, 4-número de bastidor)
+class Vehicle extends Model {
+  // Método para verificar si necesita cambio de aceite
+  needsOilChange() {
+    const schedule = this.maintenanceSchedule.oilChange;
+    const kmSinceLastChange = this.odometer.current - (schedule.lastKm || 0);
+    const monthsSinceLastChange = schedule.lastDate ? 
+      Math.floor((Date.now() - schedule.lastDate.getTime()) / (1000 * 60 * 60 * 24 * 30)) : 999;
+    
+    return kmSinceLastChange >= schedule.intervalKm || monthsSinceLastChange >= schedule.intervalMonths;
+  }
+
+  // Método para verificar si necesita inspección
+  needsInspection() {
+    const schedule = this.maintenanceSchedule.generalInspection;
+    const kmSinceLastInspection = this.odometer.current - (schedule.lastKm || 0);
+    const monthsSinceLastInspection = schedule.lastDate ? 
+      Math.floor((Date.now() - schedule.lastDate.getTime()) / (1000 * 60 * 60 * 24 * 30)) : 999;
+    
+    return kmSinceLastInspection >= schedule.intervalKm || monthsSinceLastInspection >= schedule.intervalMonths;
+  }
+
+  // Método para obtener documentos que expiran pronto
+  getExpiringDocuments(daysAhead = 30) {
+    const expiringDocs = [];
+    const checkDate = new Date();
+    checkDate.setDate(checkDate.getDate() + daysAhead);
+    
+    // Verificar ITV
+    if (this.specifications.itv.expiryDate && 
+        this.specifications.itv.expiryDate <= checkDate) {
+      expiringDocs.push({
+        type: 'itv',
+        expiryDate: this.specifications.itv.expiryDate,
+        daysUntilExpiry: Math.ceil((this.specifications.itv.expiryDate - new Date()) / (1000 * 60 * 60 * 24))
+      });
+    }
+    
+    // Verificar seguro
+    if (this.specifications.insurance.expiryDate && 
+        this.specifications.insurance.expiryDate <= checkDate) {
+      expiringDocs.push({
+        type: 'insurance',
+        expiryDate: this.specifications.insurance.expiryDate,
+        daysUntilExpiry: Math.ceil((this.specifications.insurance.expiryDate - new Date()) / (1000 * 60 * 60 * 24))
+      });
+    }
+    
+    return expiringDocs;
+  }
+
+  // Método para verificar si es vehículo de alquiler
+  isRental() {
+    return this.ownership.type === 'alquiler';
+  }
+
+  // Método para obtener el costo mensual (solo para alquileres)
+  getMonthlyRentalCost() {
+    return this.isRental() ? this.ownership.monthlyRentalPrice || 0 : 0;
+  }
+
+  // Método para verificar quién es responsable de los costos de mantenimiento
+  getMaintenanceResponsibility() {
+    if (!this.isRental()) return 'empresa_propietaria';
+    return this.ownership.maintenanceCostResponsibility || 'empresa_propietaria';
+  }
+
+  // Método para actualizar odómetro
+  async updateOdometer(newKm, updateDate = new Date()) {
+    if (newKm > this.odometer.current) {
+      this.odometer = {
+        ...this.odometer,
+        current: newKm,
+        lastUpdate: updateDate
+      };
+      return this.save();
+    }
+    return Promise.resolve(this);
+  }
+
+  // Propiedades virtuales
+  get fullName() {
+    return `${this.year} ${this.make} ${this.model}`;
+  }
+
+  get age() {
+    return new Date().getFullYear() - this.year;
+  }
+
+  // Método toJSON personalizado
+  toJSON() {
+    const values = Object.assign({}, this.get());
+    // Agregar propiedades virtuales
+    values.fullName = this.fullName;
+    values.age = this.age;
+    return values;
+  }
+}
+
+Vehicle.init({
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true
+  },
   plateNumber: {
-    type: String,
-    required: true,
-    trim: true,
-    uppercase: true,
-    maxlength: 15
+    type: DataTypes.STRING(15),
+    allowNull: false,
+    validate: {
+      notEmpty: true,
+      len: [1, 15]
+    },
+    set(value) {
+      this.setDataValue('plateNumber', value.toUpperCase().trim());
+    }
   },
   make: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 50
+    type: DataTypes.STRING(50),
+    allowNull: false,
+    validate: {
+      notEmpty: true,
+      len: [1, 50]
+    }
   },
   model: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 50
+    type: DataTypes.STRING(50),
+    allowNull: false,
+    validate: {
+      notEmpty: true,
+      len: [1, 50]
+    }
   },
   vin: {
-    type: String,
-    trim: true,
-    uppercase: true,
-    maxlength: 17
+    type: DataTypes.STRING(17),
+    allowNull: true,
+    validate: {
+      len: [0, 17]
+    },
+    set(value) {
+      if (value) {
+        this.setDataValue('vin', value.toUpperCase().trim());
+      }
+    }
   },
-  company: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Company',
-    required: true
+  companyId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    references: {
+      model: 'Companies',
+      key: 'id'
+    }
   },
-  branch: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Branch',
-    required: true
+  branchId: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    references: {
+      model: 'Branches',
+      key: 'id'
+    }
   },
   year: {
-    type: Number,
-    required: true,
-    min: 1900,
-    max: new Date().getFullYear() + 1
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    validate: {
+      min: 1900,
+      max: new Date().getFullYear() + 1
+    }
   },
   color: {
-    type: String,
-    trim: true,
-    maxlength: 30
+    type: DataTypes.STRING(30),
+    allowNull: true,
+    validate: {
+      len: [0, 30]
+    }
   },
-  
-  // Tipo y categoría
   vehicleType: {
-    type: String,
-    required: true,
-    enum: [
-      'Tractor',
-      'Camión',
-      'Furgoneta',
-      'Coche',
-      'Motocicleta',
-      'Remolque',
-      'Maquinaria',
-      'Otro'
-    ]
+    type: DataTypes.ENUM('Tractor', 'Camión', 'Furgoneta', 'Coche', 'Motocicleta', 'Remolque', 'Maquinaria', 'Otro'),
+    allowNull: false
   },
-
-  
-  // Especificaciones técnicas
   engine: {
-    type: {
-      type: String,
-      enum: ['gasolina', 'diesel', 'electrico', 'hibrido', 'gas_natural', 'gas_lp']
+    type: DataTypes.JSONB,
+    defaultValue: {
+      type: null,
+      displacement: null,
+      cylinders: null,
+      horsepower: null,
+      torque: null
     },
-    displacement: { type: Number }, // En litros
-    cylinders: { type: Number },
-    horsepower: { type: Number },
-    torque: { type: Number }
+    validate: {
+      isValidEngine(value) {
+        if (value && typeof value !== 'object') {
+          throw new Error('Engine must be an object');
+        }
+        if (value && value.type && !['gasolina', 'diesel', 'electrico', 'hibrido', 'gas_natural', 'gas_lp'].includes(value.type)) {
+          throw new Error('Invalid engine type');
+        }
+      }
+    }
   },
   transmission: {
-    type: String,
-    enum: ['manual', 'automatica', 'cvt', 'dsg']
+    type: DataTypes.ENUM('manual', 'automatica', 'cvt', 'dsg'),
+    allowNull: true
   },
   fuelCapacity: {
-    type: Number // En litros
-  },
-  
-  // Información de kilometraje
-  odometer: {
-    current: { type: Number, default: 0 }, // Kilometraje actual
-    lastUpdate: { type: Date, default: Date.now },
-    unit: { type: String, enum: ['km', 'miles'], default: 'km' }
-  },
-  
-
-  
-  // Documentos (solo gestión de archivos)
-  documents: {
-    files: [{
-      name: { type: String, required: true },
-      url: { type: String, required: true },
-      type: { 
-        type: String, 
-        enum: ['pdf', 'image', 'document', 'other'],
-        default: 'document'
-      },
-      uploadDate: { type: Date, default: Date.now },
-      uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
-    }]
-  },
-
-  // Especificaciones (campos movidos desde documentos + nuevos)
-  specifications: {
-    // Campos de seguro (movido desde documents)
-    insurance: {
-      company: { type: String, trim: true },
-      policyNumber: { type: String, trim: true },
-      expiryDate: { type: Date },
-      isValid: { type: Boolean, default: true }
-    },
-    // ITV (reemplaza inspection y registration)
-    itv: {
-      lastDate: { type: Date },
-      expiryDate: { type: Date },
-      isValid: { type: Boolean, default: true }
-    },
-    // Nuevos campos añadidos
-    numberOfKeys: {
-      type: Number,
-      min: 0,
-      default: 2
-    },
-    radioCode: {
-      type: String,
-      trim: true,
-      maxlength: 20
-    },
-    // Notas (movido desde campo independiente)
-    notes: {
-      type: String,
-      maxlength: 1000
-    }
-  },
-
-  // Información de propiedad/alquiler
-  ownership: {
-    type: {
-      type: String,
-      enum: ['propiedad', 'alquiler'],
-      default: 'propiedad'
-    },
-    monthlyRentalPrice: {
-      type: Number,
+    type: DataTypes.FLOAT,
+    allowNull: true,
+    validate: {
       min: 0
-    },
-    maintenanceCostResponsibility: {
-      type: String,
-      enum: ['empresa_propietaria', 'empresa_arrendataria'],
-      default: 'empresa_propietaria'
     }
   },
-
-  // Fotos del vehículo
-  photos: [{
-    url: { type: String, required: true },
-    description: { type: String, maxlength: 200 },
-    uploadDate: { type: Date, default: Date.now },
-    uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
-  }],
-  
-  // Estado y condición
+  odometer: {
+    type: DataTypes.JSONB,
+    defaultValue: {
+      current: 0,
+      lastUpdate: new Date(),
+      unit: 'km'
+    },
+    validate: {
+      isValidOdometer(value) {
+        if (value && typeof value !== 'object') {
+          throw new Error('Odometer must be an object');
+        }
+        if (value && value.unit && !['km', 'miles'].includes(value.unit)) {
+          throw new Error('Invalid odometer unit');
+        }
+        if (value && value.current && value.current < 0) {
+          throw new Error('Odometer current value cannot be negative');
+        }
+      }
+    }
+  },
+  documents: {
+    type: DataTypes.JSONB,
+    defaultValue: {
+      files: []
+    },
+    validate: {
+      isValidDocuments(value) {
+        if (value && typeof value !== 'object') {
+          throw new Error('Documents must be an object');
+        }
+        if (value && value.files && !Array.isArray(value.files)) {
+          throw new Error('Documents files must be an array');
+        }
+      }
+    }
+  },
+  specifications: {
+    type: DataTypes.JSONB,
+    defaultValue: {
+      insurance: {
+        company: null,
+        policyNumber: null,
+        expiryDate: null,
+        isValid: true
+      },
+      itv: {
+        lastDate: null,
+        expiryDate: null,
+        isValid: true
+      },
+      numberOfKeys: 2,
+      radioCode: null,
+      notes: null
+    },
+    validate: {
+      isValidSpecifications(value) {
+        if (value && typeof value !== 'object') {
+          throw new Error('Specifications must be an object');
+        }
+        if (value && value.numberOfKeys && value.numberOfKeys < 0) {
+          throw new Error('Number of keys cannot be negative');
+        }
+        if (value && value.radioCode && value.radioCode.length > 20) {
+          throw new Error('Radio code cannot exceed 20 characters');
+        }
+        if (value && value.notes && value.notes.length > 1000) {
+          throw new Error('Notes cannot exceed 1000 characters');
+        }
+      }
+    }
+  },
+  ownership: {
+    type: DataTypes.JSONB,
+    defaultValue: {
+      type: 'propiedad',
+      monthlyRentalPrice: null,
+      maintenanceCostResponsibility: 'empresa_propietaria'
+    },
+    validate: {
+      isValidOwnership(value) {
+        if (value && typeof value !== 'object') {
+          throw new Error('Ownership must be an object');
+        }
+        if (value && value.type && !['propiedad', 'alquiler'].includes(value.type)) {
+          throw new Error('Invalid ownership type');
+        }
+        if (value && value.monthlyRentalPrice && value.monthlyRentalPrice < 0) {
+          throw new Error('Monthly rental price cannot be negative');
+        }
+        if (value && value.maintenanceCostResponsibility && 
+            !['empresa_propietaria', 'empresa_arrendataria'].includes(value.maintenanceCostResponsibility)) {
+          throw new Error('Invalid maintenance cost responsibility');
+        }
+      }
+    }
+  },
+  photos: {
+    type: DataTypes.JSONB,
+    defaultValue: [],
+    validate: {
+      isValidPhotos(value) {
+        if (value && !Array.isArray(value)) {
+          throw new Error('Photos must be an array');
+        }
+      }
+    }
+  },
   status: {
-    type: String,
-    enum: [
-      'activo',
-      'en_mantenimiento',
-      'fuera_de_servicio',
-      'vendido',
-      'siniestrado',
-      'dado_de_baja'
-    ],
-    default: 'activo'
+    type: DataTypes.ENUM('activo', 'en_mantenimiento', 'fuera_de_servicio', 'vendido', 'siniestrado', 'dado_de_baja'),
+    defaultValue: 'activo'
   },
   condition: {
-    type: String,
-    enum: ['excelente', 'bueno', 'regular', 'malo', 'critico'],
-    default: 'bueno'
+    type: DataTypes.ENUM('excelente', 'bueno', 'regular', 'malo', 'critico'),
+    defaultValue: 'bueno'
   },
-  
-  // Mantenimiento
   maintenanceSchedule: {
-    oilChange: {
-      intervalKm: { type: Number, default: 5000 },
-      intervalMonths: { type: Number, default: 6 },
-      lastKm: { type: Number, default: 0 },
-      lastDate: { type: Date }
+    type: DataTypes.JSONB,
+    defaultValue: {
+      oilChange: {
+        intervalKm: 5000,
+        intervalMonths: 6,
+        lastKm: 0,
+        lastDate: null
+      },
+      generalInspection: {
+        intervalKm: 10000,
+        intervalMonths: 12,
+        lastKm: 0,
+        lastDate: null
+      },
+      tireRotation: {
+        intervalKm: 8000,
+        intervalMonths: 6,
+        lastKm: 0,
+        lastDate: null
+      }
     },
-    generalInspection: {
-      intervalKm: { type: Number, default: 10000 },
-      intervalMonths: { type: Number, default: 12 },
-      lastKm: { type: Number, default: 0 },
-      lastDate: { type: Date }
-    },
-    tireRotation: {
-      intervalKm: { type: Number, default: 8000 },
-      intervalMonths: { type: Number, default: 6 },
-      lastKm: { type: Number, default: 0 },
-      lastDate: { type: Date }
+    validate: {
+      isValidMaintenanceSchedule(value) {
+        if (value && typeof value !== 'object') {
+          throw new Error('Maintenance schedule must be an object');
+        }
+      }
     }
   },
-  
-  // Costos
   costs: {
-    purchasePrice: { type: Number },
-    currentValue: { type: Number },
-    totalMaintenanceCost: { type: Number, default: 0 },
-    lastYearMaintenanceCost: { type: Number, default: 0 }
+    type: DataTypes.JSONB,
+    defaultValue: {
+      purchasePrice: null,
+      currentValue: null,
+      totalMaintenanceCost: 0,
+      lastYearMaintenanceCost: 0
+    },
+    validate: {
+      isValidCosts(value) {
+        if (value && typeof value !== 'object') {
+          throw new Error('Costs must be an object');
+        }
+        if (value && value.purchasePrice && value.purchasePrice < 0) {
+          throw new Error('Purchase price cannot be negative');
+        }
+        if (value && value.currentValue && value.currentValue < 0) {
+          throw new Error('Current value cannot be negative');
+        }
+      }
+    }
   },
-  
-
-  
-
-  
-  // Metadatos
   isActive: {
-    type: Boolean,
-    default: true
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
   },
-  createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+  createdById: {
+    type: DataTypes.UUID,
+    allowNull: false,
+    references: {
+      model: 'Users',
+      key: 'id'
+    }
   },
-  lastModifiedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+  lastModifiedById: {
+    type: DataTypes.UUID,
+    allowNull: true,
+    references: {
+      model: 'Users',
+      key: 'id'
+    }
   }
 }, {
-  timestamps: true
+  sequelize,
+  modelName: 'Vehicle',
+  tableName: 'Vehicles',
+  timestamps: true,
+  indexes: [
+    {
+      unique: true,
+      fields: ['companyId', 'plateNumber']
+    },
+    {
+      fields: ['companyId', 'branchId']
+    },
+    {
+      fields: ['companyId', 'status']
+    },
+    {
+      fields: ['vin']
+    },
+    {
+      fields: ['make', 'model', 'year']
+    },
+    {
+      fields: [sequelize.literal("(specifications->'itv'->>'expiryDate')")],
+      name: 'vehicles_itv_expiry_date_idx'
+    },
+    {
+      fields: [sequelize.literal("(specifications->'insurance'->>'expiryDate')")],
+      name: 'vehicles_insurance_expiry_date_idx'
+    },
+    {
+      fields: [sequelize.literal("(ownership->>'type')")],
+      name: 'vehicles_ownership_type_idx'
+    }
+  ],
+  hooks: {
+    beforeSave: async (vehicle, options) => {
+      // Normalizar plateNumber
+      if (vehicle.changed('plateNumber') && vehicle.plateNumber) {
+        vehicle.plateNumber = vehicle.plateNumber.toUpperCase().trim();
+      }
+      
+      // Normalizar VIN
+      if (vehicle.changed('vin') && vehicle.vin) {
+        vehicle.vin = vehicle.vin.toUpperCase().trim();
+      }
+      
+      // Actualizar lastModifiedById si no es un documento nuevo
+      if (!vehicle.isNewRecord && vehicle.changed()) {
+        vehicle.lastModifiedById = options.modifiedBy || vehicle.lastModifiedById;
+      }
+    }
+  }
 });
 
-// Índices para optimizar consultas
-VehicleSchema.index({ company: 1, plateNumber: 1 }, { unique: true });
-VehicleSchema.index({ company: 1, branch: 1 });
-VehicleSchema.index({ company: 1, status: 1 });
-VehicleSchema.index({ vin: 1 });
-VehicleSchema.index({ make: 1, model: 1, year: 1 });
-VehicleSchema.index({ 'specifications.itv.expiryDate': 1 });
-VehicleSchema.index({ 'specifications.insurance.expiryDate': 1 });
-VehicleSchema.index({ 'ownership.type': 1 });
-
-// Middleware pre-save
-VehicleSchema.pre('save', function(next) {
-  if (this.plateNumber) {
-    this.plateNumber = this.plateNumber.toUpperCase().trim();
-  }
-  if (this.vin) {
-    this.vin = this.vin.toUpperCase().trim();
-  }
+// Definir asociaciones
+Vehicle.associate = (models) => {
+  Vehicle.belongsTo(models.Company, {
+    foreignKey: 'companyId',
+    as: 'company'
+  });
   
-  // Actualizar lastModifiedBy si no es un documento nuevo
-  if (!this.isNew && this.isModified()) {
-    this.lastModifiedBy = this.modifiedBy || this.lastModifiedBy;
-  }
+  Vehicle.belongsTo(models.Branch, {
+    foreignKey: 'branchId',
+    as: 'branch'
+  });
   
-  next();
-});
-
-// Métodos virtuales
-VehicleSchema.virtual('fullName').get(function() {
-  return `${this.year} ${this.make} ${this.model}`;
-});
-
-VehicleSchema.virtual('age').get(function() {
-  return new Date().getFullYear() - this.year;
-});
-
-VehicleSchema.virtual('maintenanceCount', {
-  ref: 'Maintenance',
-  localField: '_id',
-  foreignField: 'vehicle',
-  count: true
-});
-
-VehicleSchema.virtual('pendingMaintenanceCount', {
-  ref: 'Maintenance',
-  localField: '_id',
-  foreignField: 'vehicle',
-  count: true,
-  match: { status: { $in: ['programado', 'en_proceso'] } }
-});
-
-// Métodos de instancia
-VehicleSchema.methods.needsOilChange = function() {
-  const schedule = this.maintenanceSchedule.oilChange;
-  const kmSinceLastChange = this.odometer.current - (schedule.lastKm || 0);
-  const monthsSinceLastChange = schedule.lastDate ? 
-    Math.floor((Date.now() - schedule.lastDate.getTime()) / (1000 * 60 * 60 * 24 * 30)) : 999;
+  Vehicle.belongsTo(models.User, {
+    foreignKey: 'createdById',
+    as: 'createdBy'
+  });
   
-  return kmSinceLastChange >= schedule.intervalKm || monthsSinceLastChange >= schedule.intervalMonths;
+  Vehicle.belongsTo(models.User, {
+    foreignKey: 'lastModifiedById',
+    as: 'lastModifiedBy'
+  });
+  
+  Vehicle.hasMany(models.Maintenance, {
+    foreignKey: 'vehicleId',
+    as: 'maintenances'
+  });
 };
 
-VehicleSchema.methods.needsInspection = function() {
-  const schedule = this.maintenanceSchedule.generalInspection;
-  const kmSinceLastInspection = this.odometer.current - (schedule.lastKm || 0);
-  const monthsSinceLastInspection = schedule.lastDate ? 
-    Math.floor((Date.now() - schedule.lastDate.getTime()) / (1000 * 60 * 60 * 24 * 30)) : 999;
-  
-  return kmSinceLastInspection >= schedule.intervalKm || monthsSinceLastInspection >= schedule.intervalMonths;
-};
-
-VehicleSchema.methods.getExpiringDocuments = function(daysAhead = 30) {
-  const expiringDocs = [];
-  const checkDate = new Date();
-  checkDate.setDate(checkDate.getDate() + daysAhead);
-  
-  // Verificar ITV
-  if (this.specifications.itv.expiryDate && 
-      this.specifications.itv.expiryDate <= checkDate) {
-    expiringDocs.push({
-      type: 'itv',
-      expiryDate: this.specifications.itv.expiryDate,
-      daysUntilExpiry: Math.ceil((this.specifications.itv.expiryDate - new Date()) / (1000 * 60 * 60 * 24))
-    });
-  }
-  
-  // Verificar seguro
-  if (this.specifications.insurance.expiryDate && 
-      this.specifications.insurance.expiryDate <= checkDate) {
-    expiringDocs.push({
-      type: 'insurance',
-      expiryDate: this.specifications.insurance.expiryDate,
-      daysUntilExpiry: Math.ceil((this.specifications.insurance.expiryDate - new Date()) / (1000 * 60 * 60 * 24))
-    });
-  }
-  
-  return expiringDocs;
-};
-
-// Método para verificar si es vehículo de alquiler
-VehicleSchema.methods.isRental = function() {
-  return this.ownership.type === 'alquiler';
-};
-
-// Método para obtener el costo mensual (solo para alquileres)
-VehicleSchema.methods.getMonthlyRentalCost = function() {
-  return this.isRental() ? this.ownership.monthlyRentalPrice || 0 : 0;
-};
-
-// Método para verificar quién es responsable de los costos de mantenimiento
-VehicleSchema.methods.getMaintenanceResponsibility = function() {
-  if (!this.isRental()) return 'empresa_propietaria';
-  return this.ownership.maintenanceCostResponsibility || 'empresa_propietaria';
-};
-
-VehicleSchema.methods.updateOdometer = function(newKm, updateDate = new Date()) {
-  if (newKm > this.odometer.current) {
-    this.odometer.current = newKm;
-    this.odometer.lastUpdate = updateDate;
-    return this.save();
-  }
-  return Promise.resolve(this);
-};
-
-module.exports = mongoose.model('Vehicle', VehicleSchema);
+module.exports = Vehicle;

@@ -7,87 +7,90 @@ Tractoreando es un sistema integral de gestión para empresas de transporte y lo
 ## ✨ Características Principales
 
 - 🏢 **Multi-empresa**: Gestión de múltiples empresas desde una sola instalación
-- 🚛 **Gestión de Vehículos**: Control completo del parque vehicular con diferenciación por tipos
-- 🚗 **Tipos de Vehículos**: Soporte para automóviles, motocicletas, tractores, aperos agrícolas y más
-- 🔐 **Control de Acceso por Tipo**: Los usuarios solo ven vehículos de tipos autorizados
+- 🚛 **Gestión de Vehículos**: Control completo del parque vehicular
 - 🔧 **Mantenimiento**: Programación y seguimiento de mantenimientos
 - 📊 **Reportes**: Informes detallados y análisis de datos
 - 👥 **Gestión de Usuarios**: Control de acceso y permisos granulares
-- ⚡ **Modelo Optimizado**: Estructura simplificada para mejor rendimiento
+- 🗄️ **Base de Datos**: PostgreSQL para mejor rendimiento y escalabilidad
 
 ## 🛠️ Tecnologías
 
-- **Backend**: Node.js, Express.js, MongoDB
+- **Backend**: Node.js, Express.js, PostgreSQL, Sequelize
 - **Frontend**: React, Material-UI
 - **Gestión de Procesos**: PM2
 - **Servidor Web**: Nginx
 
-## 🚀 Instalación y Gestión Simplificada
+## 🚀 Instalación Rápida
 
-### Script Maestro Unificado
+### Prerrequisitos
 
-```bash
-# Hacer ejecutable el script maestro
-chmod +x tractoreando-manager.sh
+- Node.js 18+
+- PostgreSQL 12+
+- PM2
+- Nginx
 
-# Instalación rápida para desarrollo
-./tractoreando-manager.sh install --quick
-
-# Instalación para producción
-./tractoreando-manager.sh install --production
-
-# Instalación servidor independiente
-./tractoreando-manager.sh install --standalone
-```
-
-### Gestión del Sistema
+### Instalación
 
 ```bash
-# Ver estado del sistema
-./tractoreando-manager.sh status
+# 1. Clonar repositorio
+git clone <repository-url>
+cd tractoreando
 
-# Deployment completo
-./tractoreando-manager.sh deploy --full
+# 2. Instalar dependencias
+npm install
+cd frontend && npm install && cd ..
 
-# Diagnóstico del sistema
-./tractoreando-manager.sh diagnose --full
+# 3. Configurar PostgreSQL
+sudo -u postgres createdb tractoreando
+sudo -u postgres createuser tractoreando_user
 
-# Crear backup
-./tractoreando-manager.sh maintain --backup
+# 4. Configurar variables de entorno
+cp .env.production .env
+# Editar .env con tus configuraciones
 
-# Ver ayuda completa
-./tractoreando-manager.sh help
+# 5. Ejecutar migraciones
+npx sequelize-cli db:migrate
+
+# 6. Crear usuario administrador
+node init-admin.js
+
+# 7. Construir frontend
+cd frontend && npm run build:prod && cd ..
+
+# 8. Iniciar aplicación
+pm2 start ecosystem.config.js --env production
 ```
 
-## 📚 Documentación
+## 📋 Scripts Disponibles
 
-- **[GUIA-COMPLETA.md](./GUIA-COMPLETA.md)**: Documentación completa del sistema (instalación, configuración, deployment, troubleshooting)
-- **[SISTEMA-TIPOS-VEHICULOS.md](./SISTEMA-TIPOS-VEHICULOS.md)**: Documentación específica del sistema de tipos de vehículos
-- **[FUNCIONALIDADES-INNOVADORAS.md](./FUNCIONALIDADES-INNOVADORAS.md)**: Características avanzadas del sistema
+```bash
+# Instalación completa del sistema
+./install.sh
 
-### 📁 Archivos Principales
+# Actualización en producción
+./update-production.sh
 
-- `tractoreando-manager.sh`: Script maestro de gestión
-- `server.js`: Servidor backend principal
-- `init-admin.js`: Inicialización del usuario administrador
-- `ecosystem.config.js`: Configuración de PM2 para producción
-- `.env`: Configuración consolidada (reemplaza múltiples archivos .env)
-- `nginx.conf`: Configuración consolidada de Nginx (desarrollo y producción)
+# Migración de datos MongoDB a PostgreSQL
+node migrate-data.js
 
-## 🔧 Comandos Básicos
+# Crear usuario administrador
+node init-admin.js
+
+# Limpiar y crear nuevo admin
+node limpiar-y-crear-admin.js
+```
+
+## 🔧 Comandos de Gestión
 
 ```bash
 # Ver estado de la aplicación
 pm2 status
 
-# Ver logs del backend
+# Ver logs
 pm2 logs tractoreando-backend
 
 # Reiniciar aplicación
 pm2 restart tractoreando-backend
-
-# Verificar servicios
-sudo systemctl status nginx mongod
 
 # Health check
 curl http://localhost:8000/api/health
@@ -99,16 +102,59 @@ curl http://localhost:8000/api/health
 - **API**: http://localhost:8000/api
 - **Health Check**: http://localhost:8000/api/health
 
-## ✨ Beneficios de la Simplificación
+## 📚 Documentación Adicional
 
-- ✅ **Un solo script maestro**: `tractoreando-manager.sh` reemplaza 10+ scripts anteriores
-- ✅ **Documentación unificada**: Toda la información en `GUIA-COMPLETA.md`
-- ✅ **Gestión simplificada**: Comandos intuitivos y centralizados
-- ✅ **Mantenimiento reducido**: Menos archivos que mantener
-- ✅ **Modelo optimizado**: Estructura de datos simplificada para mejor rendimiento
+- **Migración MongoDB → PostgreSQL**: Ver `GUIA-MIGRACION-MONGODB-POSTGRESQL.md`
+- **Actualización en Producción**: Ver `GUIA-ACTUALIZACION-PRODUCCION.md`
+- **Despliegue Completo**: Ver `DOCUMENTACION-DESPLIEGUE-PRODUCCION.md`
+
+## 🔐 Configuración de Seguridad
+
+### Variables de Entorno Críticas
+
+```bash
+# Base de datos
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=tractoreando
+DB_USER=tractoreando_user
+DB_PASSWORD=secure_password
+
+# Seguridad
+JWT_SECRET=your_jwt_secret_here
+SESSION_SECRET=your_session_secret_here
+
+# Aplicación
+NODE_ENV=production
+PORT=8000
+CORS_ORIGIN=http://localhost:8080
+```
+
+## 🚨 Solución de Problemas
+
+### Problemas Comunes
+
+1. **Error de conexión PostgreSQL**
+   ```bash
+   sudo systemctl status postgresql
+   sudo systemctl start postgresql
+   ```
+
+2. **Error 502 Bad Gateway**
+   ```bash
+   pm2 restart tractoreando-backend
+   sudo systemctl restart nginx
+   ```
+
+3. **Problemas de permisos**
+   ```bash
+   sudo chown -R $USER:$USER /path/to/tractoreando
+   ```
+
+## 📞 Soporte
+
+Para soporte técnico, consulte la documentación completa o contacte al equipo de desarrollo.
 
 ---
 
-**¡Sistema Tractoreando Optimizado!** 🚛✨
-
-Para información detallada, consulte la **[Guía Completa](./GUIA-COMPLETA.md)**
+**Sistema Tractoreando - Optimizado para PostgreSQL** 🚛✨
