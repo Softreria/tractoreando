@@ -81,12 +81,21 @@ install_mongodb() {
     wget -qO - https://www.mongodb.org/static/pgp/server-${MONGO_VERSION}.asc | sudo apt-key add -
     
     # Usar el codename correcto para el repositorio
-    if [[ "$UBUNTU_CODENAME" == "jammy" ]]; then
-        # Para Ubuntu 22.04, usar focal como fallback
-        REPO_CODENAME="focal"
-    else
-        REPO_CODENAME="$UBUNTU_CODENAME"
-    fi
+    case "$UBUNTU_CODENAME" in
+        "jammy")
+            # Ubuntu 22.04 - usar focal como fallback
+            REPO_CODENAME="focal"
+            ;;
+        "noble")
+            # Ubuntu 24.04 - usar noble
+            REPO_CODENAME="noble"
+            ;;
+        "oracular"|"plucky"|*)
+            # Ubuntu 24.10+ o versiones futuras - usar noble como fallback
+            log_warning "Ubuntu $UBUNTU_CODENAME detectado, usando repositorio 'noble' como fallback"
+            REPO_CODENAME="noble"
+            ;;
+    esac
     
     # Crear archivo de lista para MongoDB
     echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu ${REPO_CODENAME}/mongodb-org/${MONGO_VERSION} multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-${MONGO_VERSION}.list

@@ -157,7 +157,9 @@ sudo systemctl restart mongod
 
 ## 🔧 Solución de Problemas
 
-### Error de dependencias de MongoDB (libssl1.1)
+### Errores de MongoDB
+
+#### Error de dependencias (libssl1.1)
 
 Si encuentras el error:
 ```
@@ -168,14 +170,26 @@ The following packages have unmet dependencies:
 
 **Solución automática**: El script `install.sh` ya maneja este problema automáticamente para Ubuntu 22.04+.
 
+#### Error de repositorio no encontrado (Ubuntu 24.10+)
+
+Si encuentras el error:
+```
+E: The repository 'https://repo.mongodb.org/apt/ubuntu oracular/mongodb-org/6.0 Release' does not have a Release file.
+```
+
+**Solución automática**: El script `install.sh` detecta automáticamente versiones nuevas de Ubuntu (24.10 'oracular', etc.) y usa el repositorio 'noble' como fallback.
+
 **Solución manual** (si es necesario):
 ```bash
-# Descargar e instalar libssl1.1 manualmente
+# Para Ubuntu 24.10+ usar repositorio noble manualmente
+echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu noble/mongodb-org/6.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list
+
+# Descargar e instalar libssl1.1 si es necesario
 wget http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb
 sudo dpkg -i libssl1.1_1.1.1f-1ubuntu2_amd64.deb
 rm libssl1.1_1.1.1f-1ubuntu2_amd64.deb
 
-# Luego continuar con la instalación de MongoDB
+# Luego continuar con la instalación
 sudo apt-get update
 sudo apt-get install -y mongodb-org
 ```
