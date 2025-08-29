@@ -113,6 +113,7 @@ setup_database() {
         log_info "Iniciando servicio PostgreSQL..."
         sudo systemctl start postgresql
         sudo systemctl enable postgresql
+        sleep 3
     fi
     
     # Verificar si la base de datos ya existe
@@ -132,43 +133,82 @@ setup_database() {
         log_info "Creando usuario tractoreando_user..."
         sudo -u postgres psql << EOF
 CREATE USER tractoreando_user WITH ENCRYPTED PASSWORD 'tractoreando123';
-GRANT ALL PRIVILEGES ON DATABASE tractoreando TO tractoreando_user;
-ALTER USER tractoreando_user CREATEDB;
 ALTER USER tractoreando_user WITH SUPERUSER;
+ALTER USER tractoreando_user CREATEDB;
+GRANT ALL PRIVILEGES ON DATABASE tractoreando TO tractoreando_user;
 \q
 EOF
     else
-        log_info "Usuario tractoreando_user ya existe"
-        # Asegurar que tiene los permisos correctos
+        log_info "Usuario tractoreando_user ya existe - actualizando permisos..."
+        # Asegurar que tiene los permisos correctos y actualizar contraseña
         sudo -u postgres psql << EOF
-GRANT ALL PRIVILEGES ON DATABASE tractoreando TO tractoreando_user;
-ALTER USER tractoreando_user CREATEDB;
+ALTER USER tractoreando_user WITH ENCRYPTED PASSWORD 'tractoreando123';
 ALTER USER tractoreando_user WITH SUPERUSER;
+ALTER USER tractoreando_user CREATEDB;
+GRANT ALL PRIVILEGES ON DATABASE tractoreando TO tractoreando_user;
 \q
 EOF
     fi
     
     # Configurar autenticación para el usuario
     log_info "Configurando autenticación PostgreSQL..."
-    PG_VERSION=$(sudo -u postgres psql -tAc "SELECT version()" | grep -oP '\d+\.\d+' | head -1)
+    PG_VERSION=$(sudo -u postgres psql -tAc "SELECT version()" | grep -oP '\d+' | head -1)
     PG_HBA_FILE="/etc/postgresql/${PG_VERSION}/main/pg_hba.conf"
     
     if [[ -f "$PG_HBA_FILE" ]]; then
         # Backup del archivo original
-        sudo cp "$PG_HBA_FILE" "${PG_HBA_FILE}.backup"
+        sudo cp "$PG_HBA_FILE" "${PG_HBA_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
         
-        # Agregar configuración para tractoreando_user si no existe
-        if ! sudo grep -q "tractoreando_user" "$PG_HBA_FILE"; then
-            echo "local   tractoreando    tractoreando_user                     md5" | sudo tee -a "$PG_HBA_FILE"
-            echo "host    tractoreando    tractoreando_user    127.0.0.1/32     md5" | sudo tee -a "$PG_HBA_FILE"
-            echo "host    tractoreando    tractoreando_user    ::1/128          md5" | sudo tee -a "$PG_HBA_FILE"
-            
-            # Reiniciar PostgreSQL para aplicar cambios
+        # Remover configuraciones anteriores de tractoreando_user
+        sudo sed -i '/tractoreando_user/d' "$PG_HBA_FILE"
+        
+        # Agregar configuración para tractoreando_user al inicio (antes de otras reglas)
+        sudo sed -i '/^# Database administrative login by Unix domain socket/i\# Tractoreando user authentication\nlocal   tractoreando    tractoreando_user                     md5\nhost    tractoreando    tractoreando_user    127.0.0.1/32     md5\nhost    tractoreando    tractoreando_user    ::1/128          md5\n' "$PG_HBA_FILE"
+        
+        # Reiniciar PostgreSQL para aplicar cambios
+        log_info "Reiniciando PostgreSQL para aplicar cambios de autenticación..."
+        sudo systemctl restart postgresql
+        sleep 5
+        
+        # Verificar que PostgreSQL esté funcionando
+        if ! systemctl is-active --quiet postgresql; then
+            log_error "PostgreSQL no se pudo reiniciar correctamente"
+            exit 1
+        fi
+    else
+        log_warning "Archivo pg_hba.conf no encontrado en la ruta esperada: $PG_HBA_FILE"
+        # Buscar el archivo en ubicaciones alternativas
+        PG_HBA_ALT=$(find /etc/postgresql -name "pg_hba.conf" 2>/dev/null | head -1)
+        if [[ -n "$PG_HBA_ALT" ]]; then
+            log_info "Encontrado pg_hba.conf en: $PG_HBA_ALT"
+            PG_HBA_FILE="$PG_HBA_ALT"
+            # Repetir configuración con la nueva ruta
+            sudo cp "$PG_HBA_FILE" "${PG_HBA_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
+            sudo sed -i '/tractoreando_user/d' "$PG_HBA_FILE"
+            sudo sed -i '/^# Database administrative login by Unix domain socket/i\# Tractoreando user authentication\nlocal   tractoreando    tractoreando_user                     md5\nhost    tractoreando    tractoreando_user    127.0.0.1/32     md5\nhost    tractoreando    tractoreando_user    ::1/128          md5\n' "$PG_HBA_FILE"
             sudo systemctl restart postgresql
+            sleep 5
         fi
     fi
     
-    log_success "Base de datos configurada"
+    # Verificar conexión con el usuario creado
+    log_info "Verificando conexión con tractoreando_user..."
+    if PGPASSWORD='tractoreando123' psql -h localhost -U tractoreando_user -d tractoreando -c "SELECT 1;" >/dev/null 2>&1; then
+        log_success "✅ Conexión con tractoreando_user verificada exitosamente"
+    else
+        log_error "❌ No se pudo conectar con tractoreando_user"
+        log_info "Intentando diagnóstico..."
+        
+        # Mostrar información de diagnóstico
+        log_info "Estado de PostgreSQL: $(systemctl is-active postgresql)"
+        log_info "Usuarios de PostgreSQL:"
+        sudo -u postgres psql -c "\du" | grep tractoreando || log_warning "Usuario tractoreando_user no encontrado"
+        
+        log_error "Por favor, verifica la configuración de PostgreSQL manualmente"
+        exit 1
+    fi
+    
+    log_success "Base de datos configurada exitosamente"
 }
 
 # Instalar dependencias de la aplicación
@@ -237,18 +277,60 @@ run_migrations() {
 create_admin_user() {
     log_info "Creando usuario administrador para producción..."
     
-    if [[ -f "create-admin-production.js" ]]; then
-        node create-admin-production.js
-        if [[ $? -eq 0 ]]; then
-            log_success "Usuario administrador creado exitosamente"
+    # Verificar que la conexión a la base de datos funcione antes de crear el admin
+    log_info "Verificando conexión a la base de datos antes de crear admin..."
+    if ! PGPASSWORD='tractoreando123' psql -h localhost -U tractoreando_user -d tractoreando -c "SELECT 1;" >/dev/null 2>&1; then
+        log_error "❌ No se puede conectar a la base de datos con tractoreando_user"
+        log_warning "🔧 Detectado problema de autenticación PostgreSQL"
+        
+        if [[ -f "fix-postgresql-auth.sh" ]]; then
+            log_info "🛠️ Ejecutando script de reparación automática..."
+            if bash fix-postgresql-auth.sh; then
+                log_success "✅ Problema de autenticación reparado"
+                # Verificar nuevamente la conexión
+                if PGPASSWORD='tractoreando123' psql -h localhost -U tractoreando_user -d tractoreando -c "SELECT 1;" >/dev/null 2>&1; then
+                    log_success "✅ Conexión a PostgreSQL verificada después de la reparación"
+                else
+                    log_error "❌ La reparación no resolvió el problema"
+                    return 1
+                fi
+            else
+                log_error "❌ Error durante la reparación automática"
+                log_info "💡 Ejecuta manualmente: bash fix-postgresql-auth.sh"
+                return 1
+            fi
         else
-            log_error "Error al crear usuario administrador"
-            log_info "Puedes intentar crearlo manualmente ejecutando:"
-            log_info "node create-admin-production.js"
+            log_error "Script de reparación no encontrado"
+            log_info "💡 Soluciones manuales:"
+            log_info "   1. Verificar que PostgreSQL esté funcionando: systemctl status postgresql"
+            log_info "   2. Recrear usuario: sudo -u postgres psql -c \"CREATE USER tractoreando_user WITH PASSWORD 'tractoreando123';\""
+            log_info "   3. Verificar pg_hba.conf y reiniciar PostgreSQL"
+            return 1
+        fi
+    fi
+    
+    if [[ -f "create-admin-production.js" ]]; then
+        log_info "Ejecutando script de creación de administrador..."
+        
+        # Ejecutar con más información de debug
+        if node create-admin-production.js; then
+            log_success "✅ Usuario administrador creado exitosamente"
+            log_info "📧 Email: admin@tractoreando.com"
+            log_info "🔑 Contraseña: Admin123!"
+            log_warning "⚠️ IMPORTANTE: Cambia la contraseña por defecto después del primer login"
+        else
+            log_error "❌ Error al crear usuario administrador"
+            log_info "💡 Soluciones posibles:"
+            log_info "   1. Verificar que PostgreSQL esté funcionando: systemctl status postgresql"
+            log_info "   2. Verificar conexión manual: PGPASSWORD='tractoreando123' psql -h localhost -U tractoreando_user -d tractoreando"
+            log_info "   3. Ejecutar manualmente: node create-admin-production.js"
+            log_info "   4. Usar script alternativo: node init-admin.js"
+            return 1
         fi
     else
         log_warning "Script create-admin-production.js no encontrado"
         log_info "Puedes usar el script alternativo: node init-admin.js"
+        return 1
     fi
 }
 

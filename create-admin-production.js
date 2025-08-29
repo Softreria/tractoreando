@@ -10,6 +10,12 @@ const Branch = require('./models/Branch');
 const createAdminProduction = async () => {
   try {
     console.log('🚀 Iniciando creación de usuario administrador para PRODUCCIÓN...');
+    console.log('📋 Configuración de base de datos:');
+    console.log(`   - Host: ${process.env.DB_HOST || 'localhost'}`);
+    console.log(`   - Puerto: ${process.env.DB_PORT || 5432}`);
+    console.log(`   - Base de datos: ${process.env.DB_NAME || 'tractoreando'}`);
+    console.log(`   - Usuario: ${process.env.DB_USER || 'postgres'}`);
+    console.log('');
     
     // Conectar a PostgreSQL
     console.log('🔌 Conectando a PostgreSQL...');
@@ -143,11 +149,32 @@ const createAdminProduction = async () => {
     
     // Información adicional para debugging
     if (error.name === 'SequelizeConnectionError') {
-      console.error('\n🔧 Posibles soluciones:');
-      console.error('   1. Verificar que PostgreSQL esté ejecutándose');
-      console.error('   2. Verificar credenciales en el archivo .env');
-      console.error('   3. Verificar que la base de datos "tractoreando" exista');
-      console.error('   4. Verificar permisos del usuario "tractoreando_user"');
+      console.error('\n🔧 Error de conexión a PostgreSQL detectado');
+      
+      // Verificar si es un error de autenticación específico
+      if (error.message.includes('password authentication failed')) {
+        console.error('\n🚨 ERROR DE AUTENTICACIÓN:');
+        console.error('   El usuario "tractoreando_user" no puede autenticarse');
+        console.error('\n💡 Soluciones recomendadas:');
+        console.error('   1. Verificar que el usuario existe:');
+        console.error('      sudo -u postgres psql -c "\\du"');
+        console.error('   2. Recrear el usuario con la contraseña correcta:');
+        console.error('      sudo -u postgres psql -c "DROP USER IF EXISTS tractoreando_user;"');
+        console.error('      sudo -u postgres psql -c "CREATE USER tractoreando_user WITH PASSWORD \'tractoreando123\';"');
+        console.error('   3. Verificar configuración de pg_hba.conf:');
+        console.error('      sudo nano /etc/postgresql/*/main/pg_hba.conf');
+        console.error('      Debe contener: local   tractoreando    tractoreando_user                     md5');
+        console.error('   4. Reiniciar PostgreSQL después de cambios:');
+        console.error('      sudo systemctl restart postgresql');
+        console.error('   5. Probar conexión manual:');
+        console.error('      PGPASSWORD=\'tractoreando123\' psql -h localhost -U tractoreando_user -d tractoreando');
+      } else {
+        console.error('\n🔧 Posibles soluciones generales:');
+        console.error('   1. Verificar que PostgreSQL esté ejecutándose: sudo systemctl status postgresql');
+        console.error('   2. Verificar credenciales en el archivo .env');
+        console.error('   3. Verificar que la base de datos "tractoreando" exista');
+        console.error('   4. Verificar permisos del usuario "tractoreando_user"');
+      }
     }
     
     process.exit(1);

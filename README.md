@@ -62,6 +62,9 @@ node create-admin-production.js
 # Instalación completa del sistema (PRODUCCIÓN)
 ./install.sh
 
+# Reparar problemas de autenticación PostgreSQL
+./fix-postgresql-auth.sh
+
 # Limpiar repositorios MongoDB (si es necesario)
 ./clean-mongodb-repos.sh
 
@@ -93,6 +96,42 @@ pm2 restart tractoreando-backend
 
 # Health check
 curl http://localhost:8000/api/health
+```
+
+## 🛠️ Solución de Problemas
+
+### Error de Autenticación PostgreSQL
+
+Si encuentras el error `password authentication failed for user "tractoreando_user"`, ejecuta:
+
+```bash
+# Reparación automática
+./fix-postgresql-auth.sh
+
+# O manualmente:
+sudo -u postgres psql -c "DROP USER IF EXISTS tractoreando_user;"
+sudo -u postgres psql -c "CREATE USER tractoreando_user WITH PASSWORD 'tractoreando123';"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE tractoreando TO tractoreando_user;"
+sudo systemctl restart postgresql
+
+# Verificar conexión
+PGPASSWORD='tractoreando123' psql -h localhost -U tractoreando_user -d tractoreando -c "SELECT 1;"
+```
+
+### Otros Problemas Comunes
+
+```bash
+# Verificar estado de PostgreSQL
+sudo systemctl status postgresql
+
+# Verificar logs de PostgreSQL
+sudo tail -f /var/log/postgresql/postgresql-*-main.log
+
+# Verificar usuarios de PostgreSQL
+sudo -u postgres psql -c "\du"
+
+# Verificar bases de datos
+sudo -u postgres psql -c "\l"
 ```
 
 ## 🌐 Acceso en Producción
