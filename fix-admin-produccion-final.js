@@ -93,19 +93,13 @@ async function fixAdminUserProduction() {
     const branchId = branchResult.insertedId;
     console.log('✅ Sucursal insertada con ID:', branchId);
 
-    // 5. Crear password hasheado
-    console.log('🔐 Generando password hasheado...');
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash('admin123!', salt);
-    console.log('✅ Password hasheado generado');
-
-    // 6. Insertar usuario directamente
+    // 5. Insertar usuario directamente SIN HASHEAR (se hasheará después)
     console.log('👤 Insertando usuario directamente...');
     const userData = {
       firstName: 'Admin',
       lastName: 'Tractoreando',
       email: 'admin@tractoreando.com',
-      password: hashedPassword,
+      password: 'admin123!', // PASSWORD SIN HASHEAR - se hasheará manualmente después
       role: 'super_admin',
       company: companyId,
       branches: [branchId],
@@ -128,6 +122,16 @@ async function fixAdminUserProduction() {
     const userResult = await mongoose.connection.db.collection('users').insertOne(userData);
     const userId = userResult.insertedId;
     console.log('✅ Usuario insertado con ID:', userId);
+
+    // 6. Hashear la contraseña manualmente en la base de datos
+    console.log('🔐 Hasheando contraseña en base de datos...');
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash('admin123!', salt);
+    await mongoose.connection.db.collection('users').updateOne(
+      { _id: userId },
+      { $set: { password: hashedPassword, updatedAt: new Date() } }
+    );
+    console.log('✅ Contraseña hasheada correctamente');
 
     // 7. Actualizar empresa con referencia al usuario
     await mongoose.connection.db.collection('companies').updateOne(
