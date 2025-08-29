@@ -22,7 +22,7 @@ router.post('/register', [
   body('password', 'Password debe tener al menos 6 caracteres').isLength({ min: 6 }),
   body('companyName', 'Nombre de empresa es requerido').notEmpty().trim(),
   body('branchName', 'Nombre de sucursal es requerido').notEmpty().trim(),
-  body('companyRfc', 'RFC de empresa es requerido').notEmpty().trim(),
+  body('companyCif', 'CIF de empresa es requerido').notEmpty().trim(),
   body('companyAddress', 'Dirección de empresa').optional().trim(),
   body('companyPhone', 'Teléfono de empresa').optional().trim(),
   body('companyEmail', 'Email de empresa').optional().isEmail().normalizeEmail()
@@ -33,10 +33,10 @@ router.post('/register', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { name, lastName, email, password, companyName, branchName, companyRfc, companyAddress, companyPhone, companyEmail } = req.body;
+    const { name, lastName, email, password, companyName, branchName, companyCif, companyAddress, companyPhone, companyEmail } = req.body;
 
     console.log('Datos recibidos:', req.body);
-    console.log('RFC recibido:', companyRfc);
+    console.log('CIF recibido:', companyCif);
 
     // Verificar si el usuario ya existe
     let user = await User.findOne({ email });
@@ -47,7 +47,7 @@ router.post('/register', [
     // Crear empresa
     const company = new Company({
       name: companyName,
-      rfc: companyRfc,
+      cif: companyCif,
       address: {
         street: companyAddress || 'Calle Principal 123',
         city: 'Madrid',
@@ -137,7 +137,7 @@ router.post('/login', [
 
     // Buscar usuario
     const user = await User.findOne({ email })
-      .populate('company', 'name rfc isActive')
+      .populate('company', 'name cif isActive')
       .populate('branches', 'name code');
 
     if (!user) {
