@@ -73,7 +73,7 @@ async function finalFix() {
     
     // Crear nuevo usuario admin
     const newAdmin = new User({
-      name: 'Administrador',
+      firstName: 'Administrador',
       lastName: 'Sistema',
       email: process.env.DEFAULT_ADMIN_EMAIL,
       password: hashedPassword,
