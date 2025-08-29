@@ -93,9 +93,16 @@ async function debugPasswordIssue() {
     if (!testCompany) {
       testCompany = new Company({
         name: 'Test Company',
-        email: 'test@company.com',
-        phone: '+34000000000',
-        address: 'Test Address',
+        cif: 'B12345678',
+        contact: {
+          email: 'test@company.com',
+          phone: '+34000000000'
+        },
+        address: {
+          street: 'Test Address',
+          city: 'Madrid',
+          country: 'España'
+        },
         isActive: true
       });
       await testCompany.save();
