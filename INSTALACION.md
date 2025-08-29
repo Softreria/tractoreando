@@ -157,6 +157,29 @@ sudo systemctl restart mongod
 
 ## 🔧 Solución de Problemas
 
+### Error de dependencias de MongoDB (libssl1.1)
+
+Si encuentras el error:
+```
+The following packages have unmet dependencies:
+ mongodb-org-mongos : Depends: libssl1.1 (>= 1.1.1) but it is not installable
+ mongodb-org-server : Depends: libssl1.1 (>= 1.1.1) but it is not installable
+```
+
+**Solución automática**: El script `install.sh` ya maneja este problema automáticamente para Ubuntu 22.04+.
+
+**Solución manual** (si es necesario):
+```bash
+# Descargar e instalar libssl1.1 manualmente
+wget http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+sudo dpkg -i libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+rm libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+
+# Luego continuar con la instalación de MongoDB
+sudo apt-get update
+sudo apt-get install -y mongodb-org
+```
+
 ### La aplicación no inicia
 
 ```bash

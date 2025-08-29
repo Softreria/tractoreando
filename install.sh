@@ -65,11 +65,31 @@ install_mongodb() {
         return
     fi
     
+    # Detectar versión de Ubuntu
+    UBUNTU_VERSION=$(lsb_release -rs)
+    UBUNTU_CODENAME=$(lsb_release -cs)
+    
+    # Instalar libssl1.1 si es necesario (para Ubuntu 22.04+)
+    if [[ "$UBUNTU_VERSION" > "20.04" ]]; then
+        log_info "Instalando libssl1.1 para compatibilidad con MongoDB..."
+        wget http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+        sudo dpkg -i libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+        rm libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+    fi
+    
     # Importar clave pública de MongoDB
     wget -qO - https://www.mongodb.org/static/pgp/server-${MONGO_VERSION}.asc | sudo apt-key add -
     
+    # Usar el codename correcto para el repositorio
+    if [[ "$UBUNTU_CODENAME" == "jammy" ]]; then
+        # Para Ubuntu 22.04, usar focal como fallback
+        REPO_CODENAME="focal"
+    else
+        REPO_CODENAME="$UBUNTU_CODENAME"
+    fi
+    
     # Crear archivo de lista para MongoDB
-    echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/${MONGO_VERSION} multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-${MONGO_VERSION}.list
+    echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu ${REPO_CODENAME}/mongodb-org/${MONGO_VERSION} multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-${MONGO_VERSION}.list
     
     # Actualizar paquetes e instalar MongoDB
     sudo apt-get update
