@@ -66,17 +66,14 @@ async function finalFix() {
     await User.deleteOne({ email: process.env.DEFAULT_ADMIN_EMAIL });
     console.log('   🗑️  Usuario admin anterior eliminado');
     
-    // Generar hash de contraseña
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(process.env.DEFAULT_ADMIN_PASSWORD, saltRounds);
-    console.log('   🔐 Nueva contraseña hasheada generada');
+    // Crear nuevo usuario admin (la contraseña se hasheará automáticamente por el middleware)
+    console.log('   🔐 Preparando contraseña para hasheo automático');
     
-    // Crear nuevo usuario admin
     const newAdmin = new User({
       firstName: 'Administrador',
       lastName: 'Sistema',
       email: process.env.DEFAULT_ADMIN_EMAIL,
-      password: hashedPassword,
+      password: process.env.DEFAULT_ADMIN_PASSWORD,
       phone: '+34000000000',
       company: adminCompany._id,
       role: 'super_admin',
