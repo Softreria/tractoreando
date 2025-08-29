@@ -108,14 +108,65 @@ install_nginx() {
 setup_database() {
     log_info "Configurando base de datos PostgreSQL..."
     
-    # Crear base de datos y usuario
-    sudo -u postgres psql << EOF
-CREATE DATABASE IF NOT EXISTS tractoreando;
-CREATE USER IF NOT EXISTS tractoreando_user WITH ENCRYPTED PASSWORD 'tractoreando123';
+    # Verificar si PostgreSQL está ejecutándose
+    if ! systemctl is-active --quiet postgresql; then
+        log_info "Iniciando servicio PostgreSQL..."
+        sudo systemctl start postgresql
+        sudo systemctl enable postgresql
+    fi
+    
+    # Verificar si la base de datos ya existe
+    DB_EXISTS=$(sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='tractoreando'" 2>/dev/null || echo "0")
+    
+    if [[ "$DB_EXISTS" != "1" ]]; then
+        log_info "Creando base de datos tractoreando..."
+        sudo -u postgres createdb tractoreando
+    else
+        log_info "Base de datos tractoreando ya existe"
+    fi
+    
+    # Verificar si el usuario ya existe
+    USER_EXISTS=$(sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='tractoreando_user'" 2>/dev/null || echo "0")
+    
+    if [[ "$USER_EXISTS" != "1" ]]; then
+        log_info "Creando usuario tractoreando_user..."
+        sudo -u postgres psql << EOF
+CREATE USER tractoreando_user WITH ENCRYPTED PASSWORD 'tractoreando123';
 GRANT ALL PRIVILEGES ON DATABASE tractoreando TO tractoreando_user;
 ALTER USER tractoreando_user CREATEDB;
+ALTER USER tractoreando_user WITH SUPERUSER;
 \q
 EOF
+    else
+        log_info "Usuario tractoreando_user ya existe"
+        # Asegurar que tiene los permisos correctos
+        sudo -u postgres psql << EOF
+GRANT ALL PRIVILEGES ON DATABASE tractoreando TO tractoreando_user;
+ALTER USER tractoreando_user CREATEDB;
+ALTER USER tractoreando_user WITH SUPERUSER;
+\q
+EOF
+    fi
+    
+    # Configurar autenticación para el usuario
+    log_info "Configurando autenticación PostgreSQL..."
+    PG_VERSION=$(sudo -u postgres psql -tAc "SELECT version()" | grep -oP '\d+\.\d+' | head -1)
+    PG_HBA_FILE="/etc/postgresql/${PG_VERSION}/main/pg_hba.conf"
+    
+    if [[ -f "$PG_HBA_FILE" ]]; then
+        # Backup del archivo original
+        sudo cp "$PG_HBA_FILE" "${PG_HBA_FILE}.backup"
+        
+        # Agregar configuración para tractoreando_user si no existe
+        if ! sudo grep -q "tractoreando_user" "$PG_HBA_FILE"; then
+            echo "local   tractoreando    tractoreando_user                     md5" | sudo tee -a "$PG_HBA_FILE"
+            echo "host    tractoreando    tractoreando_user    127.0.0.1/32     md5" | sudo tee -a "$PG_HBA_FILE"
+            echo "host    tractoreando    tractoreando_user    ::1/128          md5" | sudo tee -a "$PG_HBA_FILE"
+            
+            # Reiniciar PostgreSQL para aplicar cambios
+            sudo systemctl restart postgresql
+        fi
+    fi
     
     log_success "Base de datos configurada"
 }
@@ -184,13 +235,20 @@ run_migrations() {
 
 # Crear usuario administrador
 create_admin_user() {
-    log_info "Creando usuario administrador..."
+    log_info "Creando usuario administrador para producción..."
     
-    if [[ -f "init-admin.js" ]]; then
-        node init-admin.js
-        log_success "Usuario administrador creado"
+    if [[ -f "create-admin-production.js" ]]; then
+        node create-admin-production.js
+        if [[ $? -eq 0 ]]; then
+            log_success "Usuario administrador creado exitosamente"
+        else
+            log_error "Error al crear usuario administrador"
+            log_info "Puedes intentar crearlo manualmente ejecutando:"
+            log_info "node create-admin-production.js"
+        fi
     else
-        log_warning "Script init-admin.js no encontrado"
+        log_warning "Script create-admin-production.js no encontrado"
+        log_info "Puedes usar el script alternativo: node init-admin.js"
     fi
 }
 

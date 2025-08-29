@@ -20,13 +20,14 @@ Tractoreando es un sistema integral de gestión para empresas de transporte y lo
 - **Gestión de Procesos**: PM2
 - **Servidor Web**: Nginx
 
-## 🚀 Instalación Rápida
+## 🚀 Instalación en Producción
 
 ### Prerrequisitos
 
-- Ubuntu/Debian Linux
+- Ubuntu/Debian Linux (Servidor de Producción)
 - Acceso sudo
 - Conexión a internet
+- PostgreSQL (se instala automáticamente)
 
 ### Comandos de Instalación
 
@@ -38,34 +39,27 @@ cd tractoreando
 # 2. (Opcional) Limpiar repositorios MongoDB si hay errores
 ./clean-mongodb-repos.sh
 
-# 3. Ejecutar instalación automática
+# 3. Ejecutar instalación automática para PRODUCCIÓN
 ./install.sh
 
-# 4. Configurar PostgreSQL (si es necesario)
-sudo -u postgres createdb tractoreando
-sudo -u postgres createuser tractoreando_user
+# 4. Verificar instalación
+pm2 status
+pm2 logs tractoreando-backend
 
-# 5. Configurar variables de entorno
-cp .env.production .env
-# Editar .env con configuraciones específicas
-
-# 6. Ejecutar migraciones
-npx sequelize-cli db:migrate
-
-# 7. Crear usuario administrador
-node init-admin.js
-
-# 8. Construir frontend
-cd frontend && npm run build && cd ..
-
-# 9. Iniciar con PM2
-pm2 start ecosystem.config.js
+# 5. Crear usuario administrador (si no se creó automáticamente)
+node create-admin-production.js
 ```
+
+### Credenciales por Defecto
+
+- **Email**: admin@tractoreando.com
+- **Contraseña**: Admin123!
+- **⚠️ IMPORTANTE**: Cambiar la contraseña después del primer acceso
 
 ## 📋 Scripts Disponibles
 
 ```bash
-# Instalación completa del sistema
+# Instalación completa del sistema (PRODUCCIÓN)
 ./install.sh
 
 # Limpiar repositorios MongoDB (si es necesario)
@@ -74,13 +68,14 @@ pm2 start ecosystem.config.js
 # Actualización simplificada
 ./update.sh
 
+# Crear usuario administrador para PRODUCCIÓN
+node create-admin-production.js
+
 # Migración de datos MongoDB a PostgreSQL
 node migrate-data.js
 
-# Crear usuario administrador
+# Scripts alternativos de administrador
 node init-admin.js
-
-# Limpiar y crear nuevo admin
 node limpiar-y-crear-admin.js
 ```
 
@@ -100,9 +95,9 @@ pm2 restart tractoreando-backend
 curl http://localhost:8000/api/health
 ```
 
-## 🌐 Acceso
+## 🌐 Acceso en Producción
 
-- **Frontend**: http://localhost:3000 (desarrollo) / http://localhost:8080 (producción)
+- **Frontend**: http://localhost:8080
 - **API**: http://localhost:8000/api
 - **Health Check**: http://localhost:8000/api/health
 
