@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const UserSchema = new mongoose.Schema({
-  firstName: {
+  name: {
     type: String,
     required: true,
     trim: true,
@@ -42,66 +42,24 @@ const UserSchema = new mongoose.Schema({
       return this.role !== 'super_admin';
     }
   },
-  branches: [{
+  branch: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Branch'
-  }],
+    ref: 'Branch',
+    required: function() {
+      return this.role !== 'super_admin';
+    }
+  },
   vehicleTypeAccess: [{
     type: String,
     enum: [
-      // Vehículos de pasajeros
-      'coche',
-      'motocicleta',
-      'scooter',
-      'bicicleta_electrica',
-      
-      // Vehículos comerciales ligeros
-      'camioneta',
-      'van',
-      'pickup',
-      'furgoneta',
-      
-      // Vehículos comerciales pesados
-      'camion',
-      'trailer',
-      'autobus',
-      'microbus',
-      
-      // Maquinaria agrícola
-      'tractor',
-      'cosechadora',
-      'sembradora',
-      'pulverizadora',
-      'arado',
-      'cultivador',
-      'rastra',
-      'segadora',
-      'empacadora',
-      'remolque_agricola',
-      
-      // Aperos agrícolas
-      'apero_labranza',
-      'apero_siembra',
-      'apero_fertilizacion',
-      'apero_fumigacion',
-      'apero_cosecha',
-      'apero_transporte',
-      
-      // Maquinaria de construcción
-      'excavadora',
-      'bulldozer',
-      'cargadora',
-      'grua',
-      'compactadora',
-      'motoniveladora',
-      'retroexcavadora',
-      
-      // Vehículos especiales
-      'ambulancia',
-      'bomberos',
-      'policia',
-      'militar',
-      'otro'
+      'Tractor',
+      'Camión',
+      'Furgoneta',
+      'Coche',
+      'Motocicleta',
+      'Remolque',
+      'Maquinaria',
+      'Otro'
     ]
   }],
   role: {
@@ -179,19 +137,6 @@ const UserSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
-  emailVerified: {
-    type: Boolean,
-    default: false
-  },
-  emailVerificationToken: {
-    type: String
-  },
-  passwordResetToken: {
-    type: String
-  },
-  passwordResetExpires: {
-    type: Date
-  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
@@ -204,11 +149,11 @@ const UserSchema = new mongoose.Schema({
 UserSchema.index({ email: 1 });
 UserSchema.index({ company: 1, role: 1 });
 UserSchema.index({ company: 1, isActive: 1 });
-UserSchema.index({ branches: 1 });
+UserSchema.index({ branch: 1 });
 
 // Virtual para nombre completo
 UserSchema.virtual('fullName').get(function() {
-  return `${this.firstName} ${this.lastName}`;
+  return `${this.name} ${this.lastName}`;
 });
 
 // Virtual para verificar si la cuenta está bloqueada
@@ -235,13 +180,7 @@ UserSchema.pre('save', function(next) {
   
   // Lista completa de tipos de vehículos
   const allVehicleTypes = [
-    'coche', 'motocicleta', 'scooter', 'bicicleta_electrica',
-    'camioneta', 'van', 'pickup', 'furgoneta',
-    'camion', 'trailer', 'autobus', 'microbus',
-    'tractor', 'cosechadora', 'sembradora', 'pulverizadora', 'arado', 'cultivador', 'rastra', 'segadora', 'empacadora', 'remolque_agricola',
-    'apero_labranza', 'apero_siembra', 'apero_fertilizacion', 'apero_fumigacion', 'apero_cosecha', 'apero_transporte',
-    'excavadora', 'bulldozer', 'cargadora', 'grua', 'compactadora', 'motoniveladora', 'retroexcavadora',
-    'ambulancia', 'bomberos', 'policia', 'militar', 'otro'
+    'Tractor', 'Camión', 'Furgoneta', 'Coche', 'Motocicleta', 'Remolque', 'Maquinaria', 'Otro'
   ];
   
   // Establecer permisos por defecto según el rol

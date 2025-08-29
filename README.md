@@ -13,6 +13,7 @@ Tractoreando es un sistema integral de gestión para empresas de transporte y lo
 - 🔧 **Mantenimiento**: Programación y seguimiento de mantenimientos
 - 📊 **Reportes**: Informes detallados y análisis de datos
 - 👥 **Gestión de Usuarios**: Control de acceso y permisos granulares
+- ⚡ **Modelo Optimizado**: Estructura simplificada para mejor rendimiento
 
 ## 🛠️ Tecnologías
 
@@ -21,87 +22,57 @@ Tractoreando es un sistema integral de gestión para empresas de transporte y lo
 - **Gestión de Procesos**: PM2
 - **Servidor Web**: Nginx
 
-## 🚀 Instalación Rápida
+## 🚀 Instalación y Gestión Simplificada
 
-### Instalación Automática
-
-```bash
-# Descargar script de instalación
-wget https://raw.githubusercontent.com/tu-repo/tractoreando/main/instalacion-completa.sh
-chmod +x instalacion-completa.sh
-
-# Instalación rápida
-./instalacion-completa.sh --quick
-
-# Instalación para servidor independiente
-./instalacion-completa.sh --standalone
-
-# Instalación interactiva de producción
-./instalacion-completa.sh --production
-```
-
-### Verificación de Instalación
+### Script Maestro Unificado
 
 ```bash
-# Verificar instalación
-./instalacion-completa.sh --verify
+# Hacer ejecutable el script maestro
+chmod +x tractoreando-manager.sh
 
-# Diagnóstico completo del sistema
-./diagnostico-integral.sh
+# Instalación rápida para desarrollo
+./tractoreando-manager.sh install --quick
+
+# Instalación para producción
+./tractoreando-manager.sh install --production
+
+# Instalación servidor independiente
+./tractoreando-manager.sh install --standalone
 ```
 
-## 📚 Documentación Consolidada
+### Gestión del Sistema
 
-**Documentación completamente reorganizada y consolidada:**
+```bash
+# Ver estado del sistema
+./tractoreando-manager.sh status
 
-👉 **[DOCUMENTACION-COMPLETA.md](./DOCUMENTACION-COMPLETA.md)**
+# Deployment completo
+./tractoreando-manager.sh deploy --full
 
-### Documentación Anterior Consolidada
-La siguiente documentación ha sido integrada en el archivo principal:
-- ✅ `DESPLIEGUE-SERVIDOR-PRODUCCION.md`
-- ✅ `GUIA-SOLUCION-PROBLEMAS.md`
-- ✅ `NGINX-PROXY-MANAGER-SETUP.md`
-- ✅ `RESUMEN-DESPLIEGUE-DIRECTO.md`
-- ✅ `COMANDOS-SERVIDOR-DIRECTO.md`
-- ✅ `SOLUCION-ERRORES-PRODUCCION.md`
+# Diagnóstico del sistema
+./tractoreando-manager.sh diagnose --full
 
-### Contenido de la Documentación Completa
-- 📋 Información general y requisitos del sistema
-- 🚀 Guías de instalación detalladas (manual y automática)
-- 🌐 Configuración de red y proxy (Nginx Proxy Manager y standalone)
-- 🏭 Despliegue en producción paso a paso
-- 🔧 Solución de problemas comunes con diagnósticos automáticos
-- 🔧 Mantenimiento, monitoreo y backups automatizados
-- 🚗 **[Sistema de Tipos de Vehículos](./SISTEMA-TIPOS-VEHICULOS.md)** - Control de acceso granular por tipos
+# Crear backup
+./tractoreando-manager.sh maintain --backup
 
-## 🛠️ Scripts de Gestión Consolidados
+# Ver ayuda completa
+./tractoreando-manager.sh help
+```
 
-El proyecto ha sido optimizado con scripts consolidados que reemplazan múltiples scripts anteriores:
+## 📚 Documentación
 
-### Scripts Principales
-- **`instalacion-completa.sh`** - Instalación completa del sistema
-  - Consolida: `install.sh`, `install-standalone.sh`, `instalacion-rapida.sh`, `configure-proxy.sh`, `verify-installation.sh`
-  - Modos: `--quick`, `--standalone`, `--production`, `--proxy-config`, `--verify`
+- **[GUIA-COMPLETA.md](./GUIA-COMPLETA.md)**: Documentación completa del sistema (instalación, configuración, deployment, troubleshooting)
+- **[SISTEMA-TIPOS-VEHICULOS.md](./SISTEMA-TIPOS-VEHICULOS.md)**: Documentación específica del sistema de tipos de vehículos
+- **[FUNCIONALIDADES-INNOVADORAS.md](./FUNCIONALIDADES-INNOVADORAS.md)**: Características avanzadas del sistema
 
-- **`diagnostico-integral.sh`** - Diagnóstico completo del sistema
-  - Consolida: `diagnostico-completo.sh`, `diagnose-production.sh`, `verificar-servidor.sh`
-  - Modos: `--quick`, `--full`, `--health`, `--performance`
+### 📁 Archivos Principales
 
-- **`fix-mongodb-comprehensive.sh`** - Solución integral de problemas de MongoDB
-  - Consolida: `fix-mongodb-quick.sh`, `fix-mongodb-connection.sh`
-  - Modos: `--auto`, `--interactive`, `--connection`, `--permissions`
-
-- **`gestion-produccion.sh`** - Gestión completa de producción
-  - Consolida: `build-production.sh`, `fix-api-routes-production.sh`, `fix-production-login.sh`
-  - Modos: `--build`, `--deploy`, `--update`, `--rollback`, `--status`
-
-- **`mantenimiento-integral.sh`** - Mantenimiento completo del sistema
-  - Consolida: `clean-for-git.sh`, `preparar-despliegue.sh`, `update.sh`
-  - Modos: `--full`, `--quick`, `--backup`, `--cleanup`, `--update`
-
-- **`utilidades-tractoreando.sh`** - Utilidades varias del sistema
-  - Consolida: `acceso-inmediato.sh`, `solucion-rapida.sh`, `force-rebuild-frontend.sh`
-  - Modos: `--rebuild`, `--reset`, `--quick-access`, `--emergency`
+- `tractoreando-manager.sh`: Script maestro de gestión
+- `server.js`: Servidor backend principal
+- `init-admin.js`: Inicialización del usuario administrador
+- `ecosystem.config.js`: Configuración de PM2 para producción
+- `.env`: Configuración consolidada (reemplaza múltiples archivos .env)
+- `nginx.conf`: Configuración consolidada de Nginx (desarrollo y producción)
 
 ## 🔧 Comandos Básicos
 
@@ -109,66 +80,35 @@ El proyecto ha sido optimizado con scripts consolidados que reemplazan múltiple
 # Ver estado de la aplicación
 pm2 status
 
-# Ver logs
-pm2 logs tractoreando
+# Ver logs del backend
+pm2 logs tractoreando-backend
 
 # Reiniciar aplicación
-pm2 restart tractoreando
+pm2 restart tractoreando-backend
 
 # Verificar servicios
 sudo systemctl status nginx mongod
 
 # Health check
-curl http://localhost:5000/api/health
+curl http://localhost:8000/api/health
 ```
 
 ## 🌐 Acceso
 
-- **Frontend**: https://tu-dominio.com
-- **API**: https://tu-dominio.com/api
-- **Health Check**: https://tu-dominio.com/api/health
+- **Frontend**: http://localhost:3000 (desarrollo) / http://localhost:8080 (producción)
+- **API**: http://localhost:8000/api
+- **Health Check**: http://localhost:8000/api/health
 
-## 🆘 Soporte Rápido
+## ✨ Beneficios de la Simplificación
 
-### Comandos de Emergencia Consolidados
-
-```bash
-# Diagnóstico completo automático
-./diagnostico-integral.sh --quick
-
-# Solución automática de problemas de MongoDB
-./fix-mongodb-comprehensive.sh --auto
-
-# Mantenimiento de emergencia
-./mantenimiento-integral.sh --emergency
-
-# Reconstrucción rápida del sistema
-./utilidades-tractoreando.sh --rebuild
-
-# Verificación completa de la instalación
-./instalacion-completa.sh --verify
-
-# Gestión de producción - estado completo
-./gestion-produccion.sh --status
-```
-
-### Beneficios de la Consolidación
-- ✅ **Menos archivos que mantener**: De 19+ scripts a 6 scripts principales
-- ✅ **Documentación unificada**: Toda la información en un solo lugar
-- ✅ **Funcionalidad mejorada**: Scripts con múltiples modos de operación
-- ✅ **Mantenimiento simplificado**: Actualizaciones centralizadas
-- ✅ **Experiencia de usuario mejorada**: Comandos más intuitivos y potentes
-
-### Contacto
-
-Para soporte técnico o consultas, consulte la documentación completa o los logs del sistema.
-
-## 📄 Licencia
-
-[Especificar licencia del proyecto]
+- ✅ **Un solo script maestro**: `tractoreando-manager.sh` reemplaza 10+ scripts anteriores
+- ✅ **Documentación unificada**: Toda la información en `GUIA-COMPLETA.md`
+- ✅ **Gestión simplificada**: Comandos intuitivos y centralizados
+- ✅ **Mantenimiento reducido**: Menos archivos que mantener
+- ✅ **Modelo optimizado**: Estructura de datos simplificada para mejor rendimiento
 
 ---
 
-**¡Bienvenido a Tractoreando!** 🎉
+**¡Sistema Tractoreando Optimizado!** 🚛✨
 
-Para comenzar, ejecute la instalación automática y consulte la documentación completa para configuraciones avanzadas.
+Para información detallada, consulte la **[Guía Completa](./GUIA-COMPLETA.md)**

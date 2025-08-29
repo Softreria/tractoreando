@@ -1,13 +1,25 @@
 const mongoose = require('mongoose');
 
 const VehicleSchema = new mongoose.Schema({
-  // Información básica
+  // Información básica (orden: 1-matrícula, 2-marca, 3-modelo, 4-número de bastidor)
   plateNumber: {
     type: String,
     required: true,
     trim: true,
     uppercase: true,
     maxlength: 15
+  },
+  make: {
+    type: String,
+    required: true,
+    trim: true,
+    maxlength: 50
+  },
+  model: {
+    type: String,
+    required: true,
+    trim: true,
+    maxlength: 50
   },
   vin: {
     type: String,
@@ -24,20 +36,6 @@ const VehicleSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Branch',
     required: true
-  },
-  
-  // Información del vehículo
-  make: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 50
-  },
-  model: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 50
   },
   year: {
     type: Number,
@@ -56,75 +54,17 @@ const VehicleSchema = new mongoose.Schema({
     type: String,
     required: true,
     enum: [
-      // Vehículos de pasajeros
-      'coche',
-      'motocicleta',
-      'scooter',
-      'bicicleta_electrica',
-      
-      // Vehículos comerciales ligeros
-      'camioneta',
-      'van',
-      'pickup',
-      'furgoneta',
-      
-      // Vehículos comerciales pesados
-      'camion',
-      'trailer',
-      'autobus',
-      'microbus',
-      
-      // Maquinaria agrícola
-      'tractor',
-      'cosechadora',
-      'sembradora',
-      'pulverizadora',
-      'arado',
-      'cultivador',
-      'rastra',
-      'segadora',
-      'empacadora',
-      'remolque_agricola',
-      
-      // Aperos agrícolas
-      'apero_labranza',
-      'apero_siembra',
-      'apero_fertilizacion',
-      'apero_fumigacion',
-      'apero_cosecha',
-      'apero_transporte',
-      
-      // Maquinaria de construcción
-      'excavadora',
-      'bulldozer',
-      'cargadora',
-      'grua',
-      'compactadora',
-      'motoniveladora',
-      'retroexcavadora',
-      
-      // Vehículos especiales
-      'ambulancia',
-      'bomberos',
-      'policia',
-      'militar',
-      'otro'
+      'Tractor',
+      'Camión',
+      'Furgoneta',
+      'Coche',
+      'Motocicleta',
+      'Remolque',
+      'Maquinaria',
+      'Otro'
     ]
   },
-  category: {
-    type: String,
-    enum: [
-      'particular',
-      'comercial',
-      'transporte_publico',
-      'carga',
-      'construccion',
-      'agricola',
-      'emergencia',
-      'gobierno'
-    ],
-    default: 'particular'
-  },
+
   
   // Especificaciones técnicas
   engine: {
@@ -152,38 +92,81 @@ const VehicleSchema = new mongoose.Schema({
     unit: { type: String, enum: ['km', 'miles'], default: 'km' }
   },
   
-  // Información de propiedad
-  owner: {
-    name: { type: String, trim: true },
-    phone: { type: String, trim: true },
-    email: { type: String, trim: true, lowercase: true },
-    address: {
-      street: { type: String, trim: true },
-      city: { type: String, trim: true },
-      state: { type: String, trim: true },
-      zipCode: { type: String, trim: true }
-    }
-  },
+
   
-  // Documentación
+  // Documentos (solo gestión de archivos)
   documents: {
-    registration: {
-      number: { type: String, trim: true },
-      expiryDate: { type: Date },
-      isValid: { type: Boolean, default: true }
-    },
+    files: [{
+      name: { type: String, required: true },
+      url: { type: String, required: true },
+      type: { 
+        type: String, 
+        enum: ['pdf', 'image', 'document', 'other'],
+        default: 'document'
+      },
+      uploadDate: { type: Date, default: Date.now },
+      uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    }]
+  },
+
+  // Especificaciones (campos movidos desde documentos + nuevos)
+  specifications: {
+    // Campos de seguro (movido desde documents)
     insurance: {
       company: { type: String, trim: true },
       policyNumber: { type: String, trim: true },
       expiryDate: { type: Date },
       isValid: { type: Boolean, default: true }
     },
-    inspection: {
+    // ITV (reemplaza inspection y registration)
+    itv: {
       lastDate: { type: Date },
-      nextDate: { type: Date },
+      expiryDate: { type: Date },
       isValid: { type: Boolean, default: true }
+    },
+    // Nuevos campos añadidos
+    numberOfKeys: {
+      type: Number,
+      min: 0,
+      default: 2
+    },
+    radioCode: {
+      type: String,
+      trim: true,
+      maxlength: 20
+    },
+    // Notas (movido desde campo independiente)
+    notes: {
+      type: String,
+      maxlength: 1000
     }
   },
+
+  // Información de propiedad/alquiler
+  ownership: {
+    type: {
+      type: String,
+      enum: ['propiedad', 'alquiler'],
+      default: 'propiedad'
+    },
+    monthlyRentalPrice: {
+      type: Number,
+      min: 0
+    },
+    maintenanceCostResponsibility: {
+      type: String,
+      enum: ['empresa_propietaria', 'empresa_arrendataria'],
+      default: 'empresa_propietaria'
+    }
+  },
+
+  // Fotos del vehículo
+  photos: [{
+    url: { type: String, required: true },
+    description: { type: String, maxlength: 200 },
+    uploadDate: { type: Date, default: Date.now },
+    uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  }],
   
   // Estado y condición
   status: {
@@ -234,24 +217,9 @@ const VehicleSchema = new mongoose.Schema({
     lastYearMaintenanceCost: { type: Number, default: 0 }
   },
   
-  // Archivos adjuntos
-  attachments: [{
-    name: { type: String, required: true },
-    url: { type: String, required: true },
-    type: { 
-      type: String, 
-      enum: ['image', 'document', 'video', 'other'],
-      default: 'document'
-    },
-    uploadDate: { type: Date, default: Date.now },
-    uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
-  }],
+
   
-  // Notas y observaciones
-  notes: {
-    type: String,
-    maxlength: 1000
-  },
+
   
   // Metadatos
   isActive: {
@@ -271,14 +239,15 @@ const VehicleSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Índices
+// Índices para optimizar consultas
 VehicleSchema.index({ company: 1, plateNumber: 1 }, { unique: true });
 VehicleSchema.index({ company: 1, branch: 1 });
 VehicleSchema.index({ company: 1, status: 1 });
 VehicleSchema.index({ vin: 1 });
 VehicleSchema.index({ make: 1, model: 1, year: 1 });
-VehicleSchema.index({ 'documents.registration.expiryDate': 1 });
-VehicleSchema.index({ 'documents.insurance.expiryDate': 1 });
+VehicleSchema.index({ 'specifications.itv.expiryDate': 1 });
+VehicleSchema.index({ 'specifications.insurance.expiryDate': 1 });
+VehicleSchema.index({ 'ownership.type': 1 });
 
 // Middleware pre-save
 VehicleSchema.pre('save', function(next) {
@@ -342,22 +311,46 @@ VehicleSchema.methods.needsInspection = function() {
 
 VehicleSchema.methods.getExpiringDocuments = function(daysAhead = 30) {
   const expiringDocs = [];
-  const futureDate = new Date();
-  futureDate.setDate(futureDate.getDate() + daysAhead);
+  const checkDate = new Date();
+  checkDate.setDate(checkDate.getDate() + daysAhead);
   
-  if (this.documents.registration.expiryDate && this.documents.registration.expiryDate <= futureDate) {
-    expiringDocs.push({ type: 'registration', date: this.documents.registration.expiryDate });
+  // Verificar ITV
+  if (this.specifications.itv.expiryDate && 
+      this.specifications.itv.expiryDate <= checkDate) {
+    expiringDocs.push({
+      type: 'itv',
+      expiryDate: this.specifications.itv.expiryDate,
+      daysUntilExpiry: Math.ceil((this.specifications.itv.expiryDate - new Date()) / (1000 * 60 * 60 * 24))
+    });
   }
   
-  if (this.documents.insurance.expiryDate && this.documents.insurance.expiryDate <= futureDate) {
-    expiringDocs.push({ type: 'insurance', date: this.documents.insurance.expiryDate });
-  }
-  
-  if (this.documents.inspection.nextDate && this.documents.inspection.nextDate <= futureDate) {
-    expiringDocs.push({ type: 'inspection', date: this.documents.inspection.nextDate });
+  // Verificar seguro
+  if (this.specifications.insurance.expiryDate && 
+      this.specifications.insurance.expiryDate <= checkDate) {
+    expiringDocs.push({
+      type: 'insurance',
+      expiryDate: this.specifications.insurance.expiryDate,
+      daysUntilExpiry: Math.ceil((this.specifications.insurance.expiryDate - new Date()) / (1000 * 60 * 60 * 24))
+    });
   }
   
   return expiringDocs;
+};
+
+// Método para verificar si es vehículo de alquiler
+VehicleSchema.methods.isRental = function() {
+  return this.ownership.type === 'alquiler';
+};
+
+// Método para obtener el costo mensual (solo para alquileres)
+VehicleSchema.methods.getMonthlyRentalCost = function() {
+  return this.isRental() ? this.ownership.monthlyRentalPrice || 0 : 0;
+};
+
+// Método para verificar quién es responsable de los costos de mantenimiento
+VehicleSchema.methods.getMaintenanceResponsibility = function() {
+  if (!this.isRental()) return 'empresa_propietaria';
+  return this.ownership.maintenanceCostResponsibility || 'empresa_propietaria';
 };
 
 VehicleSchema.methods.updateOdometer = function(newKm, updateDate = new Date()) {

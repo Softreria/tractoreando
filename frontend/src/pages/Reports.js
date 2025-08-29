@@ -799,7 +799,7 @@ const Reports = () => {
                     <MenuItem value="">Todos los mecánicos</MenuItem>
                     {mechanicsData?.map((mechanic) => (
                       <MenuItem key={mechanic._id} value={mechanic._id}>
-                        {mechanic.firstName} {mechanic.lastName}
+                        {mechanic.name} {mechanic.lastName}
                       </MenuItem>
                     ))}
                   </Select>

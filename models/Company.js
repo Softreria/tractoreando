@@ -7,7 +7,7 @@ const CompanySchema = new mongoose.Schema({
     trim: true,
     maxlength: 100
   },
-  rfc: {
+  cif: {
     type: String,
     required: true,
     unique: true,
@@ -19,7 +19,8 @@ const CompanySchema = new mongoose.Schema({
     city: { type: String, trim: true },
     state: { type: String, trim: true },
     zipCode: { type: String, trim: true },
-    country: { type: String, default: 'España', trim: true }
+    country: { type: String, default: 'España', trim: true },
+    additionalInfo: { type: String, trim: true, maxlength: 200 }
   },
   contact: {
     phone: { type: String, trim: true },
@@ -36,18 +37,14 @@ const CompanySchema = new mongoose.Schema({
     maintenanceReminders: { type: Boolean, default: true },
     emailNotifications: { type: Boolean, default: true }
   },
-  subscription: {
-    plan: {
-      type: String,
-      enum: ['basic', 'premium', 'enterprise'],
-      default: 'basic'
-    },
-    startDate: { type: Date, default: Date.now },
-    endDate: { type: Date },
-    isActive: { type: Boolean, default: true },
-    maxVehicles: { type: Number, default: 10 },
-    maxUsers: { type: Number, default: 5 },
-    maxBranches: { type: Number, default: 1 }
+  // Datos del administrador de la empresa
+  administrator: {
+    firstName: { type: String, trim: true, maxlength: 50 },
+    lastName: { type: String, trim: true, maxlength: 50 },
+    email: { type: String, trim: true, lowercase: true },
+    phone: { type: String, trim: true },
+    canManageUsers: { type: Boolean, default: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   },
   isActive: {
     type: Boolean,
@@ -62,14 +59,15 @@ const CompanySchema = new mongoose.Schema({
 });
 
 // Índices
-CompanySchema.index({ rfc: 1 });
+CompanySchema.index({ cif: 1 });
 CompanySchema.index({ name: 1 });
 CompanySchema.index({ isActive: 1 });
+CompanySchema.index({ 'administrator.email': 1 });
 
 // Middleware pre-save
 CompanySchema.pre('save', function(next) {
-  if (this.rfc) {
-    this.rfc = this.rfc.toUpperCase().trim();
+  if (this.cif) {
+    this.cif = this.cif.toUpperCase().trim();
   }
   next();
 });

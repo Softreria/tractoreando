@@ -6,11 +6,15 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "init-admin": "node init-admin.js",
+    "production": "NODE_ENV=production node server.js",
     "client": "cd frontend && npm start",
     "server": "nodemon server.js",
     "build": "cd frontend && npm run build",
     "build:prod": "cd frontend && npm run build",
     "install:all": "npm install && cd frontend && npm install",
+    "install-all": "npm install && cd frontend && npm install",
+    "deploy": "npm run build && npm run init-admin && npm run production",
     "clean": "rm -rf node_modules frontend/node_modules frontend/build",
     "deploy:install": "./install.sh",
     "deploy:install-standalone": "./install-standalone.sh",
@@ -19,7 +23,8 @@
     "deploy:configure-proxy": "./configure-proxy.sh",
     "deploy:network-test": "curl -s http://localhost/health && echo 'Local OK' || echo 'Local FAIL'",
     "clean:git": "./clean-for-git.sh",
-    "heroku-postbuild": "cd frontend && npm install && npm run build"
+    "heroku-postbuild": "cd frontend && npm install && npm run build",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
     "axios": "^1.11.0",

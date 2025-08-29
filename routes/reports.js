@@ -33,7 +33,7 @@ router.get('/dashboard', [
     
     // Filtrar por sucursales del usuario si no es admin
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      baseQuery.branch = { $in: req.user.branches };
+      baseQuery.branch = req.user.branch;
     }
 
     // Consultas paralelas para obtener estadísticas
@@ -102,13 +102,13 @@ router.get('/vehicles', [
     
     // Filtrar por sucursales del usuario si no es admin
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      query.branch = { $in: req.user.branches };
+      query.branch = req.user.branch;
     }
 
     const vehicles = await Vehicle.find(query)
       .populate('company', 'name')
       .populate('branch', 'name code')
-      .populate('createdBy', 'firstName lastName')
+      .populate('createdBy', 'name lastName')
       .sort({ createdAt: -1 });
 
     // Agregar estadísticas de mantenimiento para cada vehículo
@@ -214,8 +214,8 @@ router.get('/maintenance', [
       .populate('vehicle', 'plateNumber make model year')
       .populate('company', 'name')
       .populate('branch', 'name code')
-      .populate('assignedTo', 'firstName lastName')
-      .populate('createdBy', 'firstName lastName')
+      .populate('assignedTo', 'name lastName')
+      .populate('createdBy', 'name lastName')
       .sort({ scheduledDate: -1 });
 
     // Estadísticas generales
@@ -410,7 +410,7 @@ router.get('/performance', [
     
     // Filtrar por sucursales del usuario si no es admin
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      baseQuery.branch = { $in: req.user.branches };
+      baseQuery.branch = req.user.branch;
     }
 
     // Rendimiento por mecánico
@@ -598,7 +598,7 @@ async function getRecentMaintenances(baseQuery, limit) {
   return await Maintenance.find(baseQuery)
     .populate('vehicle', 'plateNumber make model')
     .populate('branch', 'name')
-    .populate('assignedTo', 'firstName lastName')
+    .populate('assignedTo', 'name lastName')
     .sort({ createdAt: -1 })
     .limit(limit);
 }
@@ -713,7 +713,7 @@ async function getUserStats(baseQuery, user) {
   } else if (user.role === 'company_admin') {
     userQuery.company = user.company._id;
   } else {
-    userQuery.branches = { $in: user.branches };
+    userQuery.branch = user.branch;
   }
   
   const total = await User.countDocuments(userQuery);

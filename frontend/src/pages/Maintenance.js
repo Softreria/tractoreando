@@ -592,7 +592,7 @@ const Maintenance = () => {
                             <Box key={user._id} sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
                               <Person sx={{ fontSize: 16, mr: 0.5 }} />
                               <Typography variant="caption">
-                                {user.firstName} {user.lastName}
+                                {user.name} {user.lastName}
                               </Typography>
                             </Box>
                           ))}
@@ -856,7 +856,7 @@ const Maintenance = () => {
                       <Autocomplete
                         multiple
                         options={usersData || []}
-                        getOptionLabel={(option) => `${option.firstName} ${option.lastName}`}
+                        getOptionLabel={(option) => `${option.name} ${option.lastName}`}
                         value={usersData?.filter(user => field.value?.includes(user._id)) || []}
                         onChange={(event, newValue) => {
                           field.onChange(newValue.map(user => user._id));

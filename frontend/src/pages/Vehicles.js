@@ -91,6 +91,8 @@ const Vehicles = () => {
   const [uploadingFile, setUploadingFile] = useState(false);
   const [vehicleDocuments, setVehicleDocuments] = useState([]);
   const [maintenanceHistory, setMaintenanceHistory] = useState([]);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [vehiclePhotos, setVehiclePhotos] = useState([]);
   
   const { user, hasPermission, hasRole, isAuthenticated, authLoading } = useAuth();
   const queryClient = useQueryClient();
@@ -461,6 +463,46 @@ const Vehicles = () => {
       notes: data.notes
     });
   };
+
+  // Funciones para manejo de fotos
+  const handlePhotoUpload = async (files) => {
+    if (!selectedVehicle || !files.length) return;
+    
+    setUploadingPhoto(true);
+    try {
+      const formData = new FormData();
+      Array.from(files).forEach(file => {
+        formData.append('photos', file);
+      });
+      
+      const response = await api.post(`/vehicles/${selectedVehicle._id}/photos`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      
+      setVehiclePhotos(response.data.photos || []);
+      toast.success('Fotos subidas correctamente');
+    } catch (error) {
+      console.error('Error uploading photos:', error);
+      toast.error('Error al subir las fotos');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleDeletePhoto = async (photoId) => {
+    if (!selectedVehicle) return;
+    
+    try {
+      await api.delete(`/vehicles/${selectedVehicle._id}/photos/${photoId}`);
+      setVehiclePhotos(prev => prev.filter(photo => photo._id !== photoId));
+      toast.success('Foto eliminada correctamente');
+    } catch (error) {
+       console.error('Error deleting photo:', error);
+       toast.error('Error al eliminar la foto');
+     }
+   };
 
   const filteredVehicles = vehiclesData?.vehicles || [];
   const totalCount = vehiclesData?.total || 0;
@@ -845,30 +887,21 @@ const Vehicles = () => {
                 <Grid item xs={12} md={6}>
                   <TextField
                     fullWidth
-                    label="Placa"
-                    {...register('plateNumber', { required: 'La placa es requerida' })}
+                    label="Matrícula"
+                    {...register('plateNumber', { required: 'La matrícula es requerida' })}
                     error={!!errors.plateNumber}
                     helperText={errors.plateNumber?.message}
                     inputProps={{ style: { textTransform: 'uppercase' } }}
                   />
                 </Grid>
                 <Grid item xs={12} md={6}>
-                  <Controller
-                    name="branch"
-                    control={control}
-                    rules={{ required: 'La delegación es requerida' }}
-                    render={({ field }) => (
-                      <FormControl fullWidth error={!!errors.branch}>
-                        <InputLabel>Delegación</InputLabel>
-            <Select {...field} label="Delegación">
-                          {branchesData?.map((branch) => (
-                            <MenuItem key={branch._id} value={branch._id}>
-                              {branch.name}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    )}
+                  <TextField
+                    fullWidth
+                    label="Número de Bastidor (VIN)"
+                    {...register('vin', { required: 'El VIN es requerido' })}
+                    error={!!errors.vin}
+                    helperText={errors.vin?.message}
+                    inputProps={{ style: { textTransform: 'uppercase' } }}
                   />
                 </Grid>
                 <Grid item xs={12} md={4}>
@@ -946,19 +979,69 @@ const Vehicles = () => {
                     {...register('color')}
                   />
                 </Grid>
+                <Grid item xs={12} md={6}>
+                  <Controller
+                    name="branch"
+                    control={control}
+                    rules={{ required: 'La delegación es requerida' }}
+                    render={({ field }) => (
+                      <FormControl fullWidth error={!!errors.branch}>
+                        <InputLabel>Delegación</InputLabel>
+                        <Select {...field} label="Delegación">
+                          {branchesData?.map((branch) => (
+                            <MenuItem key={branch._id} value={branch._id}>
+                              {branch.name}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    )}
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Controller
+                    name="ownership.type"
+                    control={control}
+                    rules={{ required: 'El tipo de propiedad es requerido' }}
+                    render={({ field }) => (
+                      <FormControl fullWidth error={!!errors.ownership?.type}>
+                        <InputLabel>Tipo de Propiedad</InputLabel>
+                        <Select {...field} label="Tipo de Propiedad">
+                          <MenuItem value="owned">Propio</MenuItem>
+                          <MenuItem value="rented">Alquilado</MenuItem>
+                        </Select>
+                      </FormControl>
+                    )}
+                  />
+                </Grid>
+                {watch('ownership.type') === 'rented' && (
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Precio Mensual de Alquiler"
+                      type="number"
+                      {...register('ownership.monthlyPrice', { required: 'El precio mensual es requerido para vehículos alquilados', min: 0 })}
+                      error={!!errors.ownership?.monthlyPrice}
+                      helperText={errors.ownership?.monthlyPrice?.message}
+                      InputProps={{
+                        startAdornment: <InputAdornment position="start">€</InputAdornment>
+                      }}
+                    />
+                  </Grid>
+                )}
               </Grid>
             )}
             
             {/* Tab 1: Especificaciones */}
             {tabValue === 1 && (
               <Grid container spacing={2} sx={{ mt: 1 }}>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="VIN"
-                    {...register('vin')}
-                    inputProps={{ style: { textTransform: 'uppercase' } }}
-                  />
+                <Grid item xs={12}>
+                  <Typography variant="h6" gutterBottom>
+                    🔧 Especificaciones Técnicas
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Información técnica y características del vehículo
+                  </Typography>
                 </Grid>
                 <Grid item xs={12} md={6}>
                   <TextField
@@ -968,7 +1051,26 @@ const Vehicles = () => {
                     {...register('fuelCapacity')}
                   />
                 </Grid>
-                <Grid item xs={12} md={4}>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Número de Llaves"
+                    type="number"
+                    {...register('specifications.numberOfKeys', { min: 0 })}
+                    InputProps={{
+                      endAdornment: <InputAdornment position="end">llaves</InputAdornment>
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Código de Radio"
+                    {...register('specifications.radioCode')}
+                    placeholder="Ej: 1234"
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
                   <Controller
                     name="engine.type"
                     control={control}
@@ -986,7 +1088,7 @@ const Vehicles = () => {
                     )}
                   />
                 </Grid>
-                <Grid item xs={12} md={4}>
+                <Grid item xs={12} md={6}>
                   <Controller
                     name="transmission"
                     control={control}
@@ -1004,7 +1106,7 @@ const Vehicles = () => {
                     )}
                   />
                 </Grid>
-                <Grid item xs={12} md={4}>
+                <Grid item xs={12} md={6}>
                   <TextField
                     fullWidth
                     label="Fecha de Compra"
@@ -1037,6 +1139,70 @@ const Vehicles = () => {
                     }}
                   />
                 </Grid>
+                
+                {/* Divisor */}
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 2 }} />
+                </Grid>
+                
+                {/* Sección de Seguros e ITV */}
+                <Grid item xs={12}>
+                  <Typography variant="h6" gutterBottom>
+                    📋 Seguros e ITV
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Información sobre seguros e inspección técnica
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    fullWidth
+                    label="Vencimiento de Seguro"
+                    type="date"
+                    {...register('specifications.insurance.expiryDate')}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    fullWidth
+                    label="Vencimiento de ITV"
+                    type="date"
+                    {...register('specifications.itv.expiryDate')}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    fullWidth
+                    label="Número de Póliza de Seguro"
+                    {...register('specifications.insurance.policyNumber')}
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Compañía de Seguros"
+                    {...register('specifications.insurance.company')}
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Centro de ITV"
+                    {...register('specifications.itv.center')}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Notas"
+                    multiline
+                    rows={3}
+                    {...register('specifications.notes')}
+                    placeholder="Información adicional sobre el vehículo..."
+                  />
+                </Grid>
               </Grid>
             )}
             
@@ -1052,54 +1218,105 @@ const Vehicles = () => {
                     Gestiona la información legal y administrativa del vehículo
                   </Typography>
                 </Grid>
-                <Grid item xs={12} md={4}>
-                  <TextField
-                    fullWidth
-                    label="Vencimiento de Seguro"
-                    type="date"
-                    {...register('documents.insurance.expiryDate')}
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <TextField
-                    fullWidth
-                    label="Vencimiento de Registro"
-                    type="date"
-                    {...register('documents.registration.expiryDate')}
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <TextField
-                    fullWidth
-                    label="Número de Póliza de Seguro"
-                    {...register('documents.insurance.policyNumber')}
-                  />
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="Compañía de Seguros"
-                    {...register('documents.insurance.company')}
-                  />
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="Número de Registro"
-                    {...register('documents.registration.number')}
-                  />
+                {/* Sección de Fotos */}
+                <Grid item xs={12}>
+                  <Typography variant="h6" gutterBottom>
+                    📸 Fotos del Vehículo
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Sube fotos del vehículo para documentación visual
+                  </Typography>
                 </Grid>
                 <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="Notas"
-                    multiline
-                    rows={3}
-                    {...register('notes')}
-                  />
+                  <Box
+                    sx={{
+                      border: '2px dashed',
+                      borderColor: 'grey.300',
+                      borderRadius: 2,
+                      p: 3,
+                      textAlign: 'center',
+                      cursor: 'pointer',
+                      '&:hover': {
+                        borderColor: 'primary.main',
+                        bgcolor: 'action.hover'
+                      }
+                    }}
+                    onClick={() => document.getElementById('photo-upload').click()}
+                  >
+                    <input
+                      id="photo-upload"
+                      type="file"
+                      multiple
+                      accept=".jpg,.jpeg,.png,.webp"
+                      style={{ display: 'none' }}
+                      onChange={handlePhotoUpload}
+                    />
+                    <DirectionsCar sx={{ fontSize: 48, color: 'grey.400', mb: 1 }} />
+                    <Typography variant="h6" gutterBottom>
+                      Arrastra fotos aquí o haz clic para seleccionar
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Formatos soportados: JPG, PNG, WEBP
+                    </Typography>
+                  </Box>
                 </Grid>
+                {uploadingPhoto && (
+                   <Grid item xs={12}>
+                     <Alert severity="info">
+                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                         <Typography>Subiendo foto...</Typography>
+                         <LinearProgress sx={{ flexGrow: 1 }} />
+                       </Box>
+                     </Alert>
+                   </Grid>
+                 )}
+                 <Grid item xs={12}>
+                   <Typography variant="subtitle1" gutterBottom>
+                     Fotos Existentes
+                   </Typography>
+                   {vehiclePhotos.length > 0 ? (
+                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 1 }}>
+                       {vehiclePhotos.map((photo, index) => (
+                         <Card key={photo._id || index} sx={{ width: 200 }}>
+                           <Box sx={{ position: 'relative' }}>
+                             <img
+                               src={photo.url}
+                               alt={photo.name}
+                               style={{
+                                 width: '100%',
+                                 height: 150,
+                                 objectFit: 'cover'
+                               }}
+                             />
+                             <IconButton
+                               size="small"
+                               onClick={() => handleDeletePhoto(photo._id)}
+                               sx={{
+                                 position: 'absolute',
+                                 top: 8,
+                                 right: 8,
+                                 bgcolor: 'rgba(255,255,255,0.8)',
+                                 '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' }
+                               }}
+                               color="error"
+                             >
+                               <Delete fontSize="small" />
+                             </IconButton>
+                           </Box>
+                           <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
+                             <Typography variant="caption" color="text.secondary">
+                               {photo.name}
+                             </Typography>
+                           </CardContent>
+                         </Card>
+                       ))}
+                     </Box>
+                   ) : (
+                     <Alert severity="info">
+                       No hay fotos subidas para este vehículo.
+                     </Alert>
+                   )}
+                 </Grid>
                 
                 {/* Divisor */}
                 <Grid item xs={12}>
@@ -1548,7 +1765,7 @@ const Vehicles = () => {
                       </TableCell>
                       <TableCell>
                         {maintenance.assignedTo ? 
-                          `${maintenance.assignedTo.firstName} ${maintenance.assignedTo.lastName}` : 
+                          `${maintenance.assignedTo.name} ${maintenance.assignedTo.lastName}` : 
                           'No asignado'
                         }
                       </TableCell>

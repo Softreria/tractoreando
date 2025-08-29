@@ -164,10 +164,10 @@ const Layout = ({ children }) => {
             sx={{ width: 56, height: 56, mx: 'auto', mb: 1 }}
             src={user?.avatar}
           >
-            {user?.firstName?.[0]}{user?.lastName?.[0]}
+            {user?.name?.[0]}{user?.lastName?.[0]}
           </Avatar>
           <Typography variant="subtitle2" noWrap>
-            {user?.firstName} {user?.lastName}
+            {user?.name} {user?.lastName}
           </Typography>
           <Typography variant="caption" color="text.secondary" noWrap>
             {user?.company?.name}
@@ -279,7 +279,7 @@ const Layout = ({ children }) => {
               sx={{ width: 32, height: 32 }}
               src={user?.avatar}
             >
-              {user?.firstName?.[0]}{user?.lastName?.[0]}
+              {user?.name?.[0]}{user?.lastName?.[0]}
             </Avatar>
           </IconButton>
         </Toolbar>

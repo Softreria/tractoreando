@@ -43,7 +43,7 @@ router.get('/', [
 
     // Filtrar por sucursales del usuario si no es admin
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      query.branch = { $in: req.user.branches };
+      query.branch = req.user.branch;
     }
 
     // Filtrar por tipos de vehículos según permisos del usuario
@@ -54,7 +54,7 @@ router.get('/', [
     const vehicles = await Vehicle.find(query)
       .populate('company', 'name')
       .populate('branch', 'name code')
-      .populate('createdBy', 'firstName lastName')
+      .populate('createdBy', 'name lastName')
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);
@@ -121,8 +121,8 @@ router.get('/:id', [
     const vehicle = await Vehicle.findById(req.params.id)
       .populate('company', 'name rfc')
       .populate('branch', 'name code address')
-      .populate('createdBy', 'firstName lastName email')
-      .populate('lastModifiedBy', 'firstName lastName');
+      .populate('createdBy', 'name lastName email')
+      .populate('lastModifiedBy', 'name lastName');
 
     if (!vehicle) {
       return res.status(404).json({ message: 'Vehículo no encontrado' });
@@ -134,7 +134,7 @@ router.get('/:id', [
     }
 
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      const hasAccess = req.user.branches.some(userBranch => userBranch._id.toString() === vehicle.branch._id.toString());
+      const hasAccess = req.user.branch.toString() === vehicle.branch._id.toString();
       if (!hasAccess) {
         return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
       }
@@ -152,8 +152,8 @@ router.get('/:id', [
     const [maintenanceHistory, activeMaintenances, upcomingMaintenances] = await Promise.all([
       Maintenance.find({ vehicle: vehicle._id })
         .populate('branch', 'name')
-        .populate('assignedTo', 'firstName lastName')
-        .populate('createdBy', 'firstName lastName')
+        .populate('assignedTo', 'name lastName')
+      .populate('createdBy', 'name lastName')
         .sort({ scheduledDate: -1 })
         .limit(10),
       Maintenance.find({ 
@@ -161,7 +161,7 @@ router.get('/:id', [
         status: { $in: ['programado', 'en_proceso'] }
       })
         .populate('branch', 'name')
-        .populate('assignedTo', 'firstName lastName')
+        .populate('assignedTo', 'name lastName')
         .sort({ scheduledDate: 1 }),
       Maintenance.find({ 
         vehicle: vehicle._id, 
@@ -169,7 +169,7 @@ router.get('/:id', [
         scheduledDate: { $gte: new Date() }
       })
         .populate('branch', 'name')
-        .populate('assignedTo', 'firstName lastName')
+        .populate('assignedTo', 'name lastName')
         .sort({ scheduledDate: 1 })
         .limit(5)
     ]);
@@ -233,6 +233,9 @@ router.post('/', [
       odometer,
       owner,
       documents,
+      specifications,
+      ownership,
+      photos,
       maintenanceSchedule,
       costs,
       notes,
@@ -291,6 +294,9 @@ router.post('/', [
       odometer,
       owner,
       documents,
+      specifications,
+      ownership,
+      photos,
       maintenanceSchedule,
       costs,
       notes,
@@ -302,7 +308,7 @@ router.post('/', [
     const populatedVehicle = await Vehicle.findById(vehicle._id)
       .populate('company', 'name')
       .populate('branch', 'name code')
-      .populate('createdBy', 'firstName lastName');
+      .populate('createdBy', 'name lastName');
 
     res.status(201).json({
       message: 'Vehículo creado exitosamente',
@@ -366,6 +372,9 @@ router.put('/:id', [
       odometer,
       owner,
       documents,
+      specifications,
+      ownership,
+      photos,
       maintenanceSchedule,
       costs,
       status,
@@ -435,6 +444,9 @@ router.put('/:id', [
     if (odometer) updateData.odometer = { ...vehicle.odometer, ...odometer };
     if (owner) updateData.owner = { ...vehicle.owner, ...owner };
     if (documents) updateData.documents = { ...vehicle.documents, ...documents };
+    if (specifications) updateData.specifications = { ...vehicle.specifications, ...specifications };
+    if (ownership) updateData.ownership = { ...vehicle.ownership, ...ownership };
+    if (photos) updateData.photos = photos;
     if (maintenanceSchedule) updateData.maintenanceSchedule = { ...vehicle.maintenanceSchedule, ...maintenanceSchedule };
     if (costs) updateData.costs = { ...vehicle.costs, ...costs };
     if (status) updateData.status = status;
@@ -448,8 +460,8 @@ router.put('/:id', [
       { new: true }
     ).populate('company', 'name')
      .populate('branch', 'name code')
-     .populate('createdBy', 'firstName lastName')
-     .populate('lastModifiedBy', 'firstName lastName');
+     .populate('createdBy', 'name lastName')
+      .populate('lastModifiedBy', 'name lastName');
 
     res.json({
       message: 'Vehículo actualizado exitosamente',
@@ -633,7 +645,7 @@ router.get('/stats/summary', [
     
     // Filtrar por sucursales del usuario si no es admin
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      matchQuery.branch = { $in: req.user.branches };
+      matchQuery.branch = req.user.branch;
     }
 
     const [statusStats, typeStats, conditionStats, totalVehicles] = await Promise.all([
@@ -661,6 +673,101 @@ router.get('/stats/summary', [
 
   } catch (error) {
     console.error('Error al obtener estadísticas de vehículos:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+});
+
+// @route   POST /api/vehicles/:id/photos
+// @desc    Subir fotos de vehículo
+// @access  Private
+router.post('/:id/photos', [
+  auth,
+  checkPermission('vehicles', 'update'),
+  logActivity('Subir fotos de vehículo')
+], async (req, res) => {
+  try {
+    const vehicle = await Vehicle.findById(req.params.id);
+    if (!vehicle) {
+      return res.status(404).json({ message: 'Vehículo no encontrado' });
+    }
+
+    // Verificar acceso
+    if (req.user.role !== 'super_admin' && vehicle.company.toString() !== req.user.company._id.toString()) {
+      return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
+    }
+
+    const { photos } = req.body;
+    
+    if (!photos || !Array.isArray(photos)) {
+      return res.status(400).json({ message: 'Se requiere un array de fotos' });
+    }
+
+    // Validar estructura de fotos
+    for (const photo of photos) {
+      if (!photo.url || !photo.category) {
+        return res.status(400).json({ message: 'Cada foto debe tener URL y categoría' });
+      }
+    }
+
+    // Añadir metadatos a las fotos
+    const photosWithMetadata = photos.map(photo => ({
+      ...photo,
+      uploadedBy: req.user._id,
+      uploadedAt: new Date()
+    }));
+
+    // Actualizar vehículo con nuevas fotos
+    vehicle.photos = vehicle.photos || [];
+    vehicle.photos.push(...photosWithMetadata);
+    vehicle.lastModifiedBy = req.user._id;
+    
+    await vehicle.save();
+
+    res.json({
+      message: 'Fotos subidas exitosamente',
+      photos: photosWithMetadata
+    });
+
+  } catch (error) {
+    console.error('Error subiendo fotos:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+});
+
+// @route   DELETE /api/vehicles/:id/photos/:photoId
+// @desc    Eliminar foto de vehículo
+// @access  Private
+router.delete('/:id/photos/:photoId', [
+  auth,
+  checkPermission('vehicles', 'update'),
+  logActivity('Eliminar foto de vehículo')
+], async (req, res) => {
+  try {
+    const vehicle = await Vehicle.findById(req.params.id);
+    if (!vehicle) {
+      return res.status(404).json({ message: 'Vehículo no encontrado' });
+    }
+
+    // Verificar acceso
+    if (req.user.role !== 'super_admin' && vehicle.company.toString() !== req.user.company._id.toString()) {
+      return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
+    }
+
+    // Encontrar y eliminar la foto
+    const photoIndex = vehicle.photos.findIndex(photo => photo._id.toString() === req.params.photoId);
+    if (photoIndex === -1) {
+      return res.status(404).json({ message: 'Foto no encontrada' });
+    }
+
+    vehicle.photos.splice(photoIndex, 1);
+    vehicle.lastModifiedBy = req.user._id;
+    
+    await vehicle.save();
+
+    res.json({ message: 'Foto eliminada exitosamente' });
+
+  } catch (error) {
+    console.error('Error eliminando foto:', error);
     res.status(500).json({ message: 'Error interno del servidor' });
   }
 });

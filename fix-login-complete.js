@@ -72,11 +72,11 @@ API_URL=https://tractoreando.softreria.com/api
 `;
     
     try {
-      fs.appendFileSync('.env.production', envContent);
-      console.log('✅ Variables agregadas a .env.production');
+      fs.appendFileSync('.env', envContent);
+console.log('✅ Variables agregadas a .env');
       
       // Recargar variables
-      require('dotenv').config({ path: '.env.production' });
+      require('dotenv').config({ path: '.env' });
       console.log('✅ Variables recargadas');
     } catch (error) {
       console.log('❌ Error escribiendo .env:', error.message);
@@ -168,7 +168,7 @@ API_URL=https://tractoreando.softreria.com/api
       const hashedPassword = await bcrypt.hash(this.testCredentials.password, salt);
       
       const user = new User({
-        firstName: 'Admin',
+        name: 'Admin Tractoreando',
         lastName: 'Tractoreando',
         email: this.testCredentials.email,
         password: hashedPassword,

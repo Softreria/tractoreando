@@ -85,7 +85,7 @@ const Profile = () => {
     formState: { errors }
   } = useForm({
     defaultValues: {
-      firstName: user?.firstName || '',
+      name: user?.name || '',
       lastName: user?.lastName || '',
       email: user?.email || '',
       phone: user?.phone || ''
@@ -149,7 +149,7 @@ const Profile = () => {
     if (editMode) {
       // Cancelar edición
       reset({
-        firstName: user?.firstName || '',
+        name: user?.name || '',
         lastName: user?.lastName || '',
         email: user?.email || '',
         phone: user?.phone || ''
@@ -311,7 +311,7 @@ const Profile = () => {
                   {roleInfo.icon}
                 </Avatar>
                 <Typography variant="h5" gutterBottom>
-                  {user?.firstName} {user?.lastName}
+                  {user?.name} {user?.lastName}
                 </Typography>
                 <Chip
                   icon={roleInfo.icon}
@@ -395,9 +395,9 @@ const Profile = () => {
                       <TextField
                         fullWidth
                         label="Nombre"
-                        {...register('firstName', { required: 'El nombre es requerido' })}
-                        error={!!errors.firstName}
-                        helperText={errors.firstName?.message}
+                        {...register('name', { required: 'El nombre es requerido' })}
+                        error={!!errors.name}
+                        helperText={errors.name?.message}
                         disabled={!editMode}
                         InputProps={{
                           startAdornment: (

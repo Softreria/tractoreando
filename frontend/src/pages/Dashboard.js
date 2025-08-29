@@ -411,7 +411,7 @@ const Dashboard = () => {
             Dashboard
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Bienvenido de vuelta, {user?.firstName}. Aquí tienes un resumen de tu flota.
+            Bienvenido de vuelta, {user?.name}. Aquí tienes un resumen de tu flota.
           </Typography>
         </Box>
         <Button

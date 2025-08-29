@@ -6,10 +6,31 @@ require('dotenv').config();
 
 const app = express();
 
-// Middleware
-app.use(cors());
+// Configuración para proxy (nginx)
+app.set('trust proxy', true);
+
+// Middleware de seguridad y CORS optimizado para producción
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production' 
+    ? [process.env.FRONTEND_URL, process.env.DOMAIN_URL].filter(Boolean)
+    : true,
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Headers de seguridad para producción
+if (process.env.NODE_ENV === 'production') {
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    next();
+  });
+}
 
 // Ruta de prueba
 app.get('/api/health', (req, res) => {

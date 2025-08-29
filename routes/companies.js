@@ -23,7 +23,7 @@ router.get('/', [
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
-        { rfc: { $regex: search, $options: 'i' } }
+        { cif: { $regex: search, $options: 'i' } }
       ];
     }
     if (status) {
@@ -31,7 +31,7 @@ router.get('/', [
     }
 
     const companies = await Company.find(query)
-      .populate('createdBy', 'firstName lastName email')
+      .populate('createdBy', 'name lastName email')
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);
@@ -81,7 +81,7 @@ router.get('/:id', [
 ], async (req, res) => {
   try {
     const company = await Company.findById(req.params.id)
-      .populate('createdBy', 'firstName lastName email');
+      .populate('createdBy', 'name lastName email');
 
     if (!company) {
       return res.status(404).json({ message: 'Empresa no encontrada' });
@@ -124,7 +124,7 @@ router.post('/', [
   authorize('super_admin'),
   checkPermission('companies', 'create'),
   body('name', 'Nombre de empresa es requerido').notEmpty().trim(),
-  body('rfc', 'RFC es requerido').notEmpty().trim(),
+  body('cif', 'CIF es requerido').notEmpty().trim(),
   body('adminData.firstName', 'Nombre del administrador es requerido').notEmpty().trim(),
   body('adminData.lastName', 'Apellidos del administrador es requerido').notEmpty().trim(),
   body('adminData.email', 'Email del administrador es requerido').isEmail().normalizeEmail(),
@@ -140,12 +140,12 @@ router.post('/', [
       });
     }
 
-    const { name, rfc, address, contact, settings, subscription, limits, adminData } = req.body;
+    const { name, cif, address, contact, settings, administrator, adminData } = req.body;
 
-    // Verificar si el RFC ya existe
-    const existingCompany = await Company.findOne({ rfc: rfc.toUpperCase() });
+    // Verificar si el CIF ya existe
+    const existingCompany = await Company.findOne({ cif: cif.toUpperCase() });
     if (existingCompany) {
-      return res.status(400).json({ message: 'El RFC ya está registrado' });
+      return res.status(400).json({ message: 'El CIF ya está registrado' });
     }
 
     // Verificar si el email del administrador ya existe
@@ -157,12 +157,17 @@ router.post('/', [
     // Crear la empresa
     const company = new Company({
       name,
-      rfc: rfc.toUpperCase(),
+      cif: cif.toUpperCase(),
       address,
       contact,
       settings,
-      subscription,
-      limits,
+      administrator: {
+        firstName: adminData.firstName,
+        lastName: adminData.lastName,
+        email: adminData.email,
+        phone: adminData.phone,
+        canManageUsers: administrator?.canManageUsers !== false
+      },
       createdBy: req.user._id
     });
 
@@ -230,7 +235,7 @@ router.put('/:id', [
   auth,
   checkPermission('companies', 'update'),
   body('name', 'Nombre de empresa es requerido').optional().notEmpty().trim(),
-  body('rfc', 'RFC es requerido').optional().notEmpty().trim(),
+  body('cif', 'CIF es requerido').optional().notEmpty().trim(),
   logActivity('Actualizar empresa')
 ], async (req, res) => {
   try {
@@ -252,31 +257,29 @@ router.put('/:id', [
       return res.status(403).json({ message: 'No tienes acceso a esta empresa' });
     }
 
-    const { name, rfc, address, contact, settings, subscription } = req.body;
+    const { name, cif, address, contact, settings, administrator } = req.body;
 
-    // Si se está actualizando el RFC, verificar que no exista
-    if (rfc && rfc.toUpperCase() !== company.rfc) {
-      const existingCompany = await Company.findOne({ rfc: rfc.toUpperCase() });
+    // Si se está actualizando el CIF, verificar que no exista
+    if (cif && cif.toUpperCase() !== company.cif) {
+      const existingCompany = await Company.findOne({ cif: cif.toUpperCase() });
       if (existingCompany) {
-        return res.status(400).json({ message: 'El RFC ya está registrado' });
+        return res.status(400).json({ message: 'El CIF ya está registrado' });
       }
     }
 
     const updateData = {};
     if (name) updateData.name = name;
-    if (rfc) updateData.rfc = rfc.toUpperCase();
+    if (cif) updateData.cif = cif.toUpperCase();
     if (address) updateData.address = { ...company.address, ...address };
     if (contact) updateData.contact = { ...company.contact, ...contact };
     if (settings) updateData.settings = { ...company.settings, ...settings };
-    if (subscription && req.user.role === 'super_admin') {
-      updateData.subscription = { ...company.subscription, ...subscription };
-    }
+    if (administrator) updateData.administrator = { ...company.administrator, ...administrator };
 
     const updatedCompany = await Company.findByIdAndUpdate(
       req.params.id,
       updateData,
       { new: true }
-    ).populate('createdBy', 'firstName lastName email');
+    ).populate('createdBy', 'name lastName email');
 
     res.json({
       message: 'Empresa actualizada exitosamente',
@@ -422,7 +425,7 @@ router.get('/:id/dashboard', [
       Maintenance.find({ company: company._id })
         .populate('vehicle', 'plateNumber make model')
         .populate('branch', 'name')
-        .populate('assignedTo', 'firstName lastName')
+        .populate('assignedTo', 'name lastName')
         .sort({ createdAt: -1 })
         .limit(5),
         

@@ -53,7 +53,7 @@ const Register = () => {
   const handleNext = async () => {
     const fieldsToValidate = activeStep === 0 
       ? ['companyName', 'companyRfc', 'companyAddress', 'companyPhone']
-      : ['firstName', 'lastName', 'email', 'phone', 'password', 'confirmPassword'];
+      : ['name', 'lastName', 'email', 'phone', 'password', 'confirmPassword'];
     
     const isStepValid = await trigger(fieldsToValidate);
     
@@ -80,7 +80,7 @@ const Register = () => {
         companyAddress: data.companyAddress,
         companyPhone: data.companyPhone,
         // Datos del usuario administrador
-        firstName: data.firstName,
+        name: data.name,
         lastName: data.lastName,
         email: data.email,
         phone: data.phone,
@@ -199,15 +199,15 @@ const Register = () => {
               <TextField
                 fullWidth
                 label="Nombre"
-                {...register('firstName', {
+                {...register('name', {
                   required: 'El nombre es requerido',
                   minLength: {
                     value: 2,
                     message: 'El nombre debe tener al menos 2 caracteres'
                   }
                 })}
-                error={!!errors.firstName}
-                helperText={errors.firstName?.message}
+                error={!!errors.name}
+                helperText={errors.name?.message}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">

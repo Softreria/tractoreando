@@ -148,7 +148,7 @@ const Users = () => {
   // Limpiar delegaciones cuando cambie la empresa
   React.useEffect(() => {
     if (hasRole('super_admin') && selectedCompany) {
-      setValue('branches', []);
+      setValue('branch', '');
     }
   }, [selectedCompany, hasRole, setValue]);
 
@@ -245,13 +245,13 @@ const Users = () => {
     setEditingUser(user);
     if (user) {
       reset({
-        firstName: user.firstName,
+        name: user.name,
         lastName: user.lastName,
         email: user.email,
         phone: user.phone,
         role: user.role,
         company: user.company?._id || '',
-        branches: user.branches?.map(branch => branch._id) || [],
+        branch: user.branch?._id || '',
         permissions: user.permissions || {},
         vehicleTypeAccess: user.vehicleTypeAccess || [],
         isActive: user.isActive
@@ -261,7 +261,7 @@ const Users = () => {
         role: 'mechanic',
         isActive: true,
         company: '',
-        branches: [],
+        branch: '',
         permissions: {},
         vehicleTypeAccess: []
       });
@@ -318,13 +318,13 @@ const Users = () => {
 
   const onSubmit = (data) => {
     const userData = {
-      firstName: data.firstName,
+      name: data.name,
       lastName: data.lastName,
       email: data.email,
       phone: data.phone || '',
       role: data.role,
       company: data.company || user?.company?._id,
-      branches: data.branches || [],
+      branch: data.branch || '',
       permissions: data.permissions || {},
       preferences: data.preferences || {},
       vehicleTypeAccess: data.vehicleTypeAccess || [],
@@ -372,6 +372,7 @@ const Users = () => {
 
   const roleLabels = {
     super_admin: 'Super Administrador',
+    company_admin: 'Administrador de Empresa',
     admin: 'Administrador',
     manager: 'Gerente',
     mechanic: 'Mecánico',
@@ -380,6 +381,7 @@ const Users = () => {
 
   const roleIcons = {
     super_admin: <AdminPanelSettings />,
+    company_admin: <Business />,
     admin: <ManageAccounts />,
     manager: <SupervisorAccount />,
     mechanic: <Engineering />,
@@ -389,6 +391,7 @@ const Users = () => {
   const getRoleColor = (role) => {
     switch (role) {
       case 'super_admin': return 'error';
+      case 'company_admin': return 'secondary';
       case 'admin': return 'warning';
       case 'manager': return 'info';
       case 'mechanic': return 'success';
@@ -566,7 +569,7 @@ const Users = () => {
                       </Avatar>
                       <Box>
                         <Typography variant="subtitle2">
-                          {userItem.firstName} {userItem.lastName}
+                          {userItem.name} {userItem.lastName}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                           ID: {userItem._id.slice(-8)}
@@ -729,9 +732,9 @@ const Users = () => {
                   <TextField
                     fullWidth
                     label="Nombre"
-                    {...register('firstName', { required: 'El nombre es requerido' })}
-                    error={!!errors.firstName}
-                    helperText={errors.firstName?.message}
+                    {...register('name', { required: 'El nombre es requerido' })}
+                        error={!!errors.name}
+                        helperText={errors.name?.message}
                   />
                 </Grid>
                 <Grid item xs={12} md={6}>
@@ -814,32 +817,25 @@ const Users = () => {
                 )}
                 <Grid item xs={12} md={6}>
                   <Controller
-                    name="branches"
+                    name="branch"
                     control={control}
                     render={({ field }) => (
-                      <FormControl fullWidth error={!!errors.branches}>
-                        <InputLabel>Delegaciones</InputLabel>
+                      <FormControl fullWidth error={!!errors.branch}>
+                        <InputLabel>Delegación</InputLabel>
                         <Select 
                           {...field} 
-                          label="Delegaciones"
-                          multiple
-                          value={field.value || []}
-                          renderValue={(selected) => {
-                            if (selected.length === 0) return 'Seleccionar delegaciones';
-                            const selectedBranches = branchesData?.filter(branch => selected.includes(branch._id));
-                            return selectedBranches?.map(branch => branch.name).join(', ');
-                          }}
+                          label="Delegación"
+                          value={field.value || ''}
                         >
                           {branchesData?.map((branch) => (
                             <MenuItem key={branch._id} value={branch._id}>
-                              <Checkbox checked={(field.value || []).includes(branch._id)} />
                               {branch.name}
                             </MenuItem>
                           ))}
                         </Select>
-                        {errors.branches && (
+                        {errors.branch && (
                           <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.5 }}>
-                            {errors.branches.message}
+                            {errors.branch.message}
                           </Typography>
                         )}
                       </FormControl>
@@ -1054,7 +1050,7 @@ const Users = () => {
             <Grid container spacing={2} sx={{ mt: 1 }}>
               <Grid item xs={12}>
                 <Alert severity="info" sx={{ mb: 2 }}>
-                  Cambiando contraseña para: <strong>{selectedUser?.firstName} {selectedUser?.lastName}</strong>
+                  Cambiando contraseña para: <strong>{selectedUser?.name} {selectedUser?.lastName}</strong>
                 </Alert>
               </Grid>
               <Grid item xs={12}>
@@ -1108,7 +1104,7 @@ const Users = () => {
             Esta acción no se puede deshacer.
           </Alert>
           <Typography>
-            ¿Estás seguro de que deseas eliminar al usuario <strong>{selectedUser?.firstName} {selectedUser?.lastName}</strong>?
+            ¿Estás seguro de que deseas eliminar al usuario <strong>{selectedUser?.name} {selectedUser?.lastName}</strong>?
           </Typography>
         </DialogContent>
         <DialogActions>

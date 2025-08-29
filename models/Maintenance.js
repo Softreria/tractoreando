@@ -180,6 +180,18 @@ const MaintenanceSchema = new mongoose.Schema({
     discount: { type: Number, default: 0 },
     total: { type: Number, default: 0 }
   },
+
+  // Responsabilidad de costos (para vehículos de alquiler)
+  costResponsibility: {
+    responsibleParty: {
+      type: String,
+      enum: ['empresa_propietaria', 'empresa_arrendataria', 'compartido'],
+      default: 'empresa_propietaria'
+    },
+    notes: { type: String, maxlength: 500 },
+    approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    approvalDate: { type: Date }
+  },
   
   // Inspecciones y verificaciones
   inspections: [{
@@ -194,6 +206,19 @@ const MaintenanceSchema = new mongoose.Schema({
     inspectedDate: { type: Date, default: Date.now }
   }],
   
+  // Fotos del mantenimiento
+  photos: [{
+    url: { type: String, required: true },
+    description: { type: String, maxlength: 200 },
+    category: {
+      type: String,
+      enum: ['antes', 'durante', 'despues', 'problema', 'solucion', 'otro'],
+      default: 'durante'
+    },
+    uploadDate: { type: Date, default: Date.now },
+    uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  }],
+
   // Archivos adjuntos
   attachments: [{
     name: { type: String, required: true },
@@ -201,11 +226,11 @@ const MaintenanceSchema = new mongoose.Schema({
     type: { 
       type: String, 
       enum: ['image', 'document', 'video', 'audio', 'other'],
-      default: 'image'
+      default: 'document'
     },
     category: {
       type: String,
-      enum: ['antes', 'durante', 'despues', 'factura', 'garantia', 'diagnostico', 'otro']
+      enum: ['factura', 'garantia', 'diagnostico', 'presupuesto', 'otro']
     },
     uploadDate: { type: Date, default: Date.now },
     uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }

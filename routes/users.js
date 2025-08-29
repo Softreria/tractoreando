@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Company = require('../models/Company');
 const Branch = require('../models/Branch');
 const { auth, requireRole, checkPermission, checkCompanyAccess, checkSubscriptionLimits, logActivity } = require('../middleware/auth');
+const { checkCompanyAdmin, checkSameCompanyUser, checkUserLimits, validateAssignableRoles } = require('../middleware/companyAdmin');
 
 const router = express.Router();
 
@@ -32,7 +33,7 @@ router.get('/', [
     
     if (search) {
       query.$or = [
-        { firstName: { $regex: search, $options: 'i' } },
+        { name: { $regex: search, $options: 'i' } },
         { lastName: { $regex: search, $options: 'i' } },
         { email: { $regex: search, $options: 'i' } },
         { phone: { $regex: search, $options: 'i' } }
@@ -44,7 +45,7 @@ router.get('/', [
     }
     
     if (branch) {
-      query.branches = branch;
+      query.branch = branch;
     }
     
     if (status !== undefined) {
@@ -53,12 +54,12 @@ router.get('/', [
 
     // Filtrar por sucursales del usuario si no es admin
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      query.branches = { $in: req.user.branches };
+      query.branch = req.user.branch;
     }
 
     const users = await User.find(query)
       .populate('company', 'name')
-      .populate('branches', 'name code')
+      .populate('branch', 'name code')
       .select('-password -resetPasswordToken -resetPasswordExpires')
       .sort({ createdAt: -1 })
       .limit(limit * 1)
@@ -128,7 +129,7 @@ router.get('/:id', [
   try {
     const user = await User.findById(req.params.id)
       .populate('company', 'name rfc')
-      .populate('branches', 'name code address')
+      .populate('branch', 'name code address')
       .select('-password -resetPasswordToken -resetPasswordExpires');
 
     if (!user) {
@@ -153,14 +154,16 @@ router.get('/:id', [
 // @access  Private
 router.post('/', [
   auth,
+  checkCompanyAdmin,
   checkPermission('users', 'create'),
-  checkSubscriptionLimits('users'),
-  body('firstName', 'Nombre es requerido').notEmpty().trim(),
+  checkUserLimits,
+  validateAssignableRoles,
+  body('name', 'Nombre es requerido').notEmpty().trim(),
   body('lastName', 'Apellido es requerido').notEmpty().trim(),
   body('email', 'Email válido es requerido').isEmail().normalizeEmail(),
   body('password', 'Contraseña debe tener al menos 6 caracteres').isLength({ min: 6 }),
   body('role', 'Rol es requerido').isIn(['company_admin', 'branch_manager', 'mechanic', 'operator', 'viewer']),
-  body('branches', 'Las sucursales deben ser un array válido').optional().isArray(),
+  body('branch', 'La sucursal debe ser un ID válido').optional().isMongoId(),
   logActivity('Crear usuario')
 ], async (req, res) => {
   try {
@@ -173,13 +176,13 @@ router.post('/', [
     }
 
     const {
-      firstName,
+      name,
       lastName,
       email,
       password,
       phone,
       role,
-      branches,
+      branch,
       permissions,
       preferences,
       company
@@ -193,11 +196,11 @@ router.post('/', [
       return res.status(400).json({ message: 'El email ya está registrado' });
     }
 
-    // Verificar que las sucursales pertenecen a la empresa (solo si se proporcionan)
-    if (branches && branches.length > 0) {
-      const branchDocs = await Branch.find({ _id: { $in: branches }, company: companyId });
-      if (branchDocs.length !== branches.length) {
-        return res.status(400).json({ message: 'Una o más sucursales no son válidas' });
+    // Verificar que la sucursal pertenece a la empresa (solo si se proporciona)
+    if (branch) {
+      const branchDoc = await Branch.findOne({ _id: branch, company: companyId });
+      if (!branchDoc) {
+        return res.status(400).json({ message: 'La sucursal no es válida' });
       }
     }
 
@@ -209,14 +212,14 @@ router.post('/', [
     }
 
     const user = new User({
-      firstName,
+      name,
       lastName,
       email,
       password,
       phone,
       company: companyId,
       role,
-      branches,
+      branch,
       permissions: permissions || {},
       preferences: preferences || {}
     });
@@ -225,7 +228,7 @@ router.post('/', [
 
     const populatedUser = await User.findById(user._id)
       .populate('company', 'name')
-      .populate('branches', 'name code')
+      .populate('branch', 'name code')
       .select('-password -resetPasswordToken -resetPasswordExpires');
 
     res.status(201).json({
@@ -244,8 +247,11 @@ router.post('/', [
 // @access  Private
 router.put('/:id', [
   auth,
+  checkCompanyAdmin,
+  checkSameCompanyUser,
   checkPermission('users', 'update'),
-  body('firstName', 'Nombre es requerido').optional().notEmpty().trim(),
+  validateAssignableRoles,
+  body('name', 'Nombre es requerido').optional().notEmpty().trim(),
   body('lastName', 'Apellido es requerido').optional().notEmpty().trim(),
   body('email', 'Email válido es requerido').optional().isEmail().normalizeEmail(),
   body('role', 'Rol inválido').optional().isIn(['company_admin', 'branch_manager', 'mechanic', 'operator', 'viewer']),
@@ -278,12 +284,12 @@ router.put('/:id', [
     }
 
     const {
-      firstName,
+      name,
       lastName,
       email,
       phone,
       role,
-      branches,
+      branch,
       permissions,
       preferences,
       isActive
@@ -301,11 +307,11 @@ router.put('/:id', [
       }
     }
 
-    // Verificar sucursales si se están actualizando
-    if (branches) {
-      const branchDocs = await Branch.find({ _id: { $in: branches }, company: user.company });
-      if (branchDocs.length !== branches.length) {
-        return res.status(400).json({ message: 'Una o más sucursales no son válidas' });
+    // Verificar sucursal si se está actualizando
+    if (branch) {
+      const branchDoc = await Branch.findOne({ _id: branch, company: user.company });
+      if (!branchDoc) {
+        return res.status(400).json({ message: 'La sucursal no es válida' });
       }
     }
 
@@ -320,12 +326,12 @@ router.put('/:id', [
 
     const updateData = {};
     
-    if (firstName) updateData.firstName = firstName;
+    if (name) updateData.name = name;
     if (lastName) updateData.lastName = lastName;
     if (email) updateData.email = email;
     if (phone) updateData.phone = phone;
     if (role) updateData.role = role;
-    if (branches) updateData.branches = branches;
+    if (branch) updateData.branch = branch;
     if (permissions) updateData.permissions = { ...user.permissions, ...permissions };
     if (preferences) updateData.preferences = { ...user.preferences, ...preferences };
     if (isActive !== undefined) updateData.isActive = isActive;
@@ -335,7 +341,7 @@ router.put('/:id', [
       updateData,
       { new: true }
     ).populate('company', 'name')
-     .populate('branches', 'name code')
+     .populate('branch', 'name code')
      .select('-password -resetPasswordToken -resetPasswordExpires');
 
     res.json({
@@ -354,6 +360,8 @@ router.put('/:id', [
 // @access  Private
 router.put('/:id/password', [
   auth,
+  checkCompanyAdmin,
+  checkSameCompanyUser,
   checkPermission('users', 'update'),
   body('newPassword', 'Nueva contraseña debe tener al menos 6 caracteres').isLength({ min: 6 }),
   logActivity('Cambiar contraseña de usuario')
@@ -401,6 +409,8 @@ router.put('/:id/password', [
 // @access  Private
 router.put('/:id/activate', [
   auth,
+  checkCompanyAdmin,
+  checkSameCompanyUser,
   checkPermission('users', 'update'),
   body('isActive', 'Estado es requerido').isBoolean(),
   logActivity('Cambiar estado de usuario')
@@ -448,6 +458,8 @@ router.put('/:id/activate', [
 // @access  Private
 router.delete('/:id', [
   auth,
+  checkCompanyAdmin,
+  checkSameCompanyUser,
   checkPermission('users', 'delete'),
   logActivity('Eliminar usuario')
 ], async (req, res) => {
@@ -509,12 +521,12 @@ router.get('/stats/summary', [
     const matchQuery = { company: companyId };
     
     if (branch) {
-      matchQuery.branches = branch;
+      matchQuery.branch = branch;
     }
     
-    // Filtrar por sucursales del usuario si no es admin
+    // Filtrar por sucursal del usuario si no es admin
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      matchQuery.branches = { $in: req.user.branches };
+      matchQuery.branch = req.user.branch;
     }
 
     const [roleStats, statusStats, totalUsers, activeUsers] = await Promise.all([

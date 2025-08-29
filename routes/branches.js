@@ -39,7 +39,7 @@ router.get('/', [
 
     const branches = await Branch.find(query)
       .populate('company', 'name')
-      .populate('createdBy', 'firstName lastName')
+      .populate('createdBy', 'name lastName')
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);
@@ -95,7 +95,7 @@ router.get('/:id', [
   try {
     const branch = await Branch.findById(req.params.id)
       .populate('company', 'name rfc')
-      .populate('createdBy', 'firstName lastName email');
+      .populate('createdBy', 'name lastName email');
 
     if (!branch) {
       return res.status(404).json({ message: 'Sucursal no encontrada' });
@@ -191,7 +191,7 @@ router.post('/', [
 
     const populatedBranch = await Branch.findById(branch._id)
       .populate('company', 'name')
-      .populate('createdBy', 'firstName lastName');
+      .populate('createdBy', 'name lastName');
 
     res.status(201).json({
       message: 'Sucursal creada exitosamente',
@@ -261,7 +261,7 @@ router.put('/:id', [
       updateData,
       { new: true }
     ).populate('company', 'name')
-     .populate('createdBy', 'firstName lastName');
+     .populate('createdBy', 'name lastName');
 
     res.json({
       message: 'Sucursal actualizada exitosamente',
@@ -407,7 +407,7 @@ router.get('/:id/dashboard', [
       // Mantenimientos recientes
       Maintenance.find({ branch: branch._id })
         .populate('vehicle', 'plateNumber make model')
-        .populate('assignedTo', 'firstName lastName')
+        .populate('assignedTo', 'name lastName')
         .sort({ createdAt: -1 })
         .limit(5),
         
@@ -420,7 +420,7 @@ router.get('/:id/dashboard', [
         }
       })
         .populate('vehicle', 'plateNumber make model')
-        .populate('assignedTo', 'firstName lastName')
+        .populate('assignedTo', 'name lastName')
         .sort({ scheduledDate: 1 })
     ]);
 
@@ -472,7 +472,7 @@ router.get('/:id/vehicles', [
     }
 
     const vehicles = await Vehicle.find(query)
-      .populate('createdBy', 'firstName lastName')
+      .populate('createdBy', 'name lastName')
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);

@@ -16,7 +16,7 @@ const generateToken = (userId) => {
 
 // Ruta temporal de registro para crear usuario de prueba
 router.post('/register', [
-  body('firstName', 'Nombre es requerido').notEmpty().trim(),
+  body('name', 'Nombre es requerido').notEmpty().trim(),
   body('lastName', 'Apellido es requerido').notEmpty().trim(),
   body('email', 'Email válido es requerido').isEmail().normalizeEmail(),
   body('password', 'Password debe tener al menos 6 caracteres').isLength({ min: 6 }),
@@ -33,7 +33,7 @@ router.post('/register', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { firstName, lastName, email, password, companyName, branchName, companyRfc, companyAddress, companyPhone, companyEmail } = req.body;
+    const { name, lastName, email, password, companyName, branchName, companyRfc, companyAddress, companyPhone, companyEmail } = req.body;
 
     console.log('Datos recibidos:', req.body);
     console.log('RFC recibido:', companyRfc);
@@ -85,13 +85,13 @@ router.post('/register', [
     const hashedPassword = await bcrypt.hash(password, salt);
 
     user = new User({
-      firstName,
+      name,
       lastName,
       email,
       password: hashedPassword,
       role: 'super_admin',
       company: company._id,
-      branches: [branch._id],
+      branch: branch._id,
       isActive: true
     });
 

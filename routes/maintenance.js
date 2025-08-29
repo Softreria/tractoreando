@@ -73,15 +73,15 @@ router.get('/', [
 
     // Filtrar por sucursales del usuario si no es admin
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      query.branch = { $in: req.user.branches };
+      query.branch = req.user.branch;
     }
 
     const maintenances = await Maintenance.find(query)
       .populate('vehicle', 'plateNumber make model year')
       .populate('company', 'name')
       .populate('branch', 'name code')
-      .populate('assignedTo', 'firstName lastName')
-      .populate('createdBy', 'firstName lastName')
+      .populate('assignedTo', 'name lastName')
+      .populate('createdBy', 'name lastName')
       .sort({ scheduledDate: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);
@@ -116,10 +116,10 @@ router.get('/:id', [
       .populate('vehicle', 'plateNumber make model year vin odometer')
       .populate('company', 'name rfc')
       .populate('branch', 'name code address')
-      .populate('assignedTo', 'firstName lastName email phone')
-      .populate('createdBy', 'firstName lastName email')
-      .populate('approvals.approvedBy', 'firstName lastName')
-      .populate('timeTracking.user', 'firstName lastName');
+      .populate('assignedTo', 'name lastName email phone')
+      .populate('createdBy', 'name lastName email')
+      .populate('approvals.approvedBy', 'name lastName')
+      .populate('timeTracking.user', 'name lastName');
 
     if (!maintenance) {
       return res.status(404).json({ message: 'Mantenimiento no encontrado' });
@@ -131,7 +131,7 @@ router.get('/:id', [
     }
 
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      const hasAccess = req.user.branches.some(userBranch => userBranch._id.toString() === maintenance.branch._id.toString());
+      const hasAccess = req.user.branch.toString() === maintenance.branch._id.toString();
       if (!hasAccess) {
         return res.status(403).json({ message: 'No tienes acceso a este mantenimiento' });
       }
@@ -223,7 +223,7 @@ router.post('/', [
       .populate('company', 'name')
       .populate('branch', 'name code')
       .populate('assignedTo', 'firstName lastName')
-      .populate('createdBy', 'firstName lastName');
+      .populate('createdBy', 'name lastName');
 
     res.status(201).json({
       message: 'Mantenimiento creado exitosamente',
@@ -298,9 +298,9 @@ router.put('/:id', [
     ).populate('vehicle', 'plateNumber make model year')
      .populate('company', 'name')
      .populate('branch', 'name code')
-     .populate('assignedTo', 'firstName lastName')
-     .populate('createdBy', 'firstName lastName')
-     .populate('lastModifiedBy', 'firstName lastName');
+     .populate('assignedTo', 'name lastName')
+      .populate('createdBy', 'name lastName')
+      .populate('lastModifiedBy', 'name lastName');
 
     res.json({
       message: 'Mantenimiento actualizado exitosamente',
@@ -592,7 +592,7 @@ router.get('/stats/summary', [
     
     // Filtrar por sucursales del usuario si no es admin
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      matchQuery.branch = { $in: req.user.branches };
+      matchQuery.branch = req.user.branch;
     }
 
     const [statusStats, typeStats, priorityStats, totalMaintenances, avgCost] = await Promise.all([

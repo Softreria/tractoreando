@@ -509,10 +509,10 @@ const Companies = () => {
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
-                  label="RFC"
-                  {...register('rfc', { required: 'El RFC es requerido' })}
-                  error={!!errors.rfc}
-                  helperText={errors.rfc?.message}
+                  label="CIF"
+                  {...register('cif', { required: 'El CIF es requerido' })}
+                  error={!!errors.cif}
+                  helperText={errors.cif?.message}
                   inputProps={{ style: { textTransform: 'uppercase' } }}
                 />
               </Grid>
@@ -616,9 +616,9 @@ const Companies = () => {
                     <TextField
                       fullWidth
                       label="Nombre"
-                      {...register('adminFirstName', { required: !editingCompany ? 'El nombre es requerido' : false })}
-                      error={!!errors.adminFirstName}
-                      helperText={errors.adminFirstName?.message}
+                      {...register('adminName', { required: !editingCompany ? 'El nombre es requerido' : false })}
+                      error={!!errors.adminName}
+                      helperText={errors.adminName?.message}
                     />
                   </Grid>
                   <Grid item xs={12} md={6}>
