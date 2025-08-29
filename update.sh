@@ -25,13 +25,6 @@ echo "Fecha: $(date)"
 echo "Usuario: $(whoami)"
 echo ""
 
-# Verificar si se ejecuta como root
-if [[ $EUID -eq 0 ]]; then
-    SUDO_CMD=""
-else
-    SUDO_CMD="sudo"
-fi
-
 # Configuración
 APP_DIR="/opt/tractoreando"
 APP_USER="tractoreando"
@@ -107,10 +100,10 @@ create_backup() {
         log_info "Creando backup..."
         
         # Crear directorio de backup si no existe
-        $SUDO_CMD mkdir -p "$BACKUP_DIR"
+        sudo mkdir -p "$BACKUP_DIR"
         
         # Crear backup de la aplicación (excluyendo node_modules y logs)
-        $SUDO_CMD tar -czf "$BACKUP_FILE" \
+        sudo tar -czf "$BACKUP_FILE" \
             --exclude="$APP_DIR/node_modules" \
             --exclude="$APP_DIR/frontend/node_modules" \
             --exclude="$APP_DIR/frontend/build" \
@@ -150,7 +143,7 @@ stop_application() {
     cd "$APP_DIR"
     
     # Detener PM2
-    $SUDO_CMD -u "$APP_USER" pm2 stop all || true
+    sudo -u "$APP_USER" pm2 stop all || true
     
     log_success "Aplicación detenida"
 }
@@ -177,7 +170,7 @@ update_code() {
     # Si hay un repositorio git, hacer pull
     if [[ -d ".git" ]]; then
         log_info "Actualizando desde repositorio git..."
-        $SUDO_CMD -u "$APP_USER" git pull origin main || $SUDO_CMD -u "$APP_USER" git pull origin master
+        sudo -u "$APP_USER" git pull origin main || sudo -u "$APP_USER" git pull origin master
     else
         log_info "Copiando nuevos archivos desde directorio temporal..."
         
@@ -195,7 +188,7 @@ update_code() {
         fi
         
         # Establecer permisos
-        $SUDO_CMD chown -R "$APP_USER:$APP_USER" .
+        sudo chown -R "$APP_USER:$APP_USER" .
     fi
     
     log_success "Código actualizado"
@@ -209,16 +202,16 @@ update_dependencies() {
     
     # Actualizar dependencias del backend
     log_info "Actualizando dependencias del backend..."
-    $SUDO_CMD -u "$APP_USER" npm install --production
+    sudo -u "$APP_USER" npm install --production
     
     # Actualizar dependencias del frontend
     log_info "Actualizando dependencias del frontend..."
     cd frontend
-    $SUDO_CMD -u "$APP_USER" npm install
+    sudo -u "$APP_USER" npm install
     
     # Reconstruir frontend
     log_info "Reconstruyendo frontend..."
-    $SUDO_CMD -u "$APP_USER" npm run build
+    sudo -u "$APP_USER" npm run build
     
     cd ..
     
@@ -233,7 +226,7 @@ run_migrations() {
     
     # Si existe un script de migración, ejecutarlo
     if [[ -f "migrate.js" ]]; then
-        $SUDO_CMD -u "$APP_USER" node migrate.js
+        sudo -u "$APP_USER" node migrate.js
         log_success "Migraciones ejecutadas"
     else
         log_info "No se encontraron migraciones"
@@ -249,13 +242,13 @@ update_nginx() {
         if ! diff -q "$APP_DIR/nginx.conf" "/etc/nginx/sites-available/tractoreando" >/dev/null 2>&1; then
             log_info "Configuración de Nginx actualizada, aplicando cambios..."
             
-            $SUDO_CMD cp "$APP_DIR/nginx.conf" "/etc/nginx/sites-available/tractoreando"
+            sudo cp "$APP_DIR/nginx.conf" "/etc/nginx/sites-available/tractoreando"
             
             # Probar configuración
-            $SUDO_CMD nginx -t
+            sudo nginx -t
             
             # Recargar Nginx
-            $SUDO_CMD systemctl reload nginx
+            sudo systemctl reload nginx
             
             log_success "Configuración de Nginx actualizada"
         else
@@ -271,10 +264,10 @@ start_application() {
     cd "$APP_DIR"
     
     # Iniciar aplicación con PM2
-    $SUDO_CMD -u "$APP_USER" pm2 start ecosystem.config.js
+    sudo -u "$APP_USER" pm2 start ecosystem.config.js
     
     # Guardar configuración
-    $SUDO_CMD -u "$APP_USER" pm2 save
+    sudo -u "$APP_USER" pm2 save
     
     log_success "Aplicación iniciada"
 }
@@ -287,12 +280,12 @@ verify_application() {
     sleep 5
     
     # Verificar estado de PM2
-    if $SUDO_CMD -u "$APP_USER" pm2 list | grep -q "online"; then
+    if sudo -u "$APP_USER" pm2 list | grep -q "online"; then
         log_success "Aplicación funcionando correctamente"
     else
         log_error "La aplicación no está funcionando correctamente"
         log_info "Verificando logs..."
-        $SUDO_CMD -u "$APP_USER" pm2 logs --lines 10
+        sudo -u "$APP_USER" pm2 logs --lines 10
         return 1
     fi
 }

@@ -25,13 +25,6 @@ echo "Fecha: $(date)"
 echo "Usuario: $(whoami)"
 echo ""
 
-# Verificar si se ejecuta como root
-if [[ $EUID -eq 0 ]]; then
-    SUDO_CMD=""
-else
-    SUDO_CMD="sudo"
-fi
-
 # Configuración
 APP_DIR="/opt/tractoreando"
 APP_USER="tractoreando"
@@ -55,9 +48,9 @@ install_nodejs() {
         fi
     fi
     
-    # Instalar NodeSource repository
-    curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | $SUDO_CMD -E bash -
-    $SUDO_CMD apt-get install -y nodejs
+    # Instalar NodeSource repository para Ubuntu
+    curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | sudo -E bash -
+    sudo apt-get install -y nodejs
     
     log_success "Node.js instalado: $(node --version)"
     log_success "npm instalado: $(npm --version)"
@@ -73,18 +66,18 @@ install_mongodb() {
     fi
     
     # Importar clave pública de MongoDB
-    wget -qO - https://www.mongodb.org/static/pgp/server-${MONGO_VERSION}.asc | $SUDO_CMD apt-key add -
+    wget -qO - https://www.mongodb.org/static/pgp/server-${MONGO_VERSION}.asc | sudo apt-key add -
     
     # Crear archivo de lista para MongoDB
-    echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/${MONGO_VERSION} multiverse" | $SUDO_CMD tee /etc/apt/sources.list.d/mongodb-org-${MONGO_VERSION}.list
+    echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/${MONGO_VERSION} multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-${MONGO_VERSION}.list
     
     # Actualizar paquetes e instalar MongoDB
-    $SUDO_CMD apt-get update
-    $SUDO_CMD apt-get install -y mongodb-org
+    sudo apt-get update
+    sudo apt-get install -y mongodb-org
     
     # Habilitar y iniciar MongoDB
-    $SUDO_CMD systemctl enable mongod
-    $SUDO_CMD systemctl start mongod
+    sudo systemctl enable mongod
+    sudo systemctl start mongod
     
     log_success "MongoDB instalado y ejecutándose"
 }
@@ -98,12 +91,12 @@ install_nginx() {
         return
     fi
     
-    $SUDO_CMD apt-get update
-    $SUDO_CMD apt-get install -y nginx
+    sudo apt-get update
+    sudo apt-get install -y nginx
     
     # Habilitar y iniciar Nginx
-    $SUDO_CMD systemctl enable nginx
-    $SUDO_CMD systemctl start nginx
+    sudo systemctl enable nginx
+    sudo systemctl start nginx
     
     log_success "Nginx instalado y ejecutándose"
 }
@@ -117,10 +110,10 @@ install_pm2() {
         return
     fi
     
-    $SUDO_CMD npm install -g pm2
+    sudo npm install -g pm2
     
     # Configurar PM2 para iniciar en boot
-    $SUDO_CMD pm2 startup
+    sudo pm2 startup
     
     log_success "PM2 instalado"
 }
@@ -132,7 +125,7 @@ create_app_user() {
     if id "$APP_USER" &>/dev/null; then
         log_success "Usuario $APP_USER ya existe"
     else
-        $SUDO_CMD useradd -r -s /bin/bash -d $APP_DIR $APP_USER
+        sudo useradd -r -s /bin/bash -d $APP_DIR $APP_USER
         log_success "Usuario $APP_USER creado"
     fi
 }
@@ -142,19 +135,19 @@ setup_app_directory() {
     log_info "Configurando directorio de aplicación..."
     
     # Crear directorio si no existe
-    $SUDO_CMD mkdir -p $APP_DIR
-    $SUDO_CMD mkdir -p $APP_DIR/logs
-    $SUDO_CMD mkdir -p $APP_DIR/backups
+    sudo mkdir -p $APP_DIR
+    sudo mkdir -p $APP_DIR/logs
+    sudo mkdir -p $APP_DIR/backups
     
     # Copiar archivos de aplicación
     if [[ "$(pwd)" != "$APP_DIR" ]]; then
         log_info "Copiando archivos de aplicación..."
-        $SUDO_CMD cp -r . $APP_DIR/
+        sudo cp -r . $APP_DIR/
     fi
     
     # Establecer permisos
-    $SUDO_CMD chown -R $APP_USER:$APP_USER $APP_DIR
-    $SUDO_CMD chmod -R 755 $APP_DIR
+    sudo chown -R $APP_USER:$APP_USER $APP_DIR
+    sudo chmod -R 755 $APP_DIR
     
     log_success "Directorio de aplicación configurado"
 }
@@ -167,16 +160,16 @@ install_app_dependencies() {
     
     # Instalar dependencias del backend
     log_info "Instalando dependencias del backend..."
-    $SUDO_CMD -u $APP_USER npm install --production
+    sudo -u $APP_USER npm install --production
     
     # Instalar dependencias del frontend
     log_info "Instalando dependencias del frontend..."
     cd frontend
-    $SUDO_CMD -u $APP_USER npm install
+    sudo -u $APP_USER npm install
     
     # Construir frontend para producción
     log_info "Construyendo frontend para producción..."
-    $SUDO_CMD -u $APP_USER npm run build
+    sudo -u $APP_USER npm run build
     
     cd ..
     
@@ -191,7 +184,7 @@ setup_database() {
     
     # Crear usuario administrador
     log_info "Creando usuario administrador..."
-    $SUDO_CMD -u $APP_USER node init-admin.js
+    sudo -u $APP_USER node init-admin.js
     
     log_success "Base de datos configurada"
 }
@@ -202,17 +195,17 @@ setup_nginx() {
     
     # Copiar configuración de Nginx
     if [[ -f "$APP_DIR/nginx.conf" ]]; then
-        $SUDO_CMD cp $APP_DIR/nginx.conf /etc/nginx/sites-available/tractoreando
-        $SUDO_CMD ln -sf /etc/nginx/sites-available/tractoreando /etc/nginx/sites-enabled/
+        sudo cp $APP_DIR/nginx.conf /etc/nginx/sites-available/tractoreando
+        sudo ln -sf /etc/nginx/sites-available/tractoreando /etc/nginx/sites-enabled/
         
         # Remover configuración por defecto
-        $SUDO_CMD rm -f /etc/nginx/sites-enabled/default
+        sudo rm -f /etc/nginx/sites-enabled/default
         
         # Probar configuración
-        $SUDO_CMD nginx -t
+        sudo nginx -t
         
         # Recargar Nginx
-        $SUDO_CMD systemctl reload nginx
+        sudo systemctl reload nginx
         
         log_success "Nginx configurado"
     else
@@ -227,10 +220,10 @@ start_application() {
     cd $APP_DIR
     
     # Iniciar aplicación
-    $SUDO_CMD -u $APP_USER pm2 start ecosystem.config.js
+    sudo -u $APP_USER pm2 start ecosystem.config.js
     
     # Guardar configuración de PM2
-    $SUDO_CMD -u $APP_USER pm2 save
+    sudo -u $APP_USER pm2 save
     
     log_success "Aplicación iniciada"
 }
@@ -240,10 +233,10 @@ setup_firewall() {
     log_info "Configurando firewall..."
     
     if command_exists ufw; then
-        $SUDO_CMD ufw allow 22/tcp
-        $SUDO_CMD ufw allow 80/tcp
-        $SUDO_CMD ufw allow 443/tcp
-        $SUDO_CMD ufw --force enable
+        sudo ufw allow 22/tcp
+        sudo ufw allow 80/tcp
+        sudo ufw allow 443/tcp
+        sudo ufw --force enable
         
         log_success "Firewall configurado"
     else
@@ -257,12 +250,12 @@ main() {
     
     # Actualizar sistema
     log_info "Actualizando sistema..."
-    $SUDO_CMD apt-get update
-    $SUDO_CMD apt-get upgrade -y
+    sudo apt-get update
+    sudo apt-get upgrade -y
     
     # Instalar dependencias del sistema
     log_info "Instalando dependencias del sistema..."
-    $SUDO_CMD apt-get install -y curl wget gnupg2 software-properties-common apt-transport-https ca-certificates lsb-release
+    sudo apt-get install -y curl wget gnupg2 software-properties-common apt-transport-https ca-certificates lsb-release
     
     # Instalar componentes
     install_nodejs
