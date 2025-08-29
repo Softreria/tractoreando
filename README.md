@@ -24,41 +24,42 @@ Tractoreando es un sistema integral de gestión para empresas de transporte y lo
 
 ### Prerrequisitos
 
-- Node.js 18+
-- PostgreSQL 12+
-- PM2
-- Nginx
+- Ubuntu/Debian Linux
+- Acceso sudo
+- Conexión a internet
 
-### Instalación
+### Comandos de Instalación
 
 ```bash
 # 1. Clonar repositorio
 git clone <repository-url>
 cd tractoreando
 
-# 2. Instalar dependencias
-npm install
-cd frontend && npm install && cd ..
+# 2. (Opcional) Limpiar repositorios MongoDB si hay errores
+./clean-mongodb-repos.sh
 
-# 3. Configurar PostgreSQL
+# 3. Ejecutar instalación automática
+./install.sh
+
+# 4. Configurar PostgreSQL (si es necesario)
 sudo -u postgres createdb tractoreando
 sudo -u postgres createuser tractoreando_user
 
-# 4. Configurar variables de entorno
+# 5. Configurar variables de entorno
 cp .env.production .env
-# Editar .env con tus configuraciones
+# Editar .env con configuraciones específicas
 
-# 5. Ejecutar migraciones
+# 6. Ejecutar migraciones
 npx sequelize-cli db:migrate
 
-# 6. Crear usuario administrador
+# 7. Crear usuario administrador
 node init-admin.js
 
-# 7. Construir frontend
-cd frontend && npm run build:prod && cd ..
+# 8. Construir frontend
+cd frontend && npm run build && cd ..
 
-# 8. Iniciar aplicación
-pm2 start ecosystem.config.js --env production
+# 9. Iniciar con PM2
+pm2 start ecosystem.config.js
 ```
 
 ## 📋 Scripts Disponibles
@@ -67,8 +68,11 @@ pm2 start ecosystem.config.js --env production
 # Instalación completa del sistema
 ./install.sh
 
-# Actualización en producción
-./update-production.sh
+# Limpiar repositorios MongoDB (si es necesario)
+./clean-mongodb-repos.sh
+
+# Actualización simplificada
+./update.sh
 
 # Migración de datos MongoDB a PostgreSQL
 node migrate-data.js
@@ -134,19 +138,29 @@ CORS_ORIGIN=http://localhost:8080
 
 ### Problemas Comunes
 
-1. **Error de conexión PostgreSQL**
+1. **Error de repositorios MongoDB**
+   ```bash
+   # Si aparecen errores como "404 Not Found [IP: 52.222.132.70 443]"
+   # relacionados con repo.mongodb.org, ejecutar:
+   ./clean-mongodb-repos.sh
+   
+   # Luego continuar con la instalación
+   ./install.sh
+   ```
+
+2. **Error de conexión PostgreSQL**
    ```bash
    sudo systemctl status postgresql
    sudo systemctl start postgresql
    ```
 
-2. **Error 502 Bad Gateway**
+3. **Error 502 Bad Gateway**
    ```bash
    pm2 restart tractoreando-backend
    sudo systemctl restart nginx
    ```
 
-3. **Problemas de permisos**
+4. **Problemas de permisos**
    ```bash
    sudo chown -R $USER:$USER /path/to/tractoreando
    ```
