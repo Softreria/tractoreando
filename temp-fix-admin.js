@@ -75,12 +75,22 @@ async function fixAdminUser() {
     
     // Crear usuario
     const newAdmin = new User({
-      name: 'Administrador Sistema',
+      name: 'Administrador',
+      lastName: 'Sistema',
       email: adminEmail,
       password: hashedPassword,
       role: 'super_admin',
       company: adminCompany._id,
+      phone: '+34000000000',
       isActive: true,
+      permissions: {
+        companies: { create: true, read: true, update: true, delete: true },
+        branches: { create: true, read: true, update: true, delete: true },
+        vehicles: { create: true, read: true, update: true, delete: true },
+        maintenance: { create: true, read: true, update: true, delete: true },
+        users: { create: true, read: true, update: true, delete: true },
+        reports: { read: true, export: true }
+      },
       createdAt: new Date(),
       updatedAt: new Date()
     });
