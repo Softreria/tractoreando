@@ -137,8 +137,15 @@ class User extends Model {
 
 User.init({
   id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
+    type: DataTypes.STRING,
+    defaultValue: () => {
+      // Simple UUID v4 generator
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    },
     primaryKey: true
   },
   firstName: {
@@ -185,7 +192,7 @@ User.init({
     allowNull: true
   },
   companyId: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING,
     allowNull: true,
     references: {
       model: 'Companies',
@@ -200,7 +207,7 @@ User.init({
     }
   },
   branchId: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING,
     allowNull: true,
     references: {
       model: 'Branches',
@@ -215,31 +222,57 @@ User.init({
     }
   },
   vehicleTypeAccess: {
-    type: DataTypes.ARRAY(DataTypes.ENUM(
-      'Tractor', 'Camión', 'Furgoneta', 'Coche', 'Motocicleta', 'Remolque', 'Maquinaria', 'Otro'
-    )),
-    defaultValue: []
+    type: DataTypes.TEXT,
+    defaultValue: '[]',
+    get() {
+      const value = this.getDataValue('vehicleTypeAccess');
+      return value ? JSON.parse(value) : [];
+    },
+    set(value) {
+      this.setDataValue('vehicleTypeAccess', JSON.stringify(value || []));
+    },
+    validate: {
+      isValidVehicleTypes(value) {
+        const validTypes = ['Tractor', 'Camión', 'Furgoneta', 'Coche', 'Motocicleta', 'Remolque', 'Maquinaria', 'Otro'];
+        const parsedValue = typeof value === 'string' ? JSON.parse(value) : value;
+        if (parsedValue && Array.isArray(parsedValue)) {
+          for (const type of parsedValue) {
+            if (!validTypes.includes(type)) {
+              throw new Error(`Tipo de vehículo inválido: ${type}`);
+            }
+          }
+        }
+      }
+    }
   },
   role: {
-    type: DataTypes.ENUM(
-      'super_admin', 'company_admin', 'branch_manager', 'mechanic', 'operator', 'viewer'
-    ),
-    allowNull: false
+    type: DataTypes.TEXT,
+    allowNull: false,
+    validate: {
+      isIn: [['super_admin', 'company_admin', 'branch_manager', 'mechanic', 'operator', 'viewer']]
+    }
   },
   permissions: {
-    type: DataTypes.JSONB,
-    defaultValue: {
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify({
       companies: { create: false, read: true, update: false, delete: false },
       branches: { create: false, read: true, update: false, delete: false },
       vehicles: { create: false, read: true, update: false, delete: false },
       maintenance: { create: false, read: true, update: false, delete: false },
       users: { create: false, read: false, update: false, delete: false },
       reports: { read: true, export: false }
+    }),
+    get() {
+      const value = this.getDataValue('permissions');
+      return value ? JSON.parse(value) : {};
+    },
+    set(value) {
+      this.setDataValue('permissions', JSON.stringify(value || {}));
     }
   },
   preferences: {
-    type: DataTypes.JSONB,
-    defaultValue: {
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify({
       language: 'es',
       timezone: 'Europe/Madrid',
       notifications: {
@@ -251,10 +284,17 @@ User.init({
         defaultView: 'overview',
         itemsPerPage: 10
       }
+    }),
+    get() {
+      const value = this.getDataValue('preferences');
+      return value ? JSON.parse(value) : {};
+    },
+    set(value) {
+      this.setDataValue('preferences', JSON.stringify(value || {}));
     }
   },
   lastLogin: {
-    type: DataTypes.DATE,
+    type: DataTypes.STRING,
     allowNull: true
   },
   loginAttempts: {
@@ -262,15 +302,15 @@ User.init({
     defaultValue: 0
   },
   lockUntil: {
-    type: DataTypes.DATE,
+    type: DataTypes.STRING,
     allowNull: true
   },
   isActive: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true
+    type: DataTypes.INTEGER,
+    defaultValue: 1
   },
   createdById: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING,
     allowNull: true,
     references: {
       model: 'Users',

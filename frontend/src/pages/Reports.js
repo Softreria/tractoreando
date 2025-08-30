@@ -77,10 +77,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { es } from 'date-fns/locale';
+// DatePicker temporarily removed to fix compilation issues
 
 const Reports = () => {
   const [tabValue, setTabValue] = useState(0);
@@ -302,7 +299,6 @@ const Reports = () => {
   );
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
       <Box>
         {/* Header */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -339,19 +335,23 @@ const Reports = () => {
           <CardContent>
             <Grid container spacing={2} alignItems="center">
               <Grid item xs={12} md={3}>
-                <DatePicker
+                <TextField
                   label="Fecha Inicio"
+                  type="date"
                   value={dateRange.startDate}
-                  onChange={(date) => setDateRange(prev => ({ ...prev, startDate: date }))}
-                  renderInput={(params) => <TextField {...params} fullWidth />}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
                 />
               </Grid>
               <Grid item xs={12} md={3}>
-                <DatePicker
+                <TextField
                   label="Fecha Fin"
+                  type="date"
                   value={dateRange.endDate}
-                  onChange={(date) => setDateRange(prev => ({ ...prev, endDate: date }))}
-                  renderInput={(params) => <TextField {...params} fullWidth />}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
+                  fullWidth
+                  InputLabelProps={{ shrink: true }}
                 />
               </Grid>
               <Grid item xs={12} md={3}>
@@ -877,7 +877,6 @@ const Reports = () => {
           </Box>
         )}
       </Box>
-    </LocalizationProvider>
   );
 };
 

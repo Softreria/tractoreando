@@ -29,8 +29,13 @@ class Branch extends Model {
 
 Branch.init({
   id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
+    type: DataTypes.STRING,
+    defaultValue: () => {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    },
     primaryKey: true
   },
   name: {
@@ -42,8 +47,11 @@ Branch.init({
     }
   },
   type: {
-    type: DataTypes.ENUM('delegacion', 'finca', 'subempresa', 'oficina', 'almacen', 'taller'),
-    defaultValue: 'delegacion'
+    type: DataTypes.TEXT,
+    defaultValue: 'delegacion',
+    validate: {
+      isIn: [['delegacion', 'finca', 'subempresa', 'oficina', 'almacen', 'taller']]
+    }
   },
   code: {
     type: DataTypes.STRING(10),
@@ -57,7 +65,7 @@ Branch.init({
     }
   },
   companyId: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING,
     allowNull: false,
     references: {
       model: 'Companies',
@@ -65,8 +73,15 @@ Branch.init({
     }
   },
   address: {
-    type: DataTypes.JSONB,
+    type: DataTypes.TEXT,
     allowNull: false,
+    get() {
+      const value = this.getDataValue('address');
+      return value ? JSON.parse(value) : null;
+    },
+    set(value) {
+      this.setDataValue('address', JSON.stringify(value));
+    },
     validate: {
       isValidAddress(value) {
         if (!value || typeof value !== 'object') {
@@ -77,7 +92,7 @@ Branch.init({
         }
       }
     },
-    defaultValue: {
+    defaultValue: JSON.stringify({
       street: null,
       city: null,
       state: null,
@@ -87,14 +102,21 @@ Branch.init({
         latitude: null,
         longitude: null
       }
-    }
+    })
   },
   contact: {
-    type: DataTypes.JSONB,
-    defaultValue: {
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify({
       phone: null,
       email: null,
       manager: null
+    }),
+    get() {
+      const value = this.getDataValue('contact');
+      return value ? JSON.parse(value) : null;
+    },
+    set(value) {
+      this.setDataValue('contact', JSON.stringify(value));
     },
     validate: {
       isValidContact(value) {
@@ -120,8 +142,8 @@ Branch.init({
     }
   },
   operatingHours: {
-    type: DataTypes.JSONB,
-    defaultValue: {
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify({
       monday: { open: null, close: null, isOpen: true },
       tuesday: { open: null, close: null, isOpen: true },
       wednesday: { open: null, close: null, isOpen: true },
@@ -129,6 +151,13 @@ Branch.init({
       friday: { open: null, close: null, isOpen: true },
       saturday: { open: null, close: null, isOpen: false },
       sunday: { open: null, close: null, isOpen: false }
+    }),
+    get() {
+      const value = this.getDataValue('operatingHours');
+      return value ? JSON.parse(value) : null;
+    },
+    set(value) {
+      this.setDataValue('operatingHours', JSON.stringify(value));
     },
     validate: {
       isValidOperatingHours(value) {
@@ -147,11 +176,11 @@ Branch.init({
     }
   },
   isActive: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true
+    type: DataTypes.INTEGER,
+    defaultValue: 1
   },
   createdById: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING,
     allowNull: false,
     references: {
       model: 'Users',
@@ -173,10 +202,6 @@ Branch.init({
     },
     {
       fields: ['companyId', 'isActive']
-    },
-    {
-      fields: [sequelize.literal("(address->>'city')"), sequelize.literal("(address->>'state')")],
-      name: 'branches_address_city_state_idx'
     }
   ],
   hooks: {

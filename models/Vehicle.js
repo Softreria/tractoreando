@@ -101,8 +101,13 @@ class Vehicle extends Model {
 
 Vehicle.init({
   id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
+    type: DataTypes.STRING,
+    defaultValue: () => {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    },
     primaryKey: true
   },
   plateNumber: {
@@ -145,7 +150,7 @@ Vehicle.init({
     }
   },
   companyId: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING,
     allowNull: false,
     references: {
       model: 'Companies',
@@ -153,7 +158,7 @@ Vehicle.init({
     }
   },
   branchId: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING,
     allowNull: false,
     references: {
       model: 'Branches',
@@ -176,17 +181,27 @@ Vehicle.init({
     }
   },
   vehicleType: {
-    type: DataTypes.ENUM('Tractor', 'Camión', 'Furgoneta', 'Coche', 'Motocicleta', 'Remolque', 'Maquinaria', 'Otro'),
-    allowNull: false
+    type: DataTypes.TEXT,
+    allowNull: false,
+    validate: {
+      isIn: [['Tractor', 'Camión', 'Furgoneta', 'Coche', 'Motocicleta', 'Remolque', 'Maquinaria', 'Otro']]
+    }
   },
   engine: {
-    type: DataTypes.JSONB,
-    defaultValue: {
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify({
       type: null,
       displacement: null,
       cylinders: null,
       horsepower: null,
       torque: null
+    }),
+    get() {
+      const value = this.getDataValue('engine');
+      return value ? JSON.parse(value) : { type: null, displacement: null, cylinders: null, horsepower: null, torque: null };
+    },
+    set(value) {
+      this.setDataValue('engine', JSON.stringify(value || { type: null, displacement: null, cylinders: null, horsepower: null, torque: null }));
     },
     validate: {
       isValidEngine(value) {
@@ -200,8 +215,11 @@ Vehicle.init({
     }
   },
   transmission: {
-    type: DataTypes.ENUM('manual', 'automatica', 'cvt', 'dsg'),
-    allowNull: true
+    type: DataTypes.TEXT,
+    allowNull: true,
+    validate: {
+      isIn: [['manual', 'automatica', 'cvt', 'dsg']]
+    }
   },
   fuelCapacity: {
     type: DataTypes.FLOAT,
@@ -211,11 +229,18 @@ Vehicle.init({
     }
   },
   odometer: {
-    type: DataTypes.JSONB,
-    defaultValue: {
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify({
       current: 0,
       lastUpdate: new Date(),
       unit: 'km'
+    }),
+    get() {
+      const value = this.getDataValue('odometer');
+      return value ? JSON.parse(value) : { current: 0, lastUpdate: new Date(), unit: 'km' };
+    },
+    set(value) {
+      this.setDataValue('odometer', JSON.stringify(value || { current: 0, lastUpdate: new Date(), unit: 'km' }));
     },
     validate: {
       isValidOdometer(value) {
@@ -232,9 +257,16 @@ Vehicle.init({
     }
   },
   documents: {
-    type: DataTypes.JSONB,
-    defaultValue: {
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify({
       files: []
+    }),
+    get() {
+      const value = this.getDataValue('documents');
+      return value ? JSON.parse(value) : { files: [] };
+    },
+    set(value) {
+      this.setDataValue('documents', JSON.stringify(value || { files: [] }));
     },
     validate: {
       isValidDocuments(value) {
@@ -248,8 +280,8 @@ Vehicle.init({
     }
   },
   specifications: {
-    type: DataTypes.JSONB,
-    defaultValue: {
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify({
       insurance: {
         company: null,
         policyNumber: null,
@@ -264,6 +296,25 @@ Vehicle.init({
       numberOfKeys: 2,
       radioCode: null,
       notes: null
+    }),
+    get() {
+      const value = this.getDataValue('specifications');
+      return value ? JSON.parse(value) : {
+        insurance: { company: null, policyNumber: null, expiryDate: null, isValid: true },
+        itv: { lastDate: null, expiryDate: null, isValid: true },
+        numberOfKeys: 2,
+        radioCode: null,
+        notes: null
+      };
+    },
+    set(value) {
+      this.setDataValue('specifications', JSON.stringify(value || {
+        insurance: { company: null, policyNumber: null, expiryDate: null, isValid: true },
+        itv: { lastDate: null, expiryDate: null, isValid: true },
+        numberOfKeys: 2,
+        radioCode: null,
+        notes: null
+      }));
     },
     validate: {
       isValidSpecifications(value) {
@@ -283,11 +334,18 @@ Vehicle.init({
     }
   },
   ownership: {
-    type: DataTypes.JSONB,
-    defaultValue: {
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify({
       type: 'propiedad',
       monthlyRentalPrice: null,
       maintenanceCostResponsibility: 'empresa_propietaria'
+    }),
+    get() {
+      const value = this.getDataValue('ownership');
+      return value ? JSON.parse(value) : { type: 'propiedad', monthlyRentalPrice: null, maintenanceCostResponsibility: 'empresa_propietaria' };
+    },
+    set(value) {
+      this.setDataValue('ownership', JSON.stringify(value || { type: 'propiedad', monthlyRentalPrice: null, maintenanceCostResponsibility: 'empresa_propietaria' }));
     },
     validate: {
       isValidOwnership(value) {
@@ -308,8 +366,15 @@ Vehicle.init({
     }
   },
   photos: {
-    type: DataTypes.JSONB,
-    defaultValue: [],
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify([]),
+    get() {
+      const value = this.getDataValue('photos');
+      return value ? JSON.parse(value) : [];
+    },
+    set(value) {
+      this.setDataValue('photos', JSON.stringify(value || []));
+    },
     validate: {
       isValidPhotos(value) {
         if (value && !Array.isArray(value)) {
@@ -319,16 +384,22 @@ Vehicle.init({
     }
   },
   status: {
-    type: DataTypes.ENUM('activo', 'en_mantenimiento', 'fuera_de_servicio', 'vendido', 'siniestrado', 'dado_de_baja'),
-    defaultValue: 'activo'
+    type: DataTypes.TEXT,
+    defaultValue: 'activo',
+    validate: {
+      isIn: [['activo', 'en_mantenimiento', 'fuera_de_servicio', 'vendido', 'siniestrado', 'dado_de_baja']]
+    }
   },
   condition: {
-    type: DataTypes.ENUM('excelente', 'bueno', 'regular', 'malo', 'critico'),
-    defaultValue: 'bueno'
+    type: DataTypes.TEXT,
+    defaultValue: 'bueno',
+    validate: {
+      isIn: [['excelente', 'bueno', 'regular', 'malo', 'critico']]
+    }
   },
   maintenanceSchedule: {
-    type: DataTypes.JSONB,
-    defaultValue: {
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify({
       oilChange: {
         intervalKm: 5000,
         intervalMonths: 6,
@@ -347,6 +418,21 @@ Vehicle.init({
         lastKm: 0,
         lastDate: null
       }
+    }),
+    get() {
+      const value = this.getDataValue('maintenanceSchedule');
+      return value ? JSON.parse(value) : {
+        oilChange: { intervalKm: 5000, intervalMonths: 6, lastKm: 0, lastDate: null },
+        generalInspection: { intervalKm: 10000, intervalMonths: 12, lastKm: 0, lastDate: null },
+        tireRotation: { intervalKm: 8000, intervalMonths: 6, lastKm: 0, lastDate: null }
+      };
+    },
+    set(value) {
+      this.setDataValue('maintenanceSchedule', JSON.stringify(value || {
+        oilChange: { intervalKm: 5000, intervalMonths: 6, lastKm: 0, lastDate: null },
+        generalInspection: { intervalKm: 10000, intervalMonths: 12, lastKm: 0, lastDate: null },
+        tireRotation: { intervalKm: 8000, intervalMonths: 6, lastKm: 0, lastDate: null }
+      }));
     },
     validate: {
       isValidMaintenanceSchedule(value) {
@@ -357,12 +443,19 @@ Vehicle.init({
     }
   },
   costs: {
-    type: DataTypes.JSONB,
-    defaultValue: {
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify({
       purchasePrice: null,
       currentValue: null,
       totalMaintenanceCost: 0,
       lastYearMaintenanceCost: 0
+    }),
+    get() {
+      const value = this.getDataValue('costs');
+      return value ? JSON.parse(value) : { purchasePrice: null, currentValue: null, totalMaintenanceCost: 0, lastYearMaintenanceCost: 0 };
+    },
+    set(value) {
+      this.setDataValue('costs', JSON.stringify(value || { purchasePrice: null, currentValue: null, totalMaintenanceCost: 0, lastYearMaintenanceCost: 0 }));
     },
     validate: {
       isValidCosts(value) {
@@ -379,11 +472,11 @@ Vehicle.init({
     }
   },
   isActive: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true
+    type: DataTypes.INTEGER,
+    defaultValue: 1
   },
   createdById: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING,
     allowNull: false,
     references: {
       model: 'Users',
@@ -391,7 +484,7 @@ Vehicle.init({
     }
   },
   lastModifiedById: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING,
     allowNull: true,
     references: {
       model: 'Users',
@@ -420,18 +513,7 @@ Vehicle.init({
     {
       fields: ['make', 'model', 'year']
     },
-    {
-      fields: [sequelize.literal("(specifications->'itv'->>'expiryDate')")],
-      name: 'vehicles_itv_expiry_date_idx'
-    },
-    {
-      fields: [sequelize.literal("(specifications->'insurance'->>'expiryDate')")],
-      name: 'vehicles_insurance_expiry_date_idx'
-    },
-    {
-      fields: [sequelize.literal("(ownership->>'type')")],
-      name: 'vehicles_ownership_type_idx'
-    }
+
   ],
   hooks: {
     beforeSave: async (vehicle, options) => {

@@ -11,8 +11,13 @@ class Company extends Model {
 
 Company.init({
   id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
+    type: DataTypes.STRING,
+    defaultValue: () => {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    },
     primaryKey: true
   },
   name: {
@@ -35,14 +40,21 @@ Company.init({
     }
   },
   address: {
-    type: DataTypes.JSONB,
-    defaultValue: {
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify({
       street: null,
       city: null,
       state: null,
       zipCode: null,
       country: 'España',
       additionalInfo: null
+    }),
+    get() {
+      const value = this.getDataValue('address');
+      return value ? JSON.parse(value) : null;
+    },
+    set(value) {
+      this.setDataValue('address', JSON.stringify(value));
     },
     validate: {
       isValidAddress(value) {
@@ -56,11 +68,15 @@ Company.init({
     }
   },
   contact: {
-    type: DataTypes.JSONB,
-    defaultValue: {
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify({
       phone: null,
       email: null,
       website: null
+    }),
+    get() {
+      const value = this.getDataValue('contact');
+      return value ? JSON.parse(value) : null;
     },
     validate: {
       isValidContact(value) {
@@ -84,12 +100,19 @@ Company.init({
     allowNull: true
   },
   settings: {
-    type: DataTypes.JSONB,
-    defaultValue: {
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify({
       currency: 'EUR',
       timezone: 'Europe/Madrid',
       maintenanceReminders: true,
       emailNotifications: true
+    }),
+    get() {
+      const value = this.getDataValue('settings');
+      return value ? JSON.parse(value) : null;
+    },
+    set(value) {
+      this.setDataValue('settings', JSON.stringify(value));
     },
     validate: {
       isValidSettings(value) {
@@ -100,14 +123,18 @@ Company.init({
     }
   },
   administrator: {
-    type: DataTypes.JSONB,
-    defaultValue: {
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify({
       firstName: null,
       lastName: null,
       email: null,
       phone: null,
       canManageUsers: true,
       userId: null
+    }),
+    get() {
+      const value = this.getDataValue('administrator');
+      return value ? JSON.parse(value) : null;
     },
     validate: {
       isValidAdministrator(value) {
@@ -142,11 +169,11 @@ Company.init({
     }
   },
   isActive: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true
+    type: DataTypes.INTEGER,
+    defaultValue: 1
   },
   createdById: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING,
     allowNull: true,
     references: {
       model: 'Users',
@@ -168,10 +195,6 @@ Company.init({
     },
     {
       fields: ['isActive']
-    },
-    {
-      fields: [sequelize.literal("(administrator->>'email')")],
-      name: 'companies_administrator_email_idx'
     }
   ],
   hooks: {

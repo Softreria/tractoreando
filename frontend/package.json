@@ -4,31 +4,26 @@
   "description": "Frontend para sistema de gestión de mantenimiento de vehículos",
   "private": true,
   "dependencies": {
-    "@emotion/react": "^11.10.5",
-    "@emotion/styled": "^11.10.5",
-    "@mui/icons-material": "^5.11.9",
-    "@mui/material": "^5.11.10",
-    "@tanstack/react-query": "^5.85.0",
+    "@emotion/react": "^11.11.1",
+    "@emotion/styled": "^11.11.0",
+    "@mui/icons-material": "^5.14.19",
+    "@mui/material": "^5.14.20",
+    "@mui/x-date-pickers": "^6.20.2",
+    "@tanstack/react-query": "^5.0.0",
     "axios": "^1.3.4",
+    "date-fns": "^3.6.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.43.5",
     "react-hot-toast": "^2.4.0",
     "react-router-dom": "^6.8.1",
-    "react-scripts": "5.0.1"
-  },
-  "devDependencies": {
-    "@craco/craco": "^7.1.0",
-    "compression-webpack-plugin": "^10.0.0",
-    "image-webpack-loader": "^8.1.0",
-    "webpack-bundle-analyzer": "^4.9.1"
+    "react-scripts": "5.0.1",
+    "recharts": "^3.1.2"
   },
   "scripts": {
-    "start": "craco start",
-    "build": "craco build",
-    "build:prod": "GENERATE_SOURCEMAP=false INLINE_RUNTIME_CHUNK=false craco build",
-    "build:analyze": "ANALYZE_BUNDLE=true npm run build:prod",
-    "test": "craco test",
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {

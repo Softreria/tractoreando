@@ -2,9 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
-const User = require('../models/User');
-const Company = require('../models/Company');
-const Branch = require('../models/Branch');
+const { User, Company, Branch } = require('../models');
 const { auth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -136,9 +134,21 @@ router.post('/login', [
     const { email, password } = req.body;
 
     // Buscar usuario
-    const user = await User.findOne({ email })
-      .populate('company', 'name cif isActive')
-      .populate('branches', 'name code');
+    const user = await User.findOne({
+      where: { email },
+      include: [
+        {
+          model: Company,
+          as: 'company',
+          attributes: ['name', 'cif', 'isActive']
+        },
+        {
+          model: Branch,
+          as: 'branch',
+          attributes: ['name', 'code']
+        }
+      ]
+    });
 
     if (!user) {
       return res.status(400).json({ message: 'Credenciales inválidas' });
@@ -170,7 +180,7 @@ router.post('/login', [
 
     // Reset intentos de login y actualizar último login
     await user.resetLoginAttempts();
-    user.lastLogin = new Date();
+    user.lastLogin = new Date().toISOString();
     await user.save();
 
     // Generar token
@@ -193,9 +203,20 @@ router.post('/login', [
 // @access  Private
 router.get('/me', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id)
-      .populate('company', 'name rfc subscription')
-      .populate('branches', 'name code address');
+    const user = await User.findByPk(req.user._id, {
+      include: [
+        {
+          model: Company,
+          as: 'company',
+          attributes: ['name', 'rfc', 'subscription']
+        },
+        {
+          model: Branch,
+          as: 'branch',
+          attributes: ['name', 'code', 'address']
+        }
+      ]
+    });
 
     res.json({ user });
   } catch (error) {
@@ -209,9 +230,20 @@ router.get('/me', auth, async (req, res) => {
 // @access  Private
 router.get('/profile', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id)
-      .populate('company', 'name rfc subscription')
-      .populate('branches', 'name code address');
+    const user = await User.findByPk(req.user._id, {
+      include: [
+        {
+          model: Company,
+          as: 'company',
+          attributes: ['name', 'rfc', 'subscription']
+        },
+        {
+          model: Branch,
+          as: 'branch',
+          attributes: ['name', 'code', 'address']
+        }
+      ]
+    });
 
     res.json({ user });
   } catch (error) {
@@ -246,12 +278,24 @@ router.put('/profile', [
     if (phone) updateData.phone = phone;
     if (preferences) updateData.preferences = { ...req.user.preferences, ...preferences };
 
-    const user = await User.findByIdAndUpdate(
-      req.user._id,
-      updateData,
-      { new: true }
-    ).populate('company', 'name rfc')
-     .populate('branches', 'name code');
+    await User.update(updateData, {
+      where: { id: req.user._id }
+    });
+
+    const user = await User.findByPk(req.user._id, {
+      include: [
+        {
+          model: Company,
+          as: 'company',
+          attributes: ['name', 'rfc']
+        },
+        {
+          model: Branch,
+          as: 'branch',
+          attributes: ['name', 'code']
+        }
+      ]
+    });
 
     res.json({
       message: 'Perfil actualizado exitosamente',

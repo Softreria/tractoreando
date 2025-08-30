@@ -170,12 +170,17 @@ class Maintenance extends Model {
 
 Maintenance.init({
   id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
+    type: DataTypes.STRING,
+    defaultValue: () => {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    },
     primaryKey: true
   },
   vehicleId: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING,
     allowNull: false,
     references: {
       model: 'Vehicles',
@@ -183,7 +188,7 @@ Maintenance.init({
     }
   },
   companyId: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING,
     allowNull: false,
     references: {
       model: 'Companies',
@@ -191,7 +196,7 @@ Maintenance.init({
     }
   },
   branchId: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING,
     allowNull: false,
     references: {
       model: 'Branches',
@@ -199,7 +204,7 @@ Maintenance.init({
     }
   },
   assignedToId: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING,
     allowNull: true,
     references: {
       model: 'Users',
@@ -215,16 +220,25 @@ Maintenance.init({
     }
   },
   type: {
-    type: DataTypes.ENUM('preventivo', 'correctivo', 'predictivo', 'emergencia', 'inspeccion', 'garantia'),
-    allowNull: false
+    type: DataTypes.TEXT,
+    allowNull: false,
+    validate: {
+      isIn: [['preventivo', 'correctivo', 'predictivo', 'emergencia', 'inspeccion', 'garantia']]
+    }
   },
   priority: {
-    type: DataTypes.ENUM('baja', 'media', 'alta', 'critica'),
-    defaultValue: 'media'
+    type: DataTypes.TEXT,
+    defaultValue: 'media',
+    validate: {
+      isIn: [['baja', 'media', 'alta', 'critica']]
+    }
   },
   status: {
-    type: DataTypes.ENUM('programado', 'en_proceso', 'pausado', 'completado', 'cancelado', 'pendiente_aprobacion', 'pendiente_partes'),
-    defaultValue: 'programado'
+    type: DataTypes.TEXT,
+    defaultValue: 'programado',
+    validate: {
+      isIn: [['programado', 'en_proceso', 'pausado', 'completado', 'cancelado', 'pendiente_aprobacion', 'pendiente_partes']]
+    }
   },
   scheduledDate: {
     type: DataTypes.DATE,
@@ -311,8 +325,15 @@ Maintenance.init({
     }
   },
   services: {
-    type: DataTypes.JSONB,
-    defaultValue: [],
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify([]),
+    get() {
+      const value = this.getDataValue('services');
+      return value ? JSON.parse(value) : [];
+    },
+    set(value) {
+      this.setDataValue('services', JSON.stringify(value || []));
+    },
     validate: {
       isValidServices(value) {
         if (value && !Array.isArray(value)) {
@@ -333,8 +354,15 @@ Maintenance.init({
     }
   },
   parts: {
-    type: DataTypes.JSONB,
-    defaultValue: [],
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify([]),
+    get() {
+      const value = this.getDataValue('parts');
+      return value ? JSON.parse(value) : [];
+    },
+    set(value) {
+      this.setDataValue('parts', JSON.stringify(value || []));
+    },
     validate: {
       isValidParts(value) {
         if (value && !Array.isArray(value)) {
@@ -351,8 +379,8 @@ Maintenance.init({
     }
   },
   costs: {
-    type: DataTypes.JSONB,
-    defaultValue: {
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify({
       labor: 0,
       parts: 0,
       materials: 0,
@@ -360,6 +388,13 @@ Maintenance.init({
       tax: 0,
       discount: 0,
       total: 0
+    }),
+    get() {
+      const value = this.getDataValue('costs');
+      return value ? JSON.parse(value) : { labor: 0, parts: 0, materials: 0, external: 0, tax: 0, discount: 0, total: 0 };
+    },
+    set(value) {
+      this.setDataValue('costs', JSON.stringify(value || { labor: 0, parts: 0, materials: 0, external: 0, tax: 0, discount: 0, total: 0 }));
     },
     validate: {
       isValidCosts(value) {
@@ -378,12 +413,19 @@ Maintenance.init({
     }
   },
   costResponsibility: {
-    type: DataTypes.JSONB,
-    defaultValue: {
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify({
       responsibleParty: 'empresa_propietaria',
       notes: null,
       approvedBy: null,
       approvalDate: null
+    }),
+    get() {
+      const value = this.getDataValue('costResponsibility');
+      return value ? JSON.parse(value) : { responsibleParty: 'empresa_propietaria', notes: null, approvedBy: null, approvalDate: null };
+    },
+    set(value) {
+      this.setDataValue('costResponsibility', JSON.stringify(value || { responsibleParty: 'empresa_propietaria', notes: null, approvedBy: null, approvalDate: null }));
     },
     validate: {
       isValidCostResponsibility(value) {
@@ -398,8 +440,15 @@ Maintenance.init({
     }
   },
   inspections: {
-    type: DataTypes.JSONB,
-    defaultValue: [],
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify([]),
+    get() {
+      const value = this.getDataValue('inspections');
+      return value ? JSON.parse(value) : [];
+    },
+    set(value) {
+      this.setDataValue('inspections', JSON.stringify(value || []));
+    },
     validate: {
       isValidInspections(value) {
         if (value && !Array.isArray(value)) {
@@ -420,8 +469,15 @@ Maintenance.init({
     }
   },
   photos: {
-    type: DataTypes.JSONB,
-    defaultValue: [],
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify([]),
+    get() {
+      const value = this.getDataValue('photos');
+      return value ? JSON.parse(value) : [];
+    },
+    set(value) {
+      this.setDataValue('photos', JSON.stringify(value || []));
+    },
     validate: {
       isValidPhotos(value) {
         if (value && !Array.isArray(value)) {
@@ -441,8 +497,15 @@ Maintenance.init({
     }
   },
   attachments: {
-    type: DataTypes.JSONB,
-    defaultValue: [],
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify([]),
+    get() {
+      const value = this.getDataValue('attachments');
+      return value ? JSON.parse(value) : [];
+    },
+    set(value) {
+      this.setDataValue('attachments', JSON.stringify(value || []));
+    },
     validate: {
       isValidAttachments(value) {
         if (value && !Array.isArray(value)) {
@@ -462,8 +525,15 @@ Maintenance.init({
     }
   },
   approvals: {
-    type: DataTypes.JSONB,
-    defaultValue: [],
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify([]),
+    get() {
+      const value = this.getDataValue('approvals');
+      return value ? JSON.parse(value) : [];
+    },
+    set(value) {
+      this.setDataValue('approvals', JSON.stringify(value || []));
+    },
     validate: {
       isValidApprovals(value) {
         if (value && !Array.isArray(value)) {
@@ -488,8 +558,15 @@ Maintenance.init({
     }
   },
   timeTracking: {
-    type: DataTypes.JSONB,
-    defaultValue: [],
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify([]),
+    get() {
+      const value = this.getDataValue('timeTracking');
+      return value ? JSON.parse(value) : [];
+    },
+    set(value) {
+      this.setDataValue('timeTracking', JSON.stringify(value || []));
+    },
     validate: {
       isValidTimeTracking(value) {
         if (value && !Array.isArray(value)) {
@@ -506,12 +583,19 @@ Maintenance.init({
     }
   },
   quality: {
-    type: DataTypes.JSONB,
-    defaultValue: {
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify({
       rating: null,
       feedback: null,
       ratedBy: null,
       ratedDate: null
+    }),
+    get() {
+      const value = this.getDataValue('quality');
+      return value ? JSON.parse(value) : { rating: null, feedback: null, ratedBy: null, ratedDate: null };
+    },
+    set(value) {
+      this.setDataValue('quality', JSON.stringify(value || { rating: null, feedback: null, ratedBy: null, ratedDate: null }));
     },
     validate: {
       isValidQuality(value) {
@@ -525,13 +609,20 @@ Maintenance.init({
     }
   },
   warranty: {
-    type: DataTypes.JSONB,
-    defaultValue: {
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify({
       duration: null,
       startDate: null,
       endDate: null,
       terms: null,
       isActive: false
+    }),
+    get() {
+      const value = this.getDataValue('warranty');
+      return value ? JSON.parse(value) : { duration: null, startDate: null, endDate: null, terms: null, isActive: false };
+    },
+    set(value) {
+      this.setDataValue('warranty', JSON.stringify(value || { duration: null, startDate: null, endDate: null, terms: null, isActive: false }));
     },
     validate: {
       isValidWarranty(value) {
@@ -545,12 +636,19 @@ Maintenance.init({
     }
   },
   nextMaintenance: {
-    type: DataTypes.JSONB,
-    defaultValue: {
+    type: DataTypes.TEXT,
+    defaultValue: JSON.stringify({
       type: null,
       scheduledDate: null,
       estimatedKm: null,
       description: null
+    }),
+    get() {
+      const value = this.getDataValue('nextMaintenance');
+      return value ? JSON.parse(value) : { type: null, scheduledDate: null, estimatedKm: null, description: null };
+    },
+    set(value) {
+      this.setDataValue('nextMaintenance', JSON.stringify(value || { type: null, scheduledDate: null, estimatedKm: null, description: null }));
     },
     validate: {
       isValidNextMaintenance(value) {
@@ -564,11 +662,11 @@ Maintenance.init({
     }
   },
   isActive: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: true
+    type: DataTypes.INTEGER,
+    defaultValue: 1
   },
   createdById: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING,
     allowNull: false,
     references: {
       model: 'Users',
@@ -576,7 +674,7 @@ Maintenance.init({
     }
   },
   lastModifiedById: {
-    type: DataTypes.UUID,
+    type: DataTypes.STRING,
     allowNull: true,
     references: {
       model: 'Users',
@@ -618,10 +716,7 @@ Maintenance.init({
     {
       fields: ['type', 'priority']
     },
-    {
-      fields: [sequelize.literal("(costs->>'total')")],
-      name: 'maintenances_costs_total_idx'
-    }
+
   ],
   hooks: {
     beforeSave: async (maintenance, options) => {
