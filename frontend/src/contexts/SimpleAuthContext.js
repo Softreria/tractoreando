@@ -17,12 +17,47 @@ export const AuthProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem('token');
-    if (savedToken) {
-      setToken(savedToken);
-      setIsAuthenticated(true);
-      setUser({ email: 'admin@tractoreando.com', name: 'Administrador' });
-    }
+    const validateToken = async () => {
+      const savedToken = localStorage.getItem('token');
+      if (savedToken) {
+        setIsLoading(true);
+        try {
+          const response = await fetch('http://localhost:8000/api/auth/me', {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${savedToken}`,
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            setToken(savedToken);
+            setUser(data.user);
+            setIsAuthenticated(true);
+          } else {
+            // Token inválido, limpiar localStorage
+            localStorage.removeItem('token');
+            setToken(null);
+            setUser(null);
+            setIsAuthenticated(false);
+          }
+        } catch (error) {
+          console.error('Error validando token:', error);
+          // En caso de error, limpiar localStorage
+          localStorage.removeItem('token');
+          setToken(null);
+          setUser(null);
+          setIsAuthenticated(false);
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        setIsLoading(false);
+      }
+    };
+
+    validateToken();
   }, []);
 
   const login = async (email, password) => {

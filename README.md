@@ -36,10 +36,7 @@ Tractoreando es un sistema integral de gestión para empresas de transporte y lo
 git clone <repository-url>
 cd tractoreando
 
-# 2. (Opcional) Limpiar repositorios MongoDB si hay errores
-./clean-mongodb-repos.sh
-
-# 3. Ejecutar instalación automática para PRODUCCIÓN
+# 2. Ejecutar instalación automática para PRODUCCIÓN
 ./install.sh
 
 # 4. Verificar instalación
@@ -65,17 +62,11 @@ node create-admin-production.js
 # Reparar problemas de autenticación PostgreSQL
 ./fix-postgresql-auth.sh
 
-# Limpiar repositorios MongoDB (si es necesario)
-./clean-mongodb-repos.sh
-
 # Actualización simplificada
 ./update.sh
 
 # Crear usuario administrador para PRODUCCIÓN
 node create-admin-production.js
-
-# Migración de datos MongoDB a PostgreSQL
-node migrate-data.js
 
 # Scripts alternativos de administrador
 node init-admin.js
@@ -142,7 +133,6 @@ sudo -u postgres psql -c "\l"
 
 ## 📚 Documentación Adicional
 
-- **Migración MongoDB → PostgreSQL**: Ver `GUIA-MIGRACION-MONGODB-POSTGRESQL.md`
 - **Actualización en Producción**: Ver `GUIA-ACTUALIZACION-PRODUCCION.md`
 - **Despliegue Completo**: Ver `DOCUMENTACION-DESPLIEGUE-PRODUCCION.md`
 
@@ -172,17 +162,7 @@ CORS_ORIGIN=http://localhost:8080
 
 ### Problemas Comunes
 
-1. **Error de repositorios MongoDB**
-   ```bash
-   # Si aparecen errores como "404 Not Found [IP: 52.222.132.70 443]"
-   # relacionados con repo.mongodb.org, ejecutar:
-   ./clean-mongodb-repos.sh
-   
-   # Luego continuar con la instalación
-   ./install.sh
-   ```
-
-2. **Error de conexión PostgreSQL**
+1. **Error de conexión PostgreSQL**
    ```bash
    sudo systemctl status postgresql
    sudo systemctl start postgresql

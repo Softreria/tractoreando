@@ -3,7 +3,8 @@ const { body, validationResult } = require('express-validator');
 const Branch = require('../models/Branch');
 const Vehicle = require('../models/Vehicle');
 const User = require('../models/User');
-const { auth, checkPermission, checkCompanyAccess, checkSubscriptionLimits, logActivity } = require('../middleware/auth');
+const { auth, checkPermission, checkCompanyAccess, logActivity } = require('../middleware/auth');
+const { checkBranchLimits } = require('../middleware/companyAdmin');
 
 const router = express.Router();
 
@@ -146,7 +147,7 @@ router.get('/:id', [
 router.post('/', [
   auth,
   checkPermission('branches', 'create'),
-  checkSubscriptionLimits('branches'),
+  checkBranchLimits,
   body('name', 'Nombre de delegación es requerido').notEmpty().trim(),
   body('code', 'Código de delegación es requerido').notEmpty().trim(),
   body('address.street', 'Dirección es requerida').notEmpty().trim(),

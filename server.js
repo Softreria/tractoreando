@@ -1,5 +1,5 @@
 require('dotenv').config({
-  path: process.env.NODE_ENV === 'production' ? '.env.production' : '.env.development'
+  path: process.env.NODE_ENV === 'production' ? '.env.production' : '.env'
 });
 const express = require('express');
 const cors = require('cors');
@@ -80,7 +80,7 @@ if (process.env.NODE_ENV === 'production') {
 const connectDB = async () => {
   try {
     await sequelize.authenticate();
-    console.log(`✅ ${process.env.DB_TYPE === 'sqlite' ? 'SQLite' : 'PostgreSQL'} conectado exitosamente`);
+    console.log('✅ PostgreSQL conectado exitosamente');
     
     // Sincronizar modelos en desarrollo
     if (process.env.NODE_ENV === 'development') {
@@ -88,7 +88,7 @@ const connectDB = async () => {
       console.log('✅ Modelos sincronizados con la base de datos.');
     }
   } catch (error) {
-    console.error(`❌ Error conectando a ${process.env.DB_TYPE === 'sqlite' ? 'SQLite' : 'PostgreSQL'}:`, error.message);
+    console.error('❌ Error conectando a PostgreSQL:', error.message);
     process.exit(1);
   }
 };
@@ -108,3 +108,5 @@ app.listen(PORT, () => {
   console.log(`🚀 Servidor ejecutándose en puerto ${PORT}`);
   console.log(`🌐 Ambiente: ${process.env.NODE_ENV || 'development'}`);
 });
+
+// Reinicio del servidor

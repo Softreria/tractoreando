@@ -69,38 +69,35 @@ router.post('/register', [
     await company.save();
 
     // Crear sucursal
-    const branch = new Branch({
+    const branch = await Branch.create({
       name: branchName,
-      company: company._id,
+      companyId: company.id,
       address: '',
       phone: '',
       isActive: true
     });
-    await branch.save();
 
     // Crear usuario
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    user = new User({
+    user = await User.create({
       name,
       lastName,
       email,
       password: hashedPassword,
       role: 'super_admin',
-      company: company._id,
-      branch: branch._id,
+      companyId: company.id,
+      branchId: branch.id,
       isActive: true
     });
 
-    await user.save();
-
-    const token = generateToken(user._id);
+    const token = generateToken(user.id);
 
     res.json({
       token,
       user: {
-        id: user._id,
+        id: user.id,
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
@@ -184,7 +181,7 @@ router.post('/login', [
     await user.save();
 
     // Generar token
-    const token = generateToken(user._id);
+    const token = generateToken(user.id);
 
     res.json({
       message: 'Login exitoso',
@@ -203,20 +200,24 @@ router.post('/login', [
 // @access  Private
 router.get('/me', auth, async (req, res) => {
   try {
-    const user = await User.findByPk(req.user._id, {
+    const user = await User.findByPk(req.user.id, {
       include: [
         {
           model: Company,
           as: 'company',
-          attributes: ['name', 'rfc', 'subscription']
+          attributes: ['id', 'name', 'cif']
         },
         {
           model: Branch,
           as: 'branch',
-          attributes: ['name', 'code', 'address']
+          attributes: ['id', 'name', 'code']
         }
       ]
     });
+
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
 
     res.json({ user });
   } catch (error) {
@@ -230,7 +231,7 @@ router.get('/me', auth, async (req, res) => {
 // @access  Private
 router.get('/profile', auth, async (req, res) => {
   try {
-    const user = await User.findByPk(req.user._id, {
+    const user = await User.findByPk(req.user.id, {
       include: [
         {
           model: Company,
@@ -279,10 +280,10 @@ router.put('/profile', [
     if (preferences) updateData.preferences = { ...req.user.preferences, ...preferences };
 
     await User.update(updateData, {
-      where: { id: req.user._id }
+      where: { id: req.user.id }
     });
 
-    const user = await User.findByPk(req.user._id, {
+    const user = await User.findByPk(req.user.id, {
       include: [
         {
           model: Company,
@@ -328,7 +329,7 @@ router.put('/change-password', [
     const { currentPassword, newPassword } = req.body;
 
     // Verificar contraseña actual
-    const user = await User.findById(req.user._id);
+    const user = await User.findByPk(req.user.id);
     const isMatch = await user.comparePassword(currentPassword);
     
     if (!isMatch) {
@@ -364,7 +365,7 @@ router.post('/forgot-password', [
 
     const { email } = req.body;
     
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ where: { email } });
     if (!user) {
       // Por seguridad, no revelar si el email existe
       return res.json({ 
@@ -374,7 +375,7 @@ router.post('/forgot-password', [
 
     // Generar token de reset
     const resetToken = jwt.sign(
-      { id: user._id, purpose: 'password-reset' },
+      { id: user.id, purpose: 'password-reset' },
       process.env.JWT_SECRET,
       { expiresIn: '1h' }
     );
@@ -456,7 +457,7 @@ router.post('/reset-password', [
 // @access  Private
 router.post('/refresh-token', auth, async (req, res) => {
   try {
-    const newToken = generateToken(req.user._id);
+    const newToken = generateToken(req.user.id);
     
     res.json({
       message: 'Token renovado exitosamente',

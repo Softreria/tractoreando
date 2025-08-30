@@ -287,74 +287,84 @@ router.get('/costs', [
       query.branch = { $in: req.user.branches };
     }
 
-    // Agregación para costos por período
-    const groupFormat = getGroupFormat(groupBy);
-    const costsByPeriod = await Maintenance.aggregate([
-      { $match: query },
-      {
-        $group: {
-          _id: groupFormat,
-          totalCost: { $sum: '$costs.actual' },
-          laborCost: { $sum: '$costs.labor' },
-          partsCost: { $sum: '$costs.parts' },
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { '_id': 1 } }
-    ]);
+    // Convertir query de MongoDB a condiciones de Sequelize
+    const whereConditions = {};
+    if (query.scheduledDate) {
+      whereConditions.scheduledDate = query.scheduledDate;
+    }
+    if (query.status) {
+      whereConditions.status = query.status;
+    }
+    if (query.vehicleId) {
+      whereConditions.vehicleId = query.vehicleId;
+    }
+    if (query.branchId) {
+      whereConditions.branchId = query.branchId;
+    }
 
-    // Costos por vehículo
-    const costsByVehicle = await Maintenance.aggregate([
-      { $match: query },
-      {
-        $group: {
-          _id: '$vehicle',
-          totalCost: { $sum: '$costs.actual' },
-          count: { $sum: 1 }
-        }
-      },
-      {
-        $lookup: {
-          from: 'vehicles',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'vehicle'
-        }
-      },
-      { $unwind: '$vehicle' },
-      { $sort: { 'totalCost': -1 } },
-      { $limit: 10 }
-    ]);
+    // Agregación para costos por período usando Sequelize
+    const groupFormat = getSequelizeGroupFormat(groupBy);
+    const costsByPeriod = await Maintenance.findAll({
+      attributes: [
+        [groupFormat, '_id'],
+        [Maintenance.sequelize.fn('SUM', Maintenance.sequelize.cast(Maintenance.sequelize.json('costs.actual'), 'DECIMAL')), 'totalCost'],
+        [Maintenance.sequelize.fn('SUM', Maintenance.sequelize.cast(Maintenance.sequelize.json('costs.labor'), 'DECIMAL')), 'laborCost'],
+        [Maintenance.sequelize.fn('SUM', Maintenance.sequelize.cast(Maintenance.sequelize.json('costs.parts'), 'DECIMAL')), 'partsCost'],
+        [Maintenance.sequelize.fn('COUNT', '*'), 'count']
+      ],
+      where: whereConditions,
+      group: [groupFormat],
+      order: [[Maintenance.sequelize.literal('_id'), 'ASC']],
+      raw: true
+    });
+
+    // Costos por vehículo usando Sequelize con JOIN
+    const costsByVehicle = await Maintenance.findAll({
+      attributes: [
+        'vehicleId',
+        [Maintenance.sequelize.fn('SUM', Maintenance.sequelize.cast(Maintenance.sequelize.json('costs.actual'), 'DECIMAL')), 'totalCost'],
+        [Maintenance.sequelize.fn('COUNT', '*'), 'count']
+      ],
+      include: [{
+        model: Vehicle,
+        as: 'vehicle',
+        attributes: ['id', 'licensePlate', 'brand', 'model']
+      }],
+      where: whereConditions,
+      group: ['vehicleId', 'vehicle.id', 'vehicle.licensePlate', 'vehicle.brand', 'vehicle.model'],
+      order: [[Maintenance.sequelize.literal('totalCost'), 'DESC']],
+      limit: 10,
+      raw: true,
+      nest: true
+    });
 
     // Costos por tipo de mantenimiento
-    const costsByType = await Maintenance.aggregate([
-      { $match: query },
-      {
-        $group: {
-          _id: '$type',
-          totalCost: { $sum: '$costs.actual' },
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { 'totalCost': -1 } }
-    ]);
+    const costsByType = await Maintenance.findAll({
+      attributes: [
+        'type',
+        [Maintenance.sequelize.fn('SUM', Maintenance.sequelize.cast(Maintenance.sequelize.json('costs.actual'), 'DECIMAL')), 'totalCost'],
+        [Maintenance.sequelize.fn('COUNT', '*'), 'count']
+      ],
+      where: whereConditions,
+      group: ['type'],
+      order: [[Maintenance.sequelize.literal('totalCost'), 'DESC']],
+      raw: true
+    });
 
     // Estadísticas generales
-    const totalStats = await Maintenance.aggregate([
-      { $match: query },
-      {
-        $group: {
-          _id: null,
-          totalCost: { $sum: '$costs.actual' },
-          totalLaborCost: { $sum: '$costs.labor' },
-          totalPartsCost: { $sum: '$costs.parts' },
-          count: { $sum: 1 },
-          avgCost: { $avg: '$costs.actual' }
-        }
-      }
-    ]);
+    const totalStats = await Maintenance.findOne({
+      attributes: [
+        [Maintenance.sequelize.fn('SUM', Maintenance.sequelize.cast(Maintenance.sequelize.json('costs.actual'), 'DECIMAL')), 'totalCost'],
+        [Maintenance.sequelize.fn('SUM', Maintenance.sequelize.cast(Maintenance.sequelize.json('costs.labor'), 'DECIMAL')), 'totalLaborCost'],
+        [Maintenance.sequelize.fn('SUM', Maintenance.sequelize.cast(Maintenance.sequelize.json('costs.parts'), 'DECIMAL')), 'totalPartsCost'],
+        [Maintenance.sequelize.fn('COUNT', '*'), 'count'],
+        [Maintenance.sequelize.fn('AVG', Maintenance.sequelize.cast(Maintenance.sequelize.json('costs.actual'), 'DECIMAL')), 'avgCost']
+      ],
+      where: whereConditions,
+      raw: true
+    });
 
-    const stats = totalStats[0] || {
+    const stats = totalStats || {
       totalCost: 0,
       totalLaborCost: 0,
       totalPartsCost: 0,
@@ -649,19 +659,30 @@ async function getMaintenanceAlerts(baseQuery) {
 }
 
 async function getGroupedStats(query, field, Model) {
-  return await Model.aggregate([
-    { $match: query },
-    { $group: { _id: `$${field}`, count: { $sum: 1 } } },
-    { $sort: { count: -1 } }
-  ]);
+  return await Model.findAll({
+    attributes: [
+      [Model.sequelize.col(field), '_id'],
+      [Model.sequelize.fn('COUNT', '*'), 'count']
+    ],
+    where: query,
+    group: [field],
+    order: [[Model.sequelize.literal('count'), 'DESC']],
+    raw: true
+  });
 }
 
 async function getAverageDuration(query) {
-  const result = await Maintenance.aggregate([
-    { $match: { ...query, status: 'completado' } },
-    { $group: { _id: null, avgDuration: { $avg: '$duration' } } }
-  ]);
-  return result[0]?.avgDuration || 0;
+  // Convertir query de MongoDB a condiciones de Sequelize
+  const whereConditions = { ...query, status: 'completado' };
+  
+  const result = await Maintenance.findOne({
+    attributes: [
+      [Maintenance.sequelize.fn('AVG', Maintenance.sequelize.col('duration')), 'avgDuration']
+    ],
+    where: whereConditions,
+    raw: true
+  });
+  return parseFloat(result?.avgDuration) || 0;
 }
 
 function getGroupFormat(groupBy) {
@@ -676,6 +697,21 @@ function getGroupFormat(groupBy) {
       return { $dateToString: { format: '%Y', date: '$completedDate' } };
     default:
       return { $dateToString: { format: '%Y-%m', date: '$completedDate' } };
+  }
+}
+
+function getSequelizeGroupFormat(groupBy) {
+  switch (groupBy) {
+    case 'day':
+      return Maintenance.sequelize.fn('DATE', Maintenance.sequelize.col('completedDate'));
+    case 'week':
+      return Maintenance.sequelize.fn('DATE_TRUNC', 'week', Maintenance.sequelize.col('completedDate'));
+    case 'month':
+      return Maintenance.sequelize.fn('DATE_TRUNC', 'month', Maintenance.sequelize.col('completedDate'));
+    case 'year':
+      return Maintenance.sequelize.fn('DATE_TRUNC', 'year', Maintenance.sequelize.col('completedDate'));
+    default:
+      return Maintenance.sequelize.fn('DATE_TRUNC', 'month', Maintenance.sequelize.col('completedDate'));
   }
 }
 

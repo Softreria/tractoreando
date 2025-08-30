@@ -5,8 +5,9 @@ const bcrypt = require('bcryptjs');
 const { sequelize, connectDB } = require('./config/database');
 
 console.log('🔧 Configuración de base de datos:', {
-  type: process.env.DB_TYPE,
-  storage: process.env.DB_STORAGE,
+  database: process.env.DB_NAME,
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
   nodeEnv: process.env.NODE_ENV
 });
 
@@ -24,34 +25,34 @@ const createAdminUser = async () => {
     
     // Crear las tablas primero si no existen
     await sequelize.query(`
-      CREATE TABLE IF NOT EXISTS Users (
-        id TEXT PRIMARY KEY,
-        firstName TEXT NOT NULL,
-        lastName TEXT NOT NULL,
-        email TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL,
-        phone TEXT,
-        avatar TEXT,
-        companyId TEXT,
-        branchId TEXT,
-        vehicleTypeAccess TEXT DEFAULT '[]',
-        role TEXT NOT NULL,
-        permissions TEXT DEFAULT '{}',
-        preferences TEXT DEFAULT '{}',
-        lastLogin TEXT,
-        loginAttempts INTEGER DEFAULT 0,
-        lockUntil TEXT,
-        isActive INTEGER DEFAULT 1,
-        createdById TEXT,
-        createdAt TEXT NOT NULL,
-        updatedAt TEXT NOT NULL
+      CREATE TABLE IF NOT EXISTS "Users" (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "firstName" VARCHAR(255) NOT NULL,
+        "lastName" VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL UNIQUE,
+        password VARCHAR(255) NOT NULL,
+        phone VARCHAR(255),
+        avatar VARCHAR(255),
+        "companyId" UUID,
+        "branchId" UUID,
+        "vehicleTypeAccess" JSONB DEFAULT '[]',
+        role VARCHAR(255) NOT NULL,
+        permissions JSONB DEFAULT '{}',
+        preferences JSONB DEFAULT '{}',
+        "lastLogin" TIMESTAMP,
+        "loginAttempts" INTEGER DEFAULT 0,
+        "lockUntil" TIMESTAMP,
+        "isActive" BOOLEAN DEFAULT true,
+        "createdById" UUID,
+        "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+        "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
       )
     `);
     
     // Verificar si ya existe un usuario con este email
     const [existingUsers] = await sequelize.query(
-      'SELECT email FROM Users WHERE email = ?',
-      { replacements: [adminEmail] }
+      'SELECT email FROM "Users" WHERE email = $1',
+      { bind: [adminEmail] }
     );
     
     if (existingUsers.length > 0) {
@@ -65,31 +66,24 @@ const createAdminUser = async () => {
     const saltRounds = 12;
     const hashedPassword = await bcrypt.hash(adminPassword, saltRounds);
     
-    // Generar UUID simple para SQLite
-    const generateUUID = () => {
-      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        const r = Math.random() * 16 | 0;
-        const v = c == 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-      });
-    };
-    
-    const userId = generateUUID();
-    const now = new Date().toISOString();
+    // Generar UUID para PostgreSQL
+    const { v4: uuidv4 } = require('uuid');
+    const userId = uuidv4();
+    const now = new Date();
     
     // Crear el usuario administrador con SQL directo
     await sequelize.query(`
-      INSERT INTO Users (
-        id, firstName, lastName, email, password, role, 
-        vehicleTypeAccess, permissions, preferences, 
-        isActive, loginAttempts, createdAt, updatedAt
+      INSERT INTO "Users" (
+        id, "firstName", "lastName", email, password, role, 
+        "vehicleTypeAccess", permissions, preferences, 
+        "isActive", "loginAttempts", "createdAt", "updatedAt"
       ) VALUES (
-        ?, ?, ?, ?, ?, ?,
-        ?, ?, ?,
-        ?, ?, ?, ?
+        $1, $2, $3, $4, $5, $6,
+        $7, $8, $9,
+        $10, $11, $12, $13
       )
     `, {
-      replacements: [
+      bind: [
         userId,
         'Admin',
         'Sistema', 
@@ -111,7 +105,7 @@ const createAdminUser = async () => {
           notifications: { email: true, push: true, sms: false },
           dashboard: { defaultView: 'overview', itemsPerPage: 10 }
         }),
-        1, // isActive
+        true, // isActive
         0, // loginAttempts
         now,
         now
@@ -154,8 +148,8 @@ const deleteAdminUser = async () => {
     
     const adminEmail = 'admin@tractoreando.com';
     const [result] = await sequelize.query(
-      'DELETE FROM Users WHERE email = ?',
-      { replacements: [adminEmail] }
+      'DELETE FROM "Users" WHERE email = $1',
+      { bind: [adminEmail] }
     );
     
     console.log('🗑️  Usuario administrador eliminado exitosamente.');

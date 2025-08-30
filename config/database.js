@@ -1,58 +1,61 @@
 const { Sequelize } = require('sequelize');
 require('dotenv').config();
 
-// Configuración de la base de datos
-let sequelize;
-
-if (process.env.DB_TYPE === 'sqlite') {
-  // Configuración para SQLite (desarrollo)
-  sequelize = new Sequelize({
-    dialect: 'sqlite',
-    storage: process.env.DB_STORAGE || './database.sqlite',
-    logging: process.env.NODE_ENV === 'development' ? console.log : false,
+// Configuración de PostgreSQL para todos los entornos
+const config = {
+  development: {
+    dialect: 'postgres',
+    database: process.env.DB_NAME || 'tractoreando_dev',
+    username: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'postgres',
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 5432,
+    ssl: process.env.DB_SSL === 'true',
+    logging: console.log,
     pool: {
-      max: 5,
-      min: 0,
-      acquire: 30000,
-      idle: 10000
+      min: parseInt(process.env.DB_POOL_MIN) || 2,
+      max: parseInt(process.env.DB_POOL_MAX) || 10,
+      acquire: parseInt(process.env.DB_POOL_ACQUIRE) || 30000,
+      idle: parseInt(process.env.DB_POOL_IDLE) || 10000
     },
     define: {
       timestamps: true,
       underscored: false,
       freezeTableName: false
     }
-  });
-} else {
-  // Configuración para PostgreSQL (producción)
-  sequelize = new Sequelize(
-    process.env.DB_NAME || 'tractoreando',
-    process.env.DB_USER || 'postgres',
-    process.env.DB_PASSWORD || 'password',
-    {
-      host: process.env.DB_HOST || 'localhost',
-      port: process.env.DB_PORT || 5432,
-      dialect: 'postgres',
-      logging: process.env.NODE_ENV === 'development' ? console.log : false,
-      pool: {
-        max: 5,
-        min: 0,
-        acquire: 30000,
-        idle: 10000
-      },
-      define: {
-        timestamps: true,
-        underscored: false,
-        freezeTableName: false
-      }
+  },
+  production: {
+    dialect: 'postgres',
+    database: process.env.DB_NAME || 'tractoreando',
+    username: process.env.DB_USER || 'tractoreando_user',
+    password: process.env.DB_PASSWORD || 'tractoreando123',
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 5432,
+    ssl: process.env.DB_SSL === 'true',
+    logging: false,
+    pool: {
+      min: parseInt(process.env.DB_POOL_MIN) || 2,
+      max: parseInt(process.env.DB_POOL_MAX) || 10,
+      acquire: parseInt(process.env.DB_POOL_ACQUIRE) || 30000,
+      idle: parseInt(process.env.DB_POOL_IDLE) || 10000
+    },
+    define: {
+      timestamps: true,
+      underscored: false,
+      freezeTableName: false
     }
-  );
-}
+  }
+};
+
+// Crear instancia de Sequelize basada en el entorno
+const env = process.env.NODE_ENV || 'development';
+const sequelize = new Sequelize(config[env]);
 
 // Función para conectar a la base de datos
 const connectDB = async () => {
   try {
     await sequelize.authenticate();
-    console.log(`✅ Conexión a ${process.env.DB_TYPE === 'sqlite' ? 'SQLite' : 'PostgreSQL'} establecida correctamente.`);
+    console.log('✅ Conexión a PostgreSQL establecida correctamente.');
     
     // Sincronizar modelos en desarrollo
     if (process.env.NODE_ENV === 'development') {
@@ -60,7 +63,7 @@ const connectDB = async () => {
       console.log('✅ Modelos sincronizados con la base de datos.');
     }
   } catch (error) {
-    console.error(`❌ Error al conectar con ${process.env.DB_TYPE === 'sqlite' ? 'SQLite' : 'PostgreSQL'}:`, error);
+    console.error('❌ Error al conectar con PostgreSQL:', error);
     process.exit(1);
   }
 };
@@ -69,7 +72,7 @@ const connectDB = async () => {
 const closeDB = async () => {
   try {
     await sequelize.close();
-    console.log(`✅ Conexión a ${process.env.DB_TYPE === 'sqlite' ? 'SQLite' : 'PostgreSQL'} cerrada correctamente.`);
+    console.log('✅ Conexión a PostgreSQL cerrada correctamente.');
   } catch (error) {
     console.error('❌ Error al cerrar la conexión:', error);
   }

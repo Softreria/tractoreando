@@ -151,7 +151,7 @@ router.get('/:id', [
 router.post('/', [
   auth,
   checkPermission('maintenance', 'create'),
-  body('vehicle', 'Vehículo es requerido').isMongoId(),
+  body('vehicle', 'Vehículo es requerido').isUUID(),
   body('type', 'Tipo de mantenimiento es requerido').notEmpty(),
   body('priority', 'Prioridad es requerida').isIn(['baja', 'media', 'alta', 'critica']),
   body('scheduledDate', 'Fecha programada es requerida').isISO8601(),
@@ -595,32 +595,67 @@ router.get('/stats/summary', [
       matchQuery.branch = req.user.branch;
     }
 
+    // Convertir matchQuery de MongoDB a condiciones de Sequelize
+    const whereConditions = {};
+    if (matchQuery.scheduledDate) {
+      whereConditions.scheduledDate = matchQuery.scheduledDate;
+    }
+    if (matchQuery.branch) {
+      whereConditions.branchId = matchQuery.branch;
+    }
+
     const [statusStats, typeStats, priorityStats, totalMaintenances, avgCost] = await Promise.all([
-      Maintenance.aggregate([
-        { $match: matchQuery },
-        { $group: { _id: '$status', count: { $sum: 1 } } }
-      ]),
-      Maintenance.aggregate([
-        { $match: matchQuery },
-        { $group: { _id: '$type', count: { $sum: 1 } } }
-      ]),
-      Maintenance.aggregate([
-        { $match: matchQuery },
-        { $group: { _id: '$priority', count: { $sum: 1 } } }
-      ]),
-      Maintenance.countDocuments(matchQuery),
-      Maintenance.aggregate([
-        { $match: { ...matchQuery, status: 'completado' } },
-        { $group: { _id: null, avgCost: { $avg: '$costs.actual' } } }
-      ])
+      // Estadísticas por estado
+      Maintenance.findAll({
+        attributes: [
+          'status',
+          [Maintenance.sequelize.fn('COUNT', '*'), 'count']
+        ],
+        where: whereConditions,
+        group: ['status'],
+        raw: true
+      }),
+      // Estadísticas por tipo
+      Maintenance.findAll({
+        attributes: [
+          'type',
+          [Maintenance.sequelize.fn('COUNT', '*'), 'count']
+        ],
+        where: whereConditions,
+        group: ['type'],
+        raw: true
+      }),
+      // Estadísticas por prioridad
+      Maintenance.findAll({
+        attributes: [
+          'priority',
+          [Maintenance.sequelize.fn('COUNT', '*'), 'count']
+        ],
+        where: whereConditions,
+        group: ['priority'],
+        raw: true
+      }),
+      // Total de mantenimientos
+      Maintenance.count({ where: whereConditions }),
+      // Costo promedio de mantenimientos completados
+      Maintenance.findOne({
+        attributes: [
+          [Maintenance.sequelize.fn('AVG', Maintenance.sequelize.cast(Maintenance.sequelize.json('costs.actual'), 'DECIMAL')), 'avgCost']
+        ],
+        where: {
+          ...whereConditions,
+          status: 'completado'
+        },
+        raw: true
+      })
     ]);
 
     res.json({
       total: totalMaintenances,
-      byStatus: statusStats,
-      byType: typeStats,
-      byPriority: priorityStats,
-      averageCost: avgCost[0]?.avgCost || 0
+      byStatus: statusStats.map(stat => ({ _id: stat.status, count: parseInt(stat.count) })),
+      byType: typeStats.map(stat => ({ _id: stat.type, count: parseInt(stat.count) })),
+      byPriority: priorityStats.map(stat => ({ _id: stat.priority, count: parseInt(stat.count) })),
+      averageCost: parseFloat(avgCost?.avgCost) || 0
     });
 
   } catch (error) {

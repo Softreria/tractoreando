@@ -4,7 +4,7 @@ const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const Company = require('../models/Company');
 const Branch = require('../models/Branch');
-const { auth, requireRole, checkPermission, checkCompanyAccess, checkSubscriptionLimits, logActivity } = require('../middleware/auth');
+const { auth, requireRole, checkPermission, checkCompanyAccess, logActivity } = require('../middleware/auth');
 const { checkCompanyAdmin, checkSameCompanyUser, checkUserLimits, validateAssignableRoles } = require('../middleware/companyAdmin');
 
 const router = express.Router();
@@ -163,7 +163,7 @@ router.post('/', [
   body('email', 'Email válido es requerido').isEmail().normalizeEmail(),
   body('password', 'Contraseña debe tener al menos 6 caracteres').isLength({ min: 6 }),
   body('role', 'Rol es requerido').isIn(['company_admin', 'branch_manager', 'mechanic', 'operator', 'viewer']),
-  body('branch', 'La sucursal debe ser un ID válido').optional().isMongoId(),
+  body('branch', 'La sucursal debe ser un ID válido').optional().isUUID(),
   logActivity('Crear usuario')
 ], async (req, res) => {
   try {
@@ -529,25 +529,59 @@ router.get('/stats/summary', [
       matchQuery.branch = req.user.branch;
     }
 
+    // Convertir matchQuery de MongoDB a condiciones de Sequelize
+    const whereConditions = {};
+    if (matchQuery.company) {
+      whereConditions.companyId = matchQuery.company;
+    }
+    if (matchQuery.branch) {
+      whereConditions.branchId = matchQuery.branch;
+    }
+
     const [roleStats, statusStats, totalUsers, activeUsers] = await Promise.all([
-      User.aggregate([
-        { $match: matchQuery },
-        { $group: { _id: '$role', count: { $sum: 1 } } }
-      ]),
-      User.aggregate([
-        { $match: matchQuery },
-        { $group: { _id: '$isActive', count: { $sum: 1 } } }
-      ]),
-      User.countDocuments(matchQuery),
-      User.countDocuments({ ...matchQuery, isActive: true })
+      // Estadísticas por rol
+      User.findAll({
+        attributes: [
+          'role',
+          [User.sequelize.fn('COUNT', '*'), 'count']
+        ],
+        where: whereConditions,
+        group: ['role'],
+        raw: true
+      }),
+      // Estadísticas por estado
+      User.findAll({
+        attributes: [
+          'isActive',
+          [User.sequelize.fn('COUNT', '*'), 'count']
+        ],
+        where: whereConditions,
+        group: ['isActive'],
+        raw: true
+      }),
+      // Total de usuarios
+      User.count({ where: whereConditions }),
+      // Usuarios activos
+      User.count({ where: { ...whereConditions, isActive: true } })
     ]);
+
+    // Formatear los resultados para mantener compatibilidad con el frontend
+    const formattedRoleStats = roleStats.map(stat => ({
+      _id: stat.role,
+      count: parseInt(stat.count)
+    }));
+    
+    const formattedStatusStats = statusStats.map(stat => ({
+      _id: stat.isActive,
+      count: parseInt(stat.count)
+    }));
 
     res.json({
       total: totalUsers,
       active: activeUsers,
       inactive: totalUsers - activeUsers,
-      byRole: roleStats,
-      byStatus: statusStats
+      byRole: formattedRoleStats,
+      byStatus: formattedStatusStats
     });
 
   } catch (error) {

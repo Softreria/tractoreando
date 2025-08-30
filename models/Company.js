@@ -105,7 +105,17 @@ Company.init({
       currency: 'EUR',
       timezone: 'Europe/Madrid',
       maintenanceReminders: true,
-      emailNotifications: true
+      emailNotifications: true,
+      subscription: {
+         plan: 'basic',
+         maxUsers: 10,
+         maxVehicles: 25,
+         maxBranches: 5,
+         features: ['basic_maintenance', 'basic_reports'],
+         startDate: null,
+         endDate: null,
+         isActive: true
+       }
     }),
     get() {
       const value = this.getDataValue('settings');

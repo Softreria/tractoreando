@@ -2,7 +2,8 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const Vehicle = require('../models/Vehicle');
 const Branch = require('../models/Branch');
-const { auth, checkPermission, checkCompanyAccess, checkBranchAccess, checkSubscriptionLimits, logActivity } = require('../middleware/auth');
+const { auth, checkPermission, checkCompanyAccess, checkBranchAccess, logActivity } = require('../middleware/auth');
+const { checkVehicleLimits } = require('../middleware/companyAdmin');
 
 const router = express.Router();
 
@@ -200,13 +201,13 @@ router.get('/:id', [
 router.post('/', [
   auth,
   checkPermission('vehicles', 'create'),
-  checkSubscriptionLimits('vehicles'),
+  checkVehicleLimits,
   body('plateNumber', 'Número de placa es requerido').notEmpty().trim(),
   body('make', 'Marca es requerida').notEmpty().trim(),
   body('model', 'Modelo es requerido').notEmpty().trim(),
   body('year', 'Año es requerido').isInt({ min: 1900, max: new Date().getFullYear() + 1 }),
   body('vehicleType', 'Tipo de vehículo es requerido').notEmpty(),
-  body('branch', 'Sucursal es requerida').notEmpty().isMongoId(),
+  body('branch', 'Sucursal es requerida').notEmpty().isUUID(),
   logActivity('Crear vehículo')
 ], async (req, res) => {
   try {
@@ -648,27 +649,71 @@ router.get('/stats/summary', [
       matchQuery.branch = req.user.branch;
     }
 
+    // Convertir matchQuery de MongoDB a condiciones de Sequelize
+    const whereConditions = {};
+    if (matchQuery.company) {
+      whereConditions.companyId = matchQuery.company;
+    }
+    if (matchQuery.branch) {
+      whereConditions.branchId = matchQuery.branch;
+    }
+
     const [statusStats, typeStats, conditionStats, totalVehicles] = await Promise.all([
-      Vehicle.aggregate([
-        { $match: matchQuery },
-        { $group: { _id: '$status', count: { $sum: 1 } } }
-      ]),
-      Vehicle.aggregate([
-        { $match: matchQuery },
-        { $group: { _id: '$vehicleType', count: { $sum: 1 } } }
-      ]),
-      Vehicle.aggregate([
-        { $match: matchQuery },
-        { $group: { _id: '$condition', count: { $sum: 1 } } }
-      ]),
-      Vehicle.countDocuments(matchQuery)
+      // Estadísticas por estado
+      Vehicle.findAll({
+        attributes: [
+          'status',
+          [Vehicle.sequelize.fn('COUNT', '*'), 'count']
+        ],
+        where: whereConditions,
+        group: ['status'],
+        raw: true
+      }),
+      // Estadísticas por tipo de vehículo
+      Vehicle.findAll({
+        attributes: [
+          'vehicleType',
+          [Vehicle.sequelize.fn('COUNT', '*'), 'count']
+        ],
+        where: whereConditions,
+        group: ['vehicleType'],
+        raw: true
+      }),
+      // Estadísticas por condición
+      Vehicle.findAll({
+        attributes: [
+          'condition',
+          [Vehicle.sequelize.fn('COUNT', '*'), 'count']
+        ],
+        where: whereConditions,
+        group: ['condition'],
+        raw: true
+      }),
+      // Total de vehículos
+      Vehicle.count({ where: whereConditions })
     ]);
+
+    // Formatear los resultados para mantener compatibilidad con el frontend
+    const formattedStatusStats = statusStats.map(stat => ({
+      _id: stat.status,
+      count: parseInt(stat.count)
+    }));
+    
+    const formattedTypeStats = typeStats.map(stat => ({
+      _id: stat.vehicleType,
+      count: parseInt(stat.count)
+    }));
+    
+    const formattedConditionStats = conditionStats.map(stat => ({
+      _id: stat.condition,
+      count: parseInt(stat.count)
+    }));
 
     res.json({
       total: totalVehicles,
-      byStatus: statusStats,
-      byType: typeStats,
-      byCondition: conditionStats
+      byStatus: formattedStatusStats,
+      byType: formattedTypeStats,
+      byCondition: formattedConditionStats
     });
 
   } catch (error) {

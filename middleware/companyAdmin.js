@@ -24,14 +24,14 @@ const checkCompanyAdmin = async (req, res, next) => {
     }
 
     // Verificar que la empresa tiene configurado un administrador
-    const company = await Company.findById(req.user.company._id);
+    const company = await Company.findByPk(req.user.companyId);
     if (!company) {
       return res.status(404).json({ message: 'Empresa no encontrada' });
     }
 
     // Verificar que el usuario actual es el administrador de la empresa
     if (company.administrator && company.administrator.userId) {
-      if (company.administrator.userId.toString() !== req.user._id.toString()) {
+      if (company.administrator.userId.toString() !== req.user.id.toString()) {
         return res.status(403).json({ 
           message: 'No eres el administrador autorizado de esta empresa' 
         });
@@ -70,20 +70,20 @@ const checkSameCompanyUser = async (req, res, next) => {
     }
 
     // Buscar el usuario objetivo
-    const targetUser = await User.findById(targetUserId);
+    const targetUser = await User.findByPk(targetUserId);
     if (!targetUser) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
     // Verificar que pertenece a la misma empresa
-    if (targetUser.company.toString() !== req.user.company._id.toString()) {
+    if (targetUser.companyId.toString() !== req.user.companyId.toString()) {
       return res.status(403).json({ 
         message: 'No puedes gestionar usuarios de otras empresas' 
       });
     }
 
     // No permitir que se modifique a sí mismo a través de estas rutas
-    if (targetUser._id.toString() === req.user._id.toString()) {
+    if (targetUser.id.toString() === req.user.id.toString()) {
       return res.status(400).json({ 
         message: 'No puedes modificar tu propio usuario a través de esta ruta' 
       });
@@ -126,19 +126,22 @@ const checkUserLimits = async (req, res, next) => {
       return next();
     }
 
-    const company = await Company.findById(req.user.company._id);
+    const company = await Company.findByPk(req.user.companyId);
     if (!company) {
       return res.status(404).json({ message: 'Empresa no encontrada' });
     }
 
     // Contar usuarios activos de la empresa
-    const activeUserCount = await User.countDocuments({
-      company: company._id,
-      isActive: true
+    const activeUserCount = await User.count({
+      where: {
+        companyId: company.id,
+        isActive: 1
+      }
     });
 
-    // Verificar límite (por defecto 50 usuarios por empresa)
-    const maxUsers = 50; // Esto podría venir de la configuración de la empresa
+    // Obtener límite de la configuración de la empresa o usar por defecto
+    const subscription = company.settings?.subscription || { plan: 'basic', maxUsers: 10, maxVehicles: 25 };
+    const maxUsers = subscription.maxUsers || 10;
     
     if (activeUserCount >= maxUsers) {
       return res.status(403).json({ 
@@ -149,6 +152,52 @@ const checkUserLimits = async (req, res, next) => {
     next();
   } catch (error) {
     console.error('Error en verificación de límites de usuarios:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+};
+
+/**
+ * Middleware para verificar límites de vehículos en la empresa
+ */
+const checkVehicleLimits = async (req, res, next) => {
+  try {
+    // Super admin no tiene límites
+    if (req.user.role === 'super_admin') {
+      return next();
+    }
+
+    // Solo aplicar límites al crear nuevos vehículos
+    if (req.method !== 'POST') {
+      return next();
+    }
+
+    const company = await Company.findByPk(req.user.companyId);
+    if (!company) {
+      return res.status(404).json({ message: 'Empresa no encontrada' });
+    }
+
+    // Contar vehículos activos de la empresa
+    const Vehicle = require('../models/Vehicle');
+    const activeVehicleCount = await Vehicle.count({
+      where: {
+        companyId: company.id,
+        isActive: 1
+      }
+    });
+
+    // Obtener límite de la configuración de la empresa o usar por defecto
+    const subscription = company.settings?.subscription || { plan: 'basic', maxUsers: 10, maxVehicles: 25 };
+    const maxVehicles = subscription.maxVehicles || 25;
+    
+    if (activeVehicleCount >= maxVehicles) {
+      return res.status(403).json({ 
+        message: `Límite de vehículos alcanzado (${maxVehicles}). Contacta al administrador del sistema para actualizar tu plan.` 
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Error en verificación de límites de vehículos:', error);
     res.status(500).json({ message: 'Error interno del servidor' });
   }
 };
@@ -169,18 +218,64 @@ const validateAssignableRoles = (req, res, next) => {
       return next();
     }
 
-    // Roles que puede asignar un administrador de empresa
-    const allowedRoles = ['manager', 'mechanic', 'operator', 'viewer'];
+    // Company admin solo puede asignar roles específicos
+    const allowedRoles = ['branch_manager', 'mechanic', 'operator', 'viewer'];
     
     if (!allowedRoles.includes(role)) {
       return res.status(403).json({ 
-        message: `No puedes asignar el rol '${role}'. Roles permitidos: ${allowedRoles.join(', ')}` 
+        message: 'No tienes permisos para asignar este rol' 
       });
     }
 
     next();
   } catch (error) {
-    console.error('Error en validación de roles asignables:', error);
+    console.error('Error en validación de roles:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+};
+
+/**
+ * Middleware para verificar límites de sucursales en la empresa
+ */
+const checkBranchLimits = async (req, res, next) => {
+  try {
+    // Super admin no tiene límites
+    if (req.user.role === 'super_admin') {
+      return next();
+    }
+
+    // Solo aplicar límites al crear nuevas sucursales
+    if (req.method !== 'POST') {
+      return next();
+    }
+
+    const company = await Company.findByPk(req.user.companyId);
+    if (!company) {
+      return res.status(404).json({ message: 'Empresa no encontrada' });
+    }
+
+    // Contar sucursales activas de la empresa
+    const Branch = require('../models/Branch');
+    const activeBranchCount = await Branch.count({
+      where: {
+        companyId: company.id,
+        isActive: 1
+      }
+    });
+
+    // Obtener límite de la configuración de la empresa o usar por defecto
+    const subscription = company.settings?.subscription || { plan: 'basic', maxUsers: 10, maxVehicles: 25, maxBranches: 5 };
+    const maxBranches = subscription.maxBranches || 5;
+    
+    if (activeBranchCount >= maxBranches) {
+      return res.status(403).json({ 
+        message: `Límite de sucursales alcanzado (${maxBranches}). Contacta al administrador del sistema para actualizar tu plan.` 
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Error en verificación de límites de sucursales:', error);
     res.status(500).json({ message: 'Error interno del servidor' });
   }
 };
@@ -189,5 +284,7 @@ module.exports = {
   checkCompanyAdmin,
   checkSameCompanyUser,
   checkUserLimits,
+  checkVehicleLimits,
+  checkBranchLimits,
   validateAssignableRoles
 };

@@ -19,34 +19,42 @@ router.get('/', [
   try {
     const { page = 1, limit = 10, search, status } = req.query;
     
-    const query = {};
+    const { Op } = require('sequelize');
+    const whereClause = {};
+    
     if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { cif: { $regex: search, $options: 'i' } }
+      whereClause[Op.or] = [
+        { name: { [Op.iLike]: `%${search}%` } },
+        { cif: { [Op.iLike]: `%${search}%` } }
       ];
     }
     if (status) {
-      query.isActive = status === 'active';
+      whereClause.isActive = status === 'active';
     }
 
-    const companies = await Company.find(query)
-      .populate('createdBy', 'name lastName email')
-      .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
+    const companies = await Company.findAll({
+      where: whereClause,
+      include: [{
+        model: User,
+        as: 'creator',
+        attributes: ['firstName', 'lastName', 'email']
+      }],
+      order: [['createdAt', 'DESC']],
+      limit: parseInt(limit),
+      offset: (parseInt(page) - 1) * parseInt(limit)
+    });
 
-    const total = await Company.countDocuments(query);
+    const total = await Company.count({ where: whereClause });
 
     // Agregar estadísticas para cada empresa
     const companiesWithStats = await Promise.all(
       companies.map(async (company) => {
-        const branchCount = await Branch.countDocuments({ company: company._id, isActive: true });
-        const vehicleCount = await Vehicle.countDocuments({ company: company._id, isActive: true });
-        const userCount = await User.countDocuments({ company: company._id, isActive: true });
+        const branchCount = await Branch.count({ where: { companyId: company.id, isActive: true } });
+        const vehicleCount = await Vehicle.count({ where: { companyId: company.id, isActive: true } });
+        const userCount = await User.count({ where: { companyId: company.id, isActive: true } });
         
         return {
-          ...company.toObject(),
+          ...company.toJSON(),
           stats: {
             branches: branchCount,
             vehicles: vehicleCount,
@@ -80,28 +88,33 @@ router.get('/:id', [
   logActivity('Ver empresa')
 ], async (req, res) => {
   try {
-    const company = await Company.findById(req.params.id)
-      .populate('createdBy', 'name lastName email');
+    const company = await Company.findByPk(req.params.id, {
+      include: [{
+        model: User,
+        as: 'creator',
+        attributes: ['firstName', 'lastName', 'email']
+      }]
+    });
 
     if (!company) {
       return res.status(404).json({ message: 'Empresa no encontrada' });
     }
 
     // Verificar acceso (super_admin puede ver cualquier empresa)
-    if (req.user.role !== 'super_admin' && company._id.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && company.id.toString() !== req.user.companyId.toString()) {
       return res.status(403).json({ message: 'No tienes acceso a esta empresa' });
     }
 
     // Obtener estadísticas
     const [branchCount, vehicleCount, userCount] = await Promise.all([
-      Branch.countDocuments({ company: company._id, isActive: true }),
-      Vehicle.countDocuments({ company: company._id, isActive: true }),
-      User.countDocuments({ company: company._id, isActive: true })
+      Branch.count({ where: { companyId: company.id, isActive: true } }),
+      Vehicle.count({ where: { companyId: company.id, isActive: true } }),
+      User.count({ where: { companyId: company.id, isActive: true } })
     ]);
 
     res.json({
       company: {
-        ...company.toObject(),
+        ...company.toJSON(),
         stats: {
           branches: branchCount,
           vehicles: vehicleCount,
@@ -143,19 +156,19 @@ router.post('/', [
     const { name, cif, address, contact, settings, administrator, adminData } = req.body;
 
     // Verificar si el CIF ya existe
-    const existingCompany = await Company.findOne({ cif: cif.toUpperCase() });
+    const existingCompany = await Company.findOne({ where: { cif: cif.toUpperCase() } });
     if (existingCompany) {
       return res.status(400).json({ message: 'El CIF ya está registrado' });
     }
 
     // Verificar si el email del administrador ya existe
-    const existingUser = await User.findOne({ email: adminData.email });
+    const existingUser = await User.findOne({ where: { email: adminData.email } });
     if (existingUser) {
       return res.status(400).json({ message: 'El email del administrador ya está registrado' });
     }
 
     // Crear la empresa
-    const company = new Company({
+    const company = await Company.create({
       name,
       cif: cif.toUpperCase(),
       address,
@@ -168,31 +181,27 @@ router.post('/', [
         phone: adminData.phone,
         canManageUsers: administrator?.canManageUsers !== false
       },
-      createdBy: req.user._id
+      createdBy: req.user.id
     });
 
-    await company.save();
-
     // Crear el usuario administrador
-    const adminUser = new User({
+    const adminUser = await User.create({
       firstName: adminData.firstName,
       lastName: adminData.lastName,
       email: adminData.email,
       phone: adminData.phone,
       password: adminData.password,
       role: 'company_admin',
-      company: company._id,
+      companyId: company.id,
       isActive: true,
-      createdBy: req.user._id
+      createdBy: req.user.id
     });
 
-    await adminUser.save();
-
     // Crear sucursal principal
-    const mainBranch = new Branch({
+    const mainBranch = await Branch.create({
       name: 'Sucursal Principal',
       code: 'MAIN',
-      company: company._id,
+      companyId: company.id,
       address: {
         street: address?.street || 'Por definir',
         city: address?.city || 'Por definir',
@@ -205,17 +214,19 @@ router.post('/', [
         email: contact?.email || adminData.email
       },
       isActive: true,
-      createdBy: req.user._id
+      createdBy: req.user.id
     });
 
-    await mainBranch.save();
-
     // Asignar la sucursal principal al administrador
-    adminUser.branches = [mainBranch._id];
-    await adminUser.save();
+    await adminUser.update({ branchId: mainBranch.id });
 
-    const populatedCompany = await Company.findById(company._id)
-      .populate('createdBy', 'firstName lastName email');
+    const populatedCompany = await Company.findByPk(company.id, {
+      include: [{
+        model: User,
+        as: 'creator',
+        attributes: ['firstName', 'lastName', 'email']
+      }]
+    });
 
     res.status(201).json({
       message: 'Empresa y administrador creados exitosamente',
@@ -247,13 +258,13 @@ router.put('/:id', [
       });
     }
 
-    const company = await Company.findById(req.params.id);
+    const company = await Company.findByPk(req.params.id);
     if (!company) {
       return res.status(404).json({ message: 'Empresa no encontrada' });
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && company._id.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && company.id.toString() !== req.user.companyId.toString()) {
       return res.status(403).json({ message: 'No tienes acceso a esta empresa' });
     }
 
@@ -261,7 +272,7 @@ router.put('/:id', [
 
     // Si se está actualizando el CIF, verificar que no exista
     if (cif && cif.toUpperCase() !== company.cif) {
-      const existingCompany = await Company.findOne({ cif: cif.toUpperCase() });
+      const existingCompany = await Company.findOne({ where: { cif: cif.toUpperCase() } });
       if (existingCompany) {
         return res.status(400).json({ message: 'El CIF ya está registrado' });
       }
@@ -275,11 +286,15 @@ router.put('/:id', [
     if (settings) updateData.settings = { ...company.settings, ...settings };
     if (administrator) updateData.administrator = { ...company.administrator, ...administrator };
 
-    const updatedCompany = await Company.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true }
-    ).populate('createdBy', 'name lastName email');
+    await company.update(updateData);
+    
+    const updatedCompany = await Company.findByPk(req.params.id, {
+      include: [{
+        model: User,
+        as: 'creator',
+        attributes: ['firstName', 'lastName', 'email']
+      }]
+    });
 
     res.json({
       message: 'Empresa actualizada exitosamente',
@@ -302,33 +317,32 @@ router.delete('/:id', [
   logActivity('Eliminar empresa')
 ], async (req, res) => {
   try {
-    const company = await Company.findById(req.params.id);
+    const company = await Company.findByPk(req.params.id);
     if (!company) {
       return res.status(404).json({ message: 'Empresa no encontrada' });
     }
 
     // Verificar si tiene datos dependientes
     const [branchCount, vehicleCount, userCount] = await Promise.all([
-      Branch.countDocuments({ company: company._id }),
-      Vehicle.countDocuments({ company: company._id }),
-      User.countDocuments({ company: company._id })
+      Branch.count({ where: { companyId: company.id } }),
+      Vehicle.count({ where: { companyId: company.id } }),
+      User.count({ where: { companyId: company.id } })
     ]);
 
     if (branchCount > 0 || vehicleCount > 0 || userCount > 0) {
       // Soft delete
-      company.isActive = false;
-      await company.save();
+      await company.update({ isActive: false });
       
       // Desactivar usuarios de la empresa
-      await User.updateMany(
-        { company: company._id },
-        { isActive: false }
+      await User.update(
+        { isActive: false },
+        { where: { companyId: company.id } }
       );
       
       res.json({ message: 'Empresa desactivada exitosamente' });
     } else {
       // Hard delete si no tiene datos dependientes
-      await Company.findByIdAndDelete(req.params.id);
+      await company.destroy();
       res.json({ message: 'Empresa eliminada exitosamente' });
     }
 
@@ -358,20 +372,17 @@ router.put('/:id/activate', [
 
     const { isActive } = req.body;
     
-    const company = await Company.findByIdAndUpdate(
-      req.params.id,
-      { isActive },
-      { new: true }
-    );
-
+    const company = await Company.findByPk(req.params.id);
     if (!company) {
       return res.status(404).json({ message: 'Empresa no encontrada' });
     }
 
+    await company.update({ isActive });
+
     // Activar/desactivar usuarios de la empresa
-    await User.updateMany(
-      { company: company._id },
-      { isActive }
+    await User.update(
+      { isActive },
+      { where: { companyId: company.id } }
     );
 
     res.json({
@@ -394,13 +405,13 @@ router.get('/:id/dashboard', [
   logActivity('Ver dashboard de empresa')
 ], async (req, res) => {
   try {
-    const company = await Company.findById(req.params.id);
+    const company = await Company.findByPk(req.params.id);
     if (!company) {
       return res.status(404).json({ message: 'Empresa no encontrada' });
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && company._id.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && company.id.toString() !== req.user.companyId.toString()) {
       return res.status(403).json({ message: 'No tienes acceso a esta empresa' });
     }
 
@@ -410,35 +421,45 @@ router.get('/:id/dashboard', [
     const [stats, recentMaintenances, upcomingMaintenances] = await Promise.all([
       // Estadísticas generales
       Promise.all([
-        Branch.countDocuments({ company: company._id, isActive: true }),
-        Vehicle.countDocuments({ company: company._id, isActive: true }),
-        User.countDocuments({ company: company._id, isActive: true }),
-        Maintenance.countDocuments({ company: company._id, status: 'en_proceso' }),
-        Maintenance.countDocuments({ 
-          company: company._id, 
-          scheduledDate: { $lt: new Date() },
-          status: 'programado'
+        Branch.count({ where: { companyId: company.id, isActive: true } }),
+        Vehicle.count({ where: { companyId: company.id, isActive: true } }),
+        User.count({ where: { companyId: company.id, isActive: true } }),
+        Maintenance.count({ where: { companyId: company.id, status: 'en_proceso' } }),
+        Maintenance.count({ 
+          where: { 
+            companyId: company.id, 
+            scheduledDate: { [require('sequelize').Op.lt]: new Date() },
+            status: 'programado'
+          }
         })
       ]),
       
       // Mantenimientos recientes
-      Maintenance.find({ company: company._id })
-        .populate('vehicle', 'plateNumber make model')
-        .populate('branch', 'name')
-        .populate('assignedTo', 'name lastName')
-        .sort({ createdAt: -1 })
-        .limit(5),
+      Maintenance.findAll({
+        where: { companyId: company.id },
+        include: [
+          { model: Vehicle, attributes: ['plateNumber', 'make', 'model'] },
+          { model: Branch, attributes: ['name'] },
+          { model: User, as: 'assignedTo', attributes: ['firstName', 'lastName'] }
+        ],
+        order: [['createdAt', 'DESC']],
+        limit: 5
+      }),
         
       // Próximos mantenimientos
-      Maintenance.find({ 
-        company: company._id,
-        status: 'programado',
-        scheduledDate: { $gte: new Date() }
+      Maintenance.findAll({
+        where: { 
+          companyId: company.id,
+          status: 'programado',
+          scheduledDate: { [require('sequelize').Op.gte]: new Date() }
+        },
+        include: [
+          { model: Vehicle, attributes: ['plateNumber', 'make', 'model'] },
+          { model: Branch, attributes: ['name'] }
+        ],
+        order: [['scheduledDate', 'ASC']],
+        limit: 5
       })
-        .populate('vehicle', 'plateNumber make model')
-        .populate('branch', 'name')
-        .sort({ scheduledDate: 1 })
-        .limit(5)
     ]);
 
     const [branchCount, vehicleCount, userCount, activeMaintenances, overdueMaintenances] = stats;

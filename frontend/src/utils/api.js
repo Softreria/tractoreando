@@ -34,7 +34,13 @@ api.interceptors.response.use(
       console.error('Error de red:', error.message);
     }
     
-    // No manejar errores 401 aquí - se manejan en AuthContext
+    // Manejar errores 401 (token inválido/expirado)
+    if (error.response?.status === 401) {
+      // Limpiar localStorage y recargar la página para forzar logout
+      localStorage.removeItem('token');
+      window.location.reload();
+    }
+    
     return Promise.reject(error);
   }
 );

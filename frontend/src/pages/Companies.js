@@ -215,7 +215,7 @@ const Companies = () => {
   const onSubmit = (data) => {
     const companyData = {
       name: data.name,
-      rfc: data.rfc,
+      cif: data.cif,
       address: {
         street: data['address.street'] || '',
         city: data['address.city'] || '',
@@ -229,16 +229,6 @@ const Companies = () => {
         website: data['contact.website'] || ''
       }
     };
-
-    // Solo incluir subscription si es super_admin
-    if (hasPermission('companies', 'manage_subscription')) {
-      companyData.subscription = {
-        plan: data.subscriptionPlan || 'basic',
-        maxVehicles: parseInt(data.maxVehicles) || 10,
-        maxUsers: parseInt(data.maxUsers) || 5,
-        maxBranches: parseInt(data.maxBranches) || 1
-      };
-    }
 
     // Si es una nueva empresa, incluir datos del administrador
     if (!editingCompany) {
@@ -333,9 +323,8 @@ const Companies = () => {
             <TableHead>
               <TableRow>
                 <TableCell>Empresa</TableCell>
-                <TableCell>RFC</TableCell>
+                <TableCell>CIF</TableCell>
                 <TableCell>Contacto</TableCell>
-                <TableCell>Plan</TableCell>
                 <TableCell>Estadísticas</TableCell>
                 <TableCell>Estado</TableCell>
                 <TableCell align="center">Acciones</TableCell>
@@ -361,7 +350,7 @@ const Companies = () => {
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2" fontFamily="monospace">
-                      {company.rfc}
+                      {company.cif}
                     </Typography>
                   </TableCell>
                   <TableCell>
@@ -376,19 +365,7 @@ const Companies = () => {
                       </Typography>
                     </Box>
                   </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={
-                        company.subscriptionPlan === 'basic' ? 'Básico' :
-                        company.subscriptionPlan === 'premium' ? 'Premium' : 'Enterprise'
-                      }
-                      color={
-                        company.subscriptionPlan === 'basic' ? 'default' :
-                        company.subscriptionPlan === 'premium' ? 'primary' : 'secondary'
-                      }
-                      size="small"
-                    />
-                  </TableCell>
+
                   <TableCell>
                     <Box sx={{ display: 'flex', gap: 1 }}>
                       <Tooltip title="Delegaciones">
@@ -586,23 +563,6 @@ const Companies = () => {
                   {...register('contact.website')}
                 />
               </Grid>
-              <Grid item xs={12} md={6}>
-                <Controller
-                  name="subscriptionPlan"
-                  control={control}
-                  rules={{ required: 'El plan es requerido' }}
-                  render={({ field }) => (
-                    <FormControl fullWidth error={!!errors.subscriptionPlan}>
-                      <InputLabel>Plan de Suscripción</InputLabel>
-                      <Select {...field} label="Plan de Suscripción">
-                        <MenuItem value="basic">Básico</MenuItem>
-                        <MenuItem value="premium">Premium</MenuItem>
-                        <MenuItem value="enterprise">Enterprise</MenuItem>
-                      </Select>
-                    </FormControl>
-                  )}
-                />
-              </Grid>
               
               {/* Datos del Administrador - Solo para nuevas empresas */}
               {!editingCompany && (
@@ -714,42 +674,7 @@ const Companies = () => {
                 </>
               )}
 
-              {/* Límites */}
-              <Grid item xs={12}>
-                <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-                  Límites de la Suscripción
-                </Typography>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <TextField
-                  fullWidth
-                  label="Máximo Vehículos"
-                  type="number"
-                  {...register('maxVehicles', { required: 'Requerido', min: 1 })}
-                  error={!!errors.maxVehicles}
-                  helperText={errors.maxVehicles?.message}
-                />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <TextField
-                  fullWidth
-                  label="Máximo Usuarios"
-                  type="number"
-                  {...register('maxUsers', { required: 'Requerido', min: 1 })}
-                  error={!!errors.maxUsers}
-                  helperText={errors.maxUsers?.message}
-                />
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <TextField
-                  fullWidth
-                  label="Máximo Delegaciones"
-                  type="number"
-                  {...register('maxBranches', { required: 'Requerido', min: 1 })}
-                  error={!!errors.maxBranches}
-                  helperText={errors.maxBranches?.message}
-                />
-              </Grid>
+
             </Grid>
           </DialogContent>
           <DialogActions>
