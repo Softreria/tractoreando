@@ -94,7 +94,7 @@ const createAdminUser = async () => {
         notifications: { email: true, push: true, sms: false },
         dashboard: { defaultView: 'overview', itemsPerPage: 10 }
       },
-      isActive: 1, // Usar 1 en lugar de true para INTEGER
+      isActive: true,
       loginAttempts: 0
     });
     

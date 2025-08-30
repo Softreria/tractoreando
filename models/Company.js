@@ -58,10 +58,12 @@ Company.init({
     },
     validate: {
       isValidAddress(value) {
-        if (value && typeof value !== 'object') {
+        // Parse JSON string if needed
+        const parsedValue = typeof value === 'string' ? JSON.parse(value) : value;
+        if (parsedValue && typeof parsedValue !== 'object') {
           throw new Error('Address must be an object');
         }
-        if (value && value.additionalInfo && value.additionalInfo.length > 200) {
+        if (parsedValue && parsedValue.additionalInfo && parsedValue.additionalInfo.length > 200) {
           throw new Error('Additional info cannot exceed 200 characters');
         }
       }
@@ -80,10 +82,12 @@ Company.init({
     },
     validate: {
       isValidContact(value) {
-        if (value && typeof value !== 'object') {
+        // Parse JSON string if needed
+        const parsedValue = typeof value === 'string' ? JSON.parse(value) : value;
+        if (parsedValue && typeof parsedValue !== 'object') {
           throw new Error('Contact must be an object');
         }
-        if (value && value.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email)) {
+        if (parsedValue && parsedValue.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parsedValue.email)) {
           throw new Error('Invalid email format in contact');
         }
       }
@@ -92,7 +96,7 @@ Company.init({
       if (value && value.email) {
         value.email = value.email.toLowerCase().trim();
       }
-      this.setDataValue('contact', value);
+      this.setDataValue('contact', JSON.stringify(value));
     }
   },
   logo: {
@@ -126,7 +130,9 @@ Company.init({
     },
     validate: {
       isValidSettings(value) {
-        if (value && typeof value !== 'object') {
+        // Parse JSON string if needed
+        const parsedValue = typeof value === 'string' ? JSON.parse(value) : value;
+        if (parsedValue && typeof parsedValue !== 'object') {
           throw new Error('Settings must be an object');
         }
       }
@@ -148,16 +154,18 @@ Company.init({
     },
     validate: {
       isValidAdministrator(value) {
-        if (value && typeof value !== 'object') {
+        // Parse JSON string if needed
+        const parsedValue = typeof value === 'string' ? JSON.parse(value) : value;
+        if (parsedValue && typeof parsedValue !== 'object') {
           throw new Error('Administrator must be an object');
         }
-        if (value && value.firstName && value.firstName.length > 50) {
+        if (parsedValue && parsedValue.firstName && parsedValue.firstName.length > 50) {
           throw new Error('Administrator firstName cannot exceed 50 characters');
         }
-        if (value && value.lastName && value.lastName.length > 50) {
+        if (parsedValue && parsedValue.lastName && parsedValue.lastName.length > 50) {
           throw new Error('Administrator lastName cannot exceed 50 characters');
         }
-        if (value && value.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email)) {
+        if (parsedValue && parsedValue.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parsedValue.email)) {
           throw new Error('Invalid email format in administrator');
         }
       }
@@ -175,12 +183,12 @@ Company.init({
       if (value && value.phone) {
         value.phone = value.phone.trim();
       }
-      this.setDataValue('administrator', value);
+      this.setDataValue('administrator', JSON.stringify(value));
     }
   },
   isActive: {
-    type: DataTypes.INTEGER,
-    defaultValue: 1
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
   },
   createdById: {
     type: DataTypes.STRING,

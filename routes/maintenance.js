@@ -31,7 +31,7 @@ router.get('/', [
       company 
     } = req.query;
     
-    const query = { company: company || req.user.company._id };
+    const query = { company: company || req.user.companyId };
     
     if (search) {
       query.$or = [
@@ -126,7 +126,7 @@ router.get('/:id', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && maintenance.company._id.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && maintenance.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a este mantenimiento' });
     }
 
@@ -181,7 +181,7 @@ router.post('/', [
       branch
     } = req.body;
 
-    const companyId = req.body.company || req.user.company._id;
+    const companyId = req.body.company || req.user.companyId;
 
     // Verificar que el vehículo existe y pertenece a la empresa
     const vehicleDoc = await Vehicle.findOne({ _id: vehicle, company: companyId });
@@ -261,7 +261,7 @@ router.put('/:id', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && maintenance.company.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && maintenance.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a este mantenimiento' });
     }
 
@@ -339,7 +339,7 @@ router.put('/:id/status', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && maintenance.company.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && maintenance.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a este mantenimiento' });
     }
 
@@ -417,7 +417,7 @@ router.post('/:id/time', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && maintenance.company.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && maintenance.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a este mantenimiento' });
     }
 
@@ -471,7 +471,7 @@ router.post('/:id/services/:serviceId/complete', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && maintenance.company.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && maintenance.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a este mantenimiento' });
     }
 
@@ -515,7 +515,7 @@ router.post('/:id/parts/:partId/install', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && maintenance.company.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && maintenance.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a este mantenimiento' });
     }
 
@@ -548,7 +548,7 @@ router.delete('/:id', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && maintenance.company.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && maintenance.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a este mantenimiento' });
     }
 
@@ -576,7 +576,7 @@ router.get('/stats/summary', [
 ], async (req, res) => {
   try {
     const { company, branch, dateFrom, dateTo } = req.query;
-    const companyId = company || req.user.company._id;
+    const companyId = company || req.user.companyId;
     
     const matchQuery = { company: companyId };
     
@@ -674,7 +674,7 @@ router.get('/calendar/events', [
 ], async (req, res) => {
   try {
     const { start, end, branch, company } = req.query;
-    const companyId = company || req.user.company._id;
+    const companyId = company || req.user.companyId;
     
     const query = { 
       company: companyId,

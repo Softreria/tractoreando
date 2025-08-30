@@ -68,6 +68,7 @@ const Companies = () => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [showAdminConfirmPassword, setShowAdminConfirmPassword] = useState(false);
   
@@ -103,7 +104,7 @@ const Companies = () => {
   const saveCompanyMutation = useMutation({
     mutationFn: async (data) => {
       if (editingCompany) {
-        return api.put(`/companies/${editingCompany._id}`, data);
+        return api.put(`/companies/${editingCompany.id}`, data);
       } else {
         return api.post('/companies', data);
       }
@@ -136,7 +137,7 @@ const Companies = () => {
   // Mutación para cambiar estado
   const toggleStatusMutation = useMutation({
     mutationFn: async ({ id, isActive }) => {
-      return api.patch(`/companies/${id}/status`, { isActive });
+      return api.put(`/companies/${id}/activate`, { isActive });
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['companies']);
@@ -148,30 +149,41 @@ const Companies = () => {
   });
 
   const handleOpenDialog = (company = null) => {
+    // Ensure details dialog is closed
+    setDetailsDialogOpen(false);
     setEditingCompany(company);
+    
+    // Limpiar errores previos
+    reset();
+    
     if (company) {
-      reset({
-        name: company.name,
-        cif: company.cif,
-        'address.street': company.address?.street || '',
-        'address.city': company.address?.city || '',
-        'address.state': company.address?.state || '',
-        'address.zipCode': company.address?.zipCode || '',
-        'address.country': company.address?.country || 'España',
-        'contact.phone': company.contact?.phone || '',
-        'contact.email': company.contact?.email || '',
-        'contact.website': company.contact?.website || '',
-        maxUsers: company.settings?.subscription?.maxUsers || 10,
-        maxVehicles: company.settings?.subscription?.maxVehicles || 25,
-        maxBranches: company.settings?.subscription?.maxBranches || 5
-      });
+      // Usar setTimeout para asegurar que el reset se complete antes de establecer nuevos valores
+      setTimeout(() => {
+        reset({
+          name: company.name,
+          cif: company.cif,
+          'address.street': company.address?.street || '',
+          'address.city': company.address?.city || '',
+          'address.state': company.address?.state || '',
+          'address.zipCode': company.address?.zipCode || '',
+          'address.country': company.address?.country || 'España',
+          'contact.phone': company.contact?.phone || '',
+          'contact.email': company.contact?.email || '',
+          'contact.website': company.contact?.website || '',
+          maxUsers: company.settings?.subscription?.maxUsers || 10,
+          maxVehicles: company.settings?.subscription?.maxVehicles || 25,
+          maxBranches: company.settings?.subscription?.maxBranches || 5
+        });
+      }, 50);
     } else {
-      reset({
-        'address.country': 'España',
-        maxUsers: 10,
-        maxVehicles: 25,
-        maxBranches: 5
-      });
+      setTimeout(() => {
+        reset({
+          'address.country': 'España',
+          maxUsers: 10,
+          maxVehicles: 25,
+          maxBranches: 5
+        });
+      }, 50);
     }
     setOpenDialog(true);
   };
@@ -194,18 +206,30 @@ const Companies = () => {
 
   const handleDelete = () => {
     setDeleteDialogOpen(true);
+    setAnchorEl(null);
+  };
+
+  const handleViewDetails = () => {
+    // Ensure edit dialog is closed
+    setOpenDialog(false);
+    setDetailsDialogOpen(true);
     handleMenuClose();
+  };
+
+  const handleCloseDetailsDialog = () => {
+    setDetailsDialogOpen(false);
+    setSelectedCompany(null);
   };
 
   const confirmDelete = () => {
     if (selectedCompany) {
-      deleteCompanyMutation.mutate(selectedCompany._id);
+      deleteCompanyMutation.mutate(selectedCompany.id);
     }
   };
 
   const handleToggleStatus = (company) => {
     toggleStatusMutation.mutate({
-      id: company._id,
+      id: company.id,
       isActive: !company.isActive
     });
   };
@@ -337,7 +361,7 @@ const Companies = () => {
             </TableHead>
             <TableBody>
               {filteredCompanies.map((company) => (
-                <TableRow key={company._id} hover>
+                <TableRow key={company.id} hover>
                   <TableCell>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                       <Avatar sx={{ mr: 2, bgcolor: 'primary.main' }}>
@@ -348,7 +372,12 @@ const Companies = () => {
                           {company.name}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {company.address}
+                          {company.address ? 
+                            [company.address.street, company.address.city, company.address.state]
+                              .filter(Boolean)
+                              .join(', ') || 'Sin dirección'
+                            : 'Sin dirección'
+                          }
                         </Typography>
                       </Box>
                     </Box>
@@ -445,7 +474,7 @@ const Companies = () => {
         onClose={handleMenuClose}
       >
         {hasPermission('companies', 'read') && (
-          <MenuItem onClick={() => { /* Ver detalles */ handleMenuClose(); }}>
+          <MenuItem onClick={handleViewDetails}>
             <ListItemIcon>
               <Visibility fontSize="small" />
             </ListItemIcon>
@@ -472,7 +501,7 @@ const Companies = () => {
       </Menu>
 
       {/* Dialog de crear/editar empresa */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
+      <Dialog key="edit-dialog" open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
         <form onSubmit={handleSubmit(onSubmit)}>
           <DialogTitle>
             {editingCompany ? 'Editar Empresa' : 'Nueva Empresa'}
@@ -765,6 +794,186 @@ const Companies = () => {
           >
             {deleteCompanyMutation.isPending ? 'Eliminando...' : 'Eliminar'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog de detalles de empresa */}
+      <Dialog key="details-dialog" open={detailsDialogOpen} onClose={handleCloseDetailsDialog} maxWidth="md" fullWidth>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Business color="primary" />
+            <Typography variant="h6">
+              Detalles de {selectedCompany?.name}
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {selectedCompany && (
+            <Grid container spacing={3} sx={{ mt: 1 }}>
+              {/* Información básica */}
+              <Grid item xs={12} md={6}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom color="primary">
+                      Información Básica
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">Nombre:</Typography>
+                        <Typography variant="body1" fontWeight="medium">{selectedCompany.name}</Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">CIF:</Typography>
+                        <Typography variant="body1" fontFamily="monospace">{selectedCompany.cif}</Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">Estado:</Typography>
+                        <Chip 
+                          label={selectedCompany.isActive ? 'Activa' : 'Inactiva'}
+                          color={selectedCompany.isActive ? 'success' : 'error'}
+                          size="small"
+                        />
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Información de contacto */}
+              <Grid item xs={12} md={6}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom color="primary">
+                      Contacto
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Phone fontSize="small" color="action" />
+                        <Typography variant="body2">{selectedCompany.contact?.phone || 'No especificado'}</Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Email fontSize="small" color="action" />
+                        <Typography variant="body2">{selectedCompany.contact?.email || 'No especificado'}</Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <LocationOn fontSize="small" color="action" />
+                        <Typography variant="body2">
+                          {selectedCompany.address ? 
+                            [selectedCompany.address.street, selectedCompany.address.city, selectedCompany.address.state]
+                              .filter(Boolean)
+                              .join(', ') || 'No especificada'
+                            : 'No especificada'
+                          }
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Estadísticas */}
+              <Grid item xs={12}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom color="primary">
+                      Estadísticas
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={4}>
+                        <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'primary.50', borderRadius: 1 }}>
+                          <Store sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
+                          <Typography variant="h4" color="primary.main" fontWeight="bold">
+                            {selectedCompany.branchCount || 0}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Delegaciones
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'success.50', borderRadius: 1 }}>
+                          <DirectionsCar sx={{ fontSize: 40, color: 'success.main', mb: 1 }} />
+                          <Typography variant="h4" color="success.main" fontWeight="bold">
+                            {selectedCompany.vehicleCount || 0}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Vehículos
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'info.50', borderRadius: 1 }}>
+                          <People sx={{ fontSize: 40, color: 'info.main', mb: 1 }} />
+                          <Typography variant="h4" color="info.main" fontWeight="bold">
+                            {selectedCompany.userCount || 0}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Usuarios
+                          </Typography>
+                        </Box>
+                      </Grid>
+                    </Grid>
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* Configuración de suscripción */}
+              {selectedCompany.settings?.subscription && (
+                <Grid item xs={12}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom color="primary">
+                        Límites de Suscripción
+                      </Typography>
+                      <Grid container spacing={2}>
+                        <Grid item xs={12} sm={4}>
+                          <Box sx={{ textAlign: 'center' }}>
+                            <Typography variant="body2" color="text.secondary">Máximo Usuarios</Typography>
+                            <Typography variant="h6" color="primary">
+                              {selectedCompany.settings.subscription.maxUsers || 'Ilimitado'}
+                            </Typography>
+                          </Box>
+                        </Grid>
+                        <Grid item xs={12} sm={4}>
+                          <Box sx={{ textAlign: 'center' }}>
+                            <Typography variant="body2" color="text.secondary">Máximo Vehículos</Typography>
+                            <Typography variant="h6" color="primary">
+                              {selectedCompany.settings.subscription.maxVehicles || 'Ilimitado'}
+                            </Typography>
+                          </Box>
+                        </Grid>
+                        <Grid item xs={12} sm={4}>
+                          <Box sx={{ textAlign: 'center' }}>
+                            <Typography variant="body2" color="text.secondary">Máximo Delegaciones</Typography>
+                            <Typography variant="h6" color="primary">
+                              {selectedCompany.settings.subscription.maxBranches || 'Ilimitado'}
+                            </Typography>
+                          </Box>
+                        </Grid>
+                      </Grid>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              )}
+            </Grid>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDetailsDialog}>Cerrar</Button>
+          {hasPermission('companies', 'update') && (
+            <Button 
+              variant="contained" 
+              onClick={() => {
+                const companyToEdit = selectedCompany;
+                handleCloseDetailsDialog();
+                setTimeout(() => {
+                  handleOpenDialog(companyToEdit);
+                }, 100);
+              }}
+            >
+              Editar
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
     </Box>

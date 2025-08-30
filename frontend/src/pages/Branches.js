@@ -111,7 +111,7 @@ const Branches = () => {
   const saveBranchMutation = useMutation({
     mutationFn: async (data) => {
       if (editingBranch) {
-        return api.put(`/branches/${editingBranch._id}`, data);
+        return api.put(`/branches/${editingBranch.id}`, data);
       } else {
         return api.post('/branches', data);
       }
@@ -161,7 +161,7 @@ const Branches = () => {
       reset({
         name: branch.name,
         code: branch.code,
-        company: branch.company._id,
+        company: branch.company.id,
         address: {
           street: branch.address?.street || '',
           city: branch.address?.city || '',
@@ -187,7 +187,7 @@ const Branches = () => {
       });
     } else {
       reset({
-        company: hasRole('super_admin') ? '' : user.company._id,
+        company: hasRole('super_admin') ? '' : user.company.id,
         address: {
           street: '',
           city: '',
@@ -233,18 +233,18 @@ const Branches = () => {
 
   const handleDelete = () => {
     setDeleteDialogOpen(true);
-    handleMenuClose();
+    setAnchorEl(null);
   };
 
   const confirmDelete = () => {
     if (selectedBranch) {
-      deleteBranchMutation.mutate(selectedBranch._id);
+      deleteBranchMutation.mutate(selectedBranch.id);
     }
   };
 
   const handleToggleStatus = (branch) => {
     toggleStatusMutation.mutate({
-      id: branch._id,
+      id: branch.id,
       isActive: !branch.isActive
     });
   };
@@ -348,7 +348,7 @@ const Branches = () => {
                   >
                     <MenuItem value="">Todas</MenuItem>
                     {companiesData?.map((company) => (
-                      <MenuItem key={company._id} value={company._id}>
+                      <MenuItem key={company.id} value={company.id}>
                         {company.name}
                       </MenuItem>
                     ))}
@@ -400,7 +400,7 @@ const Branches = () => {
             </TableHead>
             <TableBody>
               {filteredBranches.map((branch) => (
-                <TableRow key={branch._id} hover>
+                <TableRow key={branch.id} hover>
                   <TableCell>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                       <Avatar sx={{ mr: 2, bgcolor: 'secondary.main' }}>
@@ -593,7 +593,7 @@ const Branches = () => {
                         <InputLabel>Empresa</InputLabel>
                         <Select {...field} label="Empresa">
                           {companiesData?.map((company) => (
-                            <MenuItem key={company._id} value={company._id}>
+                            <MenuItem key={company.id} value={company.id}>
                               {company.name}
                             </MenuItem>
                           ))}

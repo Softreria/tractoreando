@@ -9,11 +9,11 @@ const { auth, authorize, checkPermission, logActivity } = require('../middleware
 const router = express.Router();
 
 // @route   GET /api/companies
-// @desc    Obtener todas las empresas (solo super_admin)
+// @desc    Obtener empresas (super_admin ve todas, otros ven solo la suya)
 // @access  Private
 router.get('/', [
   auth,
-  authorize('super_admin'),
+  checkPermission('companies', 'read'),
   logActivity('Listar empresas')
 ], async (req, res) => {
   try {
@@ -21,6 +21,11 @@ router.get('/', [
     
     const { Op } = require('sequelize');
     const whereClause = {};
+    
+    // Si no es super_admin, solo puede ver su propia empresa
+    if (req.user.role !== 'super_admin') {
+      whereClause.id = req.user.companyId;
+    }
     
     if (search) {
       whereClause[Op.or] = [
@@ -36,7 +41,7 @@ router.get('/', [
       where: whereClause,
       include: [{
         model: User,
-        as: 'creator',
+        as: 'createdBy',
         attributes: ['firstName', 'lastName', 'email']
       }],
       order: [['createdAt', 'DESC']],

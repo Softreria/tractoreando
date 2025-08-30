@@ -1,6 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const Branch = require('../models/Branch');
+const Company = require('../models/Company');
 const Vehicle = require('../models/Vehicle');
 const User = require('../models/User');
 const { auth, checkPermission, checkCompanyAccess, logActivity } = require('../middleware/auth');
@@ -19,7 +20,7 @@ router.get('/', [
   try {
     const { page = 1, limit = 10, search, status, company } = req.query;
     
-    const query = { company: company || req.user.company._id };
+    const query = { company: company || req.user.companyId };
     
     if (search) {
       query.$or = [
@@ -35,17 +36,21 @@ router.get('/', [
 
     // Filtrar por delegaciones del usuario si no es admin
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      query._id = { $in: req.user.branches };
+      query.id = req.user.branches;
     }
 
-    const branches = await Branch.find(query)
-      .populate('company', 'name')
-      .populate('createdBy', 'name lastName')
-      .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
+    const branches = await Branch.findAll({
+      where: query,
+      include: [
+        { model: Company, as: 'company', attributes: ['name'] },
+        { model: User, as: 'createdBy', attributes: ['name', 'lastName'] }
+      ],
+      order: [['createdAt', 'DESC']],
+      limit: limit * 1,
+      offset: (page - 1) * limit
+    });
 
-    const total = await Branch.countDocuments(query);
+    const total = await Branch.count({ where: query });
 
     // Agregar estadísticas para cada delegación
     const branchesWithStats = await Promise.all(
@@ -103,7 +108,7 @@ router.get('/:id', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && branch.company._id.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && branch.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a esta sucursal' });
     }
 
@@ -166,7 +171,7 @@ router.post('/', [
     }
 
     const { name, code, address, contact, operatingHours } = req.body;
-    const companyId = req.body.company || req.user.company._id;
+    const companyId = req.body.company || req.user.companyId;
 
     // Verificar que el código no exista en la empresa
     const existingBranch = await Branch.findOne({ 
@@ -230,7 +235,7 @@ router.put('/:id', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && branch.company.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && branch.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a esta sucursal' });
     }
 
@@ -290,7 +295,7 @@ router.delete('/:id', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && branch.company.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && branch.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a esta sucursal' });
     }
 
@@ -344,7 +349,7 @@ router.put('/:id/activate', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && branch.company.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && branch.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a esta sucursal' });
     }
 
@@ -377,7 +382,7 @@ router.get('/:id/dashboard', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && branch.company.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && branch.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a esta sucursal' });
     }
 
@@ -463,7 +468,7 @@ router.get('/:id/vehicles', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && branch.company.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && branch.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a esta sucursal' });
     }
 

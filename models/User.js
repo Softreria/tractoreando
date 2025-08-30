@@ -73,7 +73,8 @@ class User extends Model {
           vehicles: { create: true, read: true, update: true, delete: true },
           maintenance: { create: true, read: true, update: true, delete: true },
           users: { create: true, read: true, update: true, delete: true },
-          reports: { read: true, export: true }
+          reports: { read: true, export: true },
+          settings: { read: true, write: true, delete: true, backup: true, restore: true }
         };
         if (!this.vehicleTypeAccess || this.vehicleTypeAccess.length === 0) {
           this.vehicleTypeAccess = allVehicleTypes;
@@ -86,7 +87,8 @@ class User extends Model {
           vehicles: { create: true, read: true, update: true, delete: true },
           maintenance: { create: true, read: true, update: true, delete: true },
           users: { create: true, read: true, update: true, delete: true },
-          reports: { read: true, export: true }
+          reports: { read: true, export: true },
+          settings: { read: true, write: true, delete: false, backup: true, restore: false }
         };
         if (!this.vehicleTypeAccess || this.vehicleTypeAccess.length === 0) {
           this.vehicleTypeAccess = allVehicleTypes;
@@ -99,7 +101,8 @@ class User extends Model {
           vehicles: { create: true, read: true, update: true, delete: false },
           maintenance: { create: true, read: true, update: true, delete: false },
           users: { create: true, read: true, update: true, delete: false },
-          reports: { read: true, export: true }
+          reports: { read: true, export: true },
+          settings: { read: true, write: false, delete: false, backup: false, restore: false }
         };
         if (!this.vehicleTypeAccess || this.vehicleTypeAccess.length === 0) {
           this.vehicleTypeAccess = ['Coche', 'Motocicleta', 'Furgoneta', 'Camión'];
@@ -112,7 +115,8 @@ class User extends Model {
           vehicles: { create: false, read: true, update: true, delete: false },
           maintenance: { create: true, read: true, update: true, delete: false },
           users: { create: false, read: false, update: false, delete: false },
-          reports: { read: true, export: false }
+          reports: { read: true, export: false },
+          settings: { read: false, write: false, delete: false, backup: false, restore: false }
         };
         if (!this.vehicleTypeAccess || this.vehicleTypeAccess.length === 0) {
           this.vehicleTypeAccess = ['Coche', 'Motocicleta', 'Furgoneta'];
@@ -126,7 +130,8 @@ class User extends Model {
           vehicles: { create: false, read: true, update: false, delete: false },
           maintenance: { create: false, read: true, update: false, delete: false },
           users: { create: false, read: false, update: false, delete: false },
-          reports: { read: true, export: false }
+          reports: { read: true, export: false },
+          settings: { read: false, write: false, delete: false, backup: false, restore: false }
         };
         if (!this.vehicleTypeAccess || this.vehicleTypeAccess.length === 0) {
           this.vehicleTypeAccess = ['Coche', 'Motocicleta'];
@@ -260,7 +265,8 @@ User.init({
       vehicles: { create: false, read: true, update: false, delete: false },
       maintenance: { create: false, read: true, update: false, delete: false },
       users: { create: false, read: false, update: false, delete: false },
-      reports: { read: true, export: false }
+      reports: { read: true, export: false },
+      settings: { read: false, write: false, delete: false, backup: false, restore: false }
     }),
     get() {
       const value = this.getDataValue('permissions');
@@ -306,8 +312,8 @@ User.init({
     allowNull: true
   },
   isActive: {
-    type: DataTypes.INTEGER,
-    defaultValue: 1
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
   },
   createdById: {
     type: DataTypes.STRING,

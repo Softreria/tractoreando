@@ -20,7 +20,7 @@ router.get('/dashboard', [
 ], async (req, res) => {
   try {
     const { company, branch, period = '30' } = req.query;
-    const companyId = company || req.user.company.id;
+    const companyId = company || req.user.companyId;
     
     const dateFrom = moment().subtract(parseInt(period), 'days').startOf('day').toDate();
     const dateTo = moment().endOf('day').toDate();
@@ -88,7 +88,7 @@ router.get('/vehicles', [
     } = req.query;
     
     const { Op } = require('sequelize');
-    const companyId = company || req.user.company.id;
+    const companyId = company || req.user.companyId;
     const query = { companyId: companyId };
     
     if (branch) query.branchId = branch;
@@ -200,7 +200,7 @@ router.get('/maintenance', [
       format = 'json'
     } = req.query;
     
-    const companyId = company || req.user.company._id;
+    const companyId = company || req.user.companyId;
     const query = { company: companyId };
     
     if (branch) query.branch = branch;
@@ -278,7 +278,7 @@ router.get('/costs', [
       format = 'json'
     } = req.query;
     
-    const companyId = company || req.user.company._id;
+    const companyId = company || req.user.companyId;
     const query = { 
       company: companyId,
       status: 'completado'
@@ -418,7 +418,7 @@ router.get('/performance', [
       format = 'json'
     } = req.query;
     
-    const companyId = company || req.user.company._id;
+    const companyId = company || req.user.companyId;
     const baseQuery = { company: companyId };
     
     if (branch) baseQuery.branch = branch;
@@ -563,6 +563,270 @@ router.get('/performance', [
 
   } catch (error) {
     console.error('Error generando reporte de rendimiento:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+});
+
+// @route   GET /api/reports/vehicles/export
+// @desc    Exportar reporte de vehículos
+// @access  Private
+router.get('/vehicles/export', [
+  auth,
+  checkPermission('reports', 'export'),
+  logActivity('Exportar reporte de vehículos')
+], async (req, res) => {
+  try {
+    const { format = 'csv', branch, vehicle, status, vehicleType, condition } = req.query;
+    const companyId = req.user.companyId;
+    
+    const baseQuery = { companyId };
+    
+    if (branch) baseQuery.branchId = branch;
+    if (status) baseQuery.status = status;
+    if (vehicleType) baseQuery.vehicleType = vehicleType;
+    if (condition) baseQuery.condition = condition;
+    
+    // Filtrar por sucursales del usuario si no es admin
+    if (!['super_admin', 'company_admin'].includes(req.user.role)) {
+      baseQuery.branchId = req.user.branchId;
+    }
+    
+    const vehicles = await Vehicle.findAll({
+      where: baseQuery,
+      include: [
+        { model: Branch, as: 'branch', attributes: ['name'] }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+    
+    const exportData = vehicles.map(vehicle => ({
+      'Placa': vehicle.licensePlate,
+      'Marca': vehicle.brand,
+      'Modelo': vehicle.model,
+      'Año': vehicle.year,
+      'Tipo': vehicle.vehicleType,
+      'Estado': vehicle.status,
+      'Condición': vehicle.condition,
+      'Kilometraje': vehicle.mileage,
+      'Sucursal': vehicle.branch?.name || 'N/A',
+      'Fecha Registro': moment(vehicle.createdAt).format('DD/MM/YYYY')
+    }));
+    
+    if (format === 'csv') {
+      generateCSVResponse(res, exportData, 'reporte-vehiculos');
+    } else if (format === 'pdf') {
+      await generatePDFResponse(res, exportData, 'Reporte de Vehículos', 'reporte-vehiculos');
+    } else {
+      res.status(400).json({ message: 'Formato no soportado' });
+    }
+    
+  } catch (error) {
+    console.error('Error exportando reporte de vehículos:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+});
+
+// @route   GET /api/reports/maintenance/export
+// @desc    Exportar reporte de mantenimientos
+// @access  Private
+router.get('/maintenance/export', [
+  auth,
+  checkPermission('reports', 'export'),
+  logActivity('Exportar reporte de mantenimientos')
+], async (req, res) => {
+  try {
+    const { format = 'csv', startDate, endDate, branch, vehicle, type, priority, status } = req.query;
+    const companyId = req.user.companyId;
+    
+    const baseQuery = { companyId };
+    
+    if (branch) baseQuery.branchId = branch;
+    if (vehicle) baseQuery.vehicleId = vehicle;
+    if (type) baseQuery.type = type;
+    if (priority) baseQuery.priority = priority;
+    if (status) baseQuery.status = status;
+    
+    if (startDate && endDate) {
+      baseQuery.scheduledDate = {
+        [require('sequelize').Op.between]: [new Date(startDate), new Date(endDate)]
+      };
+    }
+    
+    // Filtrar por sucursales del usuario si no es admin
+    if (!['super_admin', 'company_admin'].includes(req.user.role)) {
+      baseQuery.branchId = req.user.branchId;
+    }
+    
+    const maintenances = await Maintenance.findAll({
+      where: baseQuery,
+      include: [
+        { model: Vehicle, as: 'vehicle', attributes: ['licensePlate', 'brand', 'model'] },
+        { model: Branch, as: 'branch', attributes: ['name'] },
+        { model: User, as: 'assignedMechanic', attributes: ['firstName', 'lastName'] }
+      ],
+      order: [['scheduledDate', 'DESC']]
+    });
+    
+    const exportData = maintenances.map(maintenance => ({
+      'ID': maintenance.id,
+      'Vehículo': `${maintenance.vehicle?.brand} ${maintenance.vehicle?.model} (${maintenance.vehicle?.licensePlate})`,
+      'Tipo': maintenance.type,
+      'Prioridad': maintenance.priority,
+      'Estado': maintenance.status,
+      'Fecha Programada': moment(maintenance.scheduledDate).format('DD/MM/YYYY'),
+      'Fecha Completado': maintenance.completedDate ? moment(maintenance.completedDate).format('DD/MM/YYYY') : 'N/A',
+      'Mecánico': maintenance.assignedMechanic ? `${maintenance.assignedMechanic.firstName} ${maintenance.assignedMechanic.lastName}` : 'N/A',
+      'Costo Total': maintenance.totalCost || 0,
+      'Sucursal': maintenance.branch?.name || 'N/A'
+    }));
+    
+    if (format === 'csv') {
+      generateCSVResponse(res, exportData, 'reporte-mantenimientos');
+    } else if (format === 'pdf') {
+      await generatePDFResponse(res, exportData, 'Reporte de Mantenimientos', 'reporte-mantenimientos');
+    } else {
+      res.status(400).json({ message: 'Formato no soportado' });
+    }
+    
+  } catch (error) {
+    console.error('Error exportando reporte de mantenimientos:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+});
+
+// @route   GET /api/reports/costs/export
+// @desc    Exportar reporte de costos
+// @access  Private
+router.get('/costs/export', [
+  auth,
+  checkPermission('reports', 'export'),
+  logActivity('Exportar reporte de costos')
+], async (req, res) => {
+  try {
+    const { format = 'csv', startDate, endDate, branch, vehicle, groupBy = 'month' } = req.query;
+    const companyId = req.user.companyId;
+    
+    const dateFrom = startDate ? new Date(startDate) : moment().subtract(12, 'months').startOf('month').toDate();
+    const dateTo = endDate ? new Date(endDate) : moment().endOf('month').toDate();
+    
+    const baseQuery = {
+      companyId,
+      completedDate: {
+        [require('sequelize').Op.between]: [dateFrom, dateTo]
+      },
+      status: 'completado'
+    };
+    
+    if (branch) baseQuery.branchId = branch;
+    if (vehicle) baseQuery.vehicleId = vehicle;
+    
+    // Filtrar por sucursales del usuario si no es admin
+    if (!['super_admin', 'company_admin'].includes(req.user.role)) {
+      baseQuery.branchId = req.user.branchId;
+    }
+    
+    const maintenances = await Maintenance.findAll({
+      where: baseQuery,
+      include: [
+        { model: Vehicle, as: 'vehicle', attributes: ['licensePlate', 'brand', 'model'] },
+        { model: Branch, as: 'branch', attributes: ['name'] }
+      ],
+      order: [['completedDate', 'DESC']]
+    });
+    
+    const exportData = maintenances.map(maintenance => ({
+      'Fecha': moment(maintenance.completedDate).format('DD/MM/YYYY'),
+      'Vehículo': `${maintenance.vehicle?.brand} ${maintenance.vehicle?.model} (${maintenance.vehicle?.licensePlate})`,
+      'Tipo Mantenimiento': maintenance.type,
+      'Descripción': maintenance.description,
+      'Costo Mano de Obra': maintenance.laborCost || 0,
+      'Costo Repuestos': maintenance.partsCost || 0,
+      'Costo Total': maintenance.totalCost || 0,
+      'Sucursal': maintenance.branch?.name || 'N/A'
+    }));
+    
+    if (format === 'csv') {
+      generateCSVResponse(res, exportData, 'reporte-costos');
+    } else if (format === 'pdf') {
+      await generatePDFResponse(res, exportData, 'Reporte de Costos', 'reporte-costos');
+    } else {
+      res.status(400).json({ message: 'Formato no soportado' });
+    }
+    
+  } catch (error) {
+    console.error('Error exportando reporte de costos:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+});
+
+// @route   GET /api/reports/performance/export
+// @desc    Exportar reporte de rendimiento
+// @access  Private
+router.get('/performance/export', [
+  auth,
+  checkPermission('reports', 'export'),
+  logActivity('Exportar reporte de rendimiento')
+], async (req, res) => {
+  try {
+    const { format = 'csv', startDate, endDate, branch, mechanic, groupBy = 'month' } = req.query;
+    const companyId = req.user.companyId;
+    
+    const dateFrom = startDate ? new Date(startDate) : moment().subtract(6, 'months').startOf('month').toDate();
+    const dateTo = endDate ? new Date(endDate) : moment().endOf('month').toDate();
+    
+    const baseQuery = {
+      companyId,
+      completedDate: {
+        [require('sequelize').Op.between]: [dateFrom, dateTo]
+      },
+      status: 'completado'
+    };
+    
+    if (branch) baseQuery.branchId = branch;
+    if (mechanic) baseQuery.assignedMechanicId = mechanic;
+    
+    // Filtrar por sucursales del usuario si no es admin
+    if (!['super_admin', 'company_admin'].includes(req.user.role)) {
+      baseQuery.branchId = req.user.branchId;
+    }
+    
+    const maintenances = await Maintenance.findAll({
+      where: baseQuery,
+      include: [
+        { model: Vehicle, as: 'vehicle', attributes: ['licensePlate', 'brand', 'model'] },
+        { model: Branch, as: 'branch', attributes: ['name'] },
+        { model: User, as: 'assignedMechanic', attributes: ['firstName', 'lastName'] }
+      ],
+      order: [['completedDate', 'DESC']]
+    });
+    
+    const exportData = maintenances.map(maintenance => {
+      const duration = maintenance.completedDate && maintenance.scheduledDate 
+        ? moment(maintenance.completedDate).diff(moment(maintenance.scheduledDate), 'days')
+        : 0;
+      
+      return {
+        'Fecha Completado': moment(maintenance.completedDate).format('DD/MM/YYYY'),
+        'Vehículo': `${maintenance.vehicle?.brand} ${maintenance.vehicle?.model} (${maintenance.vehicle?.licensePlate})`,
+        'Tipo': maintenance.type,
+        'Mecánico': maintenance.assignedMechanic ? `${maintenance.assignedMechanic.firstName} ${maintenance.assignedMechanic.lastName}` : 'N/A',
+        'Duración (días)': duration,
+        'Costo Total': maintenance.totalCost || 0,
+        'Eficiencia': duration <= 3 ? 'Alta' : duration <= 7 ? 'Media' : 'Baja',
+        'Sucursal': maintenance.branch?.name || 'N/A'
+      };
+    });
+    
+    if (format === 'csv') {
+      generateCSVResponse(res, exportData, 'reporte-rendimiento');
+    } else if (format === 'pdf') {
+      await generatePDFResponse(res, exportData, 'Reporte de Rendimiento', 'reporte-rendimiento');
+    } else {
+      res.status(400).json({ message: 'Formato no soportado' });
+    }
+    
+  } catch (error) {
+    console.error('Error exportando reporte de rendimiento:', error);
     res.status(500).json({ message: 'Error interno del servidor' });
   }
 });
@@ -773,6 +1037,73 @@ function convertToCSV(data) {
   ].join('\n');
   
   return csvContent;
+}
+
+async function generatePDFResponse(res, data, title, filename) {
+  try {
+    const PDFDocument = require('pdfkit');
+    const doc = new PDFDocument({ margin: 50 });
+    
+    // Set response headers
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=${filename}_${moment().format('YYYY-MM-DD')}.pdf`);
+    
+    // Pipe the PDF to the response
+    doc.pipe(res);
+    
+    // Add title
+    doc.fontSize(20).text(title, { align: 'center' });
+    doc.moveDown();
+    
+    // Add generation date
+    doc.fontSize(12).text(`Generado el: ${moment().format('DD/MM/YYYY HH:mm')}`, { align: 'right' });
+    doc.moveDown();
+    
+    if (data && data.length > 0) {
+      const headers = Object.keys(data[0]);
+      const columnWidth = (doc.page.width - 100) / headers.length;
+      
+      // Add table headers
+      let yPosition = doc.y;
+      doc.fontSize(10).fillColor('black');
+      
+      headers.forEach((header, index) => {
+        doc.text(header, 50 + (index * columnWidth), yPosition, {
+          width: columnWidth,
+          align: 'left'
+        });
+      });
+      
+      doc.moveDown();
+      
+      // Add table rows
+      data.forEach((row, rowIndex) => {
+        if (doc.y > doc.page.height - 100) {
+          doc.addPage();
+        }
+        
+        yPosition = doc.y;
+        headers.forEach((header, index) => {
+          const value = row[header] || '';
+          doc.text(String(value), 50 + (index * columnWidth), yPosition, {
+            width: columnWidth,
+            align: 'left'
+          });
+        });
+        
+        doc.moveDown(0.5);
+      });
+    } else {
+      doc.text('No hay datos para mostrar', { align: 'center' });
+    }
+    
+    // Finalize the PDF
+    doc.end();
+    
+  } catch (error) {
+    console.error('Error generando PDF:', error);
+    res.status(500).json({ message: 'Error generando PDF' });
+  }
 }
 
 async function getUserStats(baseQuery, user) {

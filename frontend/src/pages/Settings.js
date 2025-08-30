@@ -81,6 +81,8 @@ const Settings = () => {
   const [backupDialogOpen, setBackupDialogOpen] = useState(false);
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
   const [deleteDataDialogOpen, setDeleteDataDialogOpen] = useState(false);
+  const [selectedBackupFile, setSelectedBackupFile] = useState(null);
+  const [restoreMode, setRestoreMode] = useState('merge');
   
   const { user, hasPermission, hasRole } = useAuth();
   const queryClient = useQueryClient();
@@ -131,7 +133,10 @@ const Settings = () => {
   // Mutación para crear backup
   const createBackupMutation = useMutation({
     mutationFn: async () => {
-      return api.post('/settings/backup');
+      const response = await api.post('/settings/backup', {}, {
+        responseType: 'blob'
+      });
+      return response;
     },
     onSuccess: (response) => {
       toast.success('Backup creado exitosamente');
@@ -163,6 +168,29 @@ const Settings = () => {
     },
     onError: (error) => {
       toast.error(error.response?.data?.message || 'Error al limpiar datos');
+    }
+  });
+
+  // Mutación para restaurar backup
+  const restoreBackupMutation = useMutation({
+    mutationFn: async ({ backupData, mode }) => {
+      return api.post('/settings/restore', { backupData, mode });
+    },
+    onSuccess: (response) => {
+      toast.success('Backup restaurado exitosamente');
+      queryClient.invalidateQueries(['system-settings']);
+      queryClient.invalidateQueries(['system-stats']);
+      queryClient.invalidateQueries(['companies']);
+      queryClient.invalidateQueries(['branches']);
+      queryClient.invalidateQueries(['users']);
+      queryClient.invalidateQueries(['vehicles']);
+      queryClient.invalidateQueries(['maintenance']);
+      setRestoreDialogOpen(false);
+      setSelectedBackupFile(null);
+      setRestoreMode('merge');
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Error al restaurar backup');
     }
   });
 
@@ -938,6 +966,112 @@ const Settings = () => {
             disabled={createBackupMutation.isPending}
           >
             {createBackupMutation.isPending ? 'Creando...' : 'Crear Respaldo'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog de restaurar backup */}
+      <Dialog open={restoreDialogOpen} onClose={() => setRestoreDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Restaurar desde Respaldo</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            La restauración reemplazará todos los datos actuales. Esta acción no se puede deshacer.
+          </Alert>
+          
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle1" gutterBottom>
+              Seleccionar archivo de respaldo
+            </Typography>
+            <input
+              type="file"
+              accept=".json"
+              onChange={(e) => {
+                const file = e.target.files[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onload = (event) => {
+                    try {
+                      const backupData = JSON.parse(event.target.result);
+                      setSelectedBackupFile({ file, data: backupData });
+                    } catch (error) {
+                      toast.error('Archivo de respaldo inválido');
+                      e.target.value = '';
+                    }
+                  };
+                  reader.readAsText(file);
+                }
+              }}
+              style={{ display: 'none' }}
+              id="backup-file-input"
+            />
+            <label htmlFor="backup-file-input">
+              <Button
+                variant="outlined"
+                component="span"
+                startIcon={<Upload />}
+                fullWidth
+                sx={{ mb: 2 }}
+              >
+                Seleccionar Archivo
+              </Button>
+            </label>
+            
+            {selectedBackupFile && (
+              <Alert severity="success" sx={{ mb: 2 }}>
+                Archivo seleccionado: {selectedBackupFile.file.name}
+                <br />
+                Fecha de creación: {selectedBackupFile.data.metadata?.createdAt ? 
+                  new Date(selectedBackupFile.data.metadata.createdAt).toLocaleString() : 'No disponible'}
+                <br />
+                Registros: {Object.entries(selectedBackupFile.data.metadata?.records || {}).map(([key, value]) => 
+                  `${key}: ${value}`).join(', ')}
+              </Alert>
+            )}
+          </Box>
+          
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle1" gutterBottom>
+              Modo de restauración
+            </Typography>
+            <FormControl fullWidth>
+              <InputLabel>Modo</InputLabel>
+              <Select
+                value={restoreMode}
+                onChange={(e) => setRestoreMode(e.target.value)}
+                label="Modo"
+              >
+                <MenuItem value="merge">Combinar (mantener datos existentes)</MenuItem>
+                <MenuItem value="overwrite">Sobrescribir (reemplazar datos existentes)</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+          
+          <Typography variant="body2" color="text.secondary">
+            • <strong>Combinar:</strong> Los nuevos datos se agregarán sin eliminar los existentes
+            <br />
+            • <strong>Sobrescribir:</strong> Los datos existentes serán reemplazados por los del respaldo
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setRestoreDialogOpen(false);
+            setSelectedBackupFile(null);
+            setRestoreMode('merge');
+          }}>Cancelar</Button>
+          <Button 
+            onClick={() => {
+              if (selectedBackupFile) {
+                restoreBackupMutation.mutate({
+                  backupData: selectedBackupFile.data,
+                  mode: restoreMode
+                });
+              }
+            }}
+            variant="contained"
+            color="warning"
+            disabled={!selectedBackupFile || restoreBackupMutation.isPending}
+          >
+            {restoreBackupMutation.isPending ? 'Restaurando...' : 'Restaurar'}
           </Button>
         </DialogActions>
       </Dialog>

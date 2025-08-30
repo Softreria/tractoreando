@@ -31,7 +31,9 @@ import {
   ListItemText,
   ListItemIcon,
   Avatar,
-  LinearProgress
+  LinearProgress,
+  Menu,
+  ButtonGroup
 } from '@mui/material';
 import {
   Assessment,
@@ -54,7 +56,8 @@ import {
   Schedule,
   CheckCircle,
   Warning,
-  Error
+  Error,
+  ArrowDropDown
 } from '@mui/icons-material';
 import {
   BarChart as RechartsBarChart,
@@ -90,6 +93,7 @@ const Reports = () => {
   const [selectedMechanic, setSelectedMechanic] = useState('');
   const [reportType, setReportType] = useState('summary');
   const [groupBy, setGroupBy] = useState('month');
+  const [exportMenuAnchor, setExportMenuAnchor] = useState(null);
   
   const { user, hasPermission } = useAuth();
 
@@ -319,13 +323,42 @@ const Reports = () => {
               Actualizar
             </Button>
             {hasPermission('reports', 'export') && (
-              <Button
-                variant="contained"
-                startIcon={<GetApp />}
-                onClick={() => handleExport(['vehicles', 'maintenance', 'costs', 'performance'][tabValue], 'csv')}
-              >
-                Exportar
-              </Button>
+              <>
+                <ButtonGroup variant="contained">
+                  <Button
+                    startIcon={<GetApp />}
+                    onClick={() => handleExport(['vehicles', 'maintenance', 'costs', 'performance'][tabValue], 'csv')}
+                  >
+                    Exportar CSV
+                  </Button>
+                  <Button
+                    size="small"
+                    onClick={(event) => setExportMenuAnchor(event.currentTarget)}
+                  >
+                    <ArrowDropDown />
+                  </Button>
+                </ButtonGroup>
+                <Menu
+                  anchorEl={exportMenuAnchor}
+                  open={Boolean(exportMenuAnchor)}
+                  onClose={() => setExportMenuAnchor(null)}
+                >
+                  <MenuItem onClick={() => {
+                    handleExport(['vehicles', 'maintenance', 'costs', 'performance'][tabValue], 'csv');
+                    setExportMenuAnchor(null);
+                  }}>
+                    <TableChart sx={{ mr: 1 }} />
+                    Exportar CSV
+                  </MenuItem>
+                  <MenuItem onClick={() => {
+                    handleExport(['vehicles', 'maintenance', 'costs', 'performance'][tabValue], 'pdf');
+                    setExportMenuAnchor(null);
+                  }}>
+                    <PictureAsPdf sx={{ mr: 1 }} />
+                    Exportar PDF
+                  </MenuItem>
+                </Menu>
+              </>
             )}
           </Box>
         </Box>
@@ -364,7 +397,7 @@ const Reports = () => {
                   >
                     <MenuItem value="">Todas las delegaciones</MenuItem>
                     {branchesData?.map((branch) => (
-                      <MenuItem key={branch._id} value={branch._id}>
+                      <MenuItem key={branch.id} value={branch.id}>
                         {branch.name}
                       </MenuItem>
                     ))}
@@ -613,7 +646,7 @@ const Reports = () => {
                   >
                     <MenuItem value="">Todos los vehículos</MenuItem>
                     {vehiclesData?.map((vehicle) => (
-                      <MenuItem key={vehicle._id} value={vehicle._id}>
+                      <MenuItem key={vehicle.id} value={vehicle.id}>
                         {vehicle.make} {vehicle.model} - {vehicle.plateNumber}
                       </MenuItem>
                     ))}
@@ -798,7 +831,7 @@ const Reports = () => {
                   >
                     <MenuItem value="">Todos los mecánicos</MenuItem>
                     {mechanicsData?.map((mechanic) => (
-                      <MenuItem key={mechanic._id} value={mechanic._id}>
+                      <MenuItem key={mechanic.id} value={mechanic.id}>
                         {mechanic.name} {mechanic.lastName}
                       </MenuItem>
                     ))}

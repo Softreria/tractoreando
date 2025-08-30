@@ -48,6 +48,7 @@ import {
   CheckCircle,
   Delete,
   DirectionsCar,
+  Download,
   Edit,
   Error,
   FilterList,
@@ -147,9 +148,9 @@ const Vehicles = () => {
 
   // Consulta de alertas del vehículo seleccionado
   const { data: alertsData } = useQuery({
-    queryKey: ['vehicle-alerts', selectedVehicle?._id],
+    queryKey: ['vehicle-alerts', selectedVehicle?.id],
     queryFn: async () => {
-      const response = await api.get(`/vehicles/${selectedVehicle._id}/alerts`);
+      const response = await api.get(`/vehicles/${selectedVehicle.id}/alerts`);
       return response.data;
     },
     enabled: !!selectedVehicle && alertsDialogOpen
@@ -159,7 +160,7 @@ const Vehicles = () => {
   const saveVehicleMutation = useMutation({
     mutationFn: async (data) => {
       if (editingVehicle) {
-        return api.put(`/vehicles/${editingVehicle._id}`, data);
+        return api.put(`/vehicles/${editingVehicle.id}`, data);
     } else {
       return api.post('/vehicles', data);
       }
@@ -192,7 +193,7 @@ const Vehicles = () => {
   // Mutación para actualizar kilometraje
   const updateMileageMutation = useMutation({
     mutationFn: async (data) => {
-      return api.patch(`/vehicles/${selectedVehicle._id}/mileage`, data);
+      return api.patch(`/vehicles/${selectedVehicle.id}/mileage`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['vehicles']);
@@ -222,7 +223,7 @@ const Vehicles = () => {
         model: vehicle.model,
         year: vehicle.year,
         type: vehicle.vehicleType,
-        branch: vehicle.branch._id,
+        branch: vehicle.branch.id,
         vin: vehicle.vin,
         color: vehicle.color,
         'engine.type': vehicle.engine?.type,
@@ -266,12 +267,12 @@ const Vehicles = () => {
 
   const handleDelete = () => {
     setDeleteDialogOpen(true);
-    handleMenuClose();
+    setAnchorEl(null);
   };
 
   const confirmDelete = () => {
     if (selectedVehicle) {
-      deleteVehicleMutation.mutate(selectedVehicle._id);
+      deleteVehicleMutation.mutate(selectedVehicle.id);
     }
   };
 
@@ -296,7 +297,7 @@ const Vehicles = () => {
     handleMenuClose();
     
     if (selectedVehicle) {
-      await loadMaintenanceHistory(selectedVehicle._id);
+      await loadMaintenanceHistory(selectedVehicle.id);
     }
   };
 
@@ -315,43 +316,48 @@ const Vehicles = () => {
     handleMenuClose();
     
     if (selectedVehicle) {
-      await loadVehicleDocuments(selectedVehicle._id);
+      await loadVehicleDocuments(selectedVehicle.id);
     }
   };
 
   const handleFileUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+    const files = Array.from(event.target.files);
+    if (!files.length) return;
 
     try {
-      // Validar archivo
-      documentService.validateFile(file);
+      // Validar archivos
+      files.forEach(file => {
+        if (!documentService.validateFileType(file.name)) {
+          throw new Error(`Tipo de archivo no válido: ${file.name}`);
+        }
+        if (!documentService.validateFileSize(file, 10)) {
+          throw new Error(`Archivo muy grande: ${file.name} (máximo 10MB)`);
+        }
+      });
       
       setUploadingFile(true);
-      setSelectedFile(file);
       
-      // Simular subida de archivo
-      const uploadResult = await documentService.uploadFile(file);
-      
-      // Guardar documento en el vehículo
+      // Subir múltiples documentos
       if (selectedVehicle) {
-        await documentService.uploadDocument(selectedVehicle._id, {
-          name: uploadResult.name,
-          url: uploadResult.url,
-          type: uploadResult.type
-        });
+        const uploadResults = await documentService.uploadVehicleDocuments(
+          selectedVehicle.id, 
+          files,
+          (progress) => {
+            // Aquí podrías mostrar el progreso si quisieras
+            console.log(`Progreso de subida: ${progress}%`);
+          }
+        );
         
-        toast.success('Documento subido exitosamente');
+        toast.success(`${uploadResults.length} documento(s) subido(s) exitosamente`);
         
         // Recargar documentos
-        await loadVehicleDocuments(selectedVehicle._id);
+        await loadVehicleDocuments(selectedVehicle.id);
       }
       
     } catch (error) {
-      toast.error(error.message || 'Error al subir archivo');
+      toast.error(error.message || 'Error al subir archivo(s)');
     } finally {
       setUploadingFile(false);
-      setSelectedFile(null);
       // Limpiar input
       event.target.value = '';
     }
@@ -370,11 +376,20 @@ const Vehicles = () => {
     if (!selectedVehicle) return;
     
     try {
-      await documentService.deleteDocument(selectedVehicle._id, documentId);
+      await documentService.deleteDocument(selectedVehicle.id, documentId);
       toast.success('Documento eliminado exitosamente');
-      await loadVehicleDocuments(selectedVehicle._id);
+      await loadVehicleDocuments(selectedVehicle.id);
     } catch (error) {
       toast.error(error.message || 'Error al eliminar documento');
+    }
+  };
+
+  const handleDownloadDocument = async (document) => {
+    try {
+      await documentService.downloadDocument(document.url, document.name);
+      toast.success('Descarga iniciada');
+    } catch (error) {
+      toast.error('Error al descargar el documento');
     }
   };
 
@@ -390,7 +405,7 @@ const Vehicles = () => {
     const vehicleData = {
       plateNumber: data.plateNumber,
       vin: data.vin || undefined,
-      company: data.company || user?.company?._id,
+      company: data.company || user?.company?.id,
       branch: data.branch,
       make: data.make,
       model: data.model,
@@ -475,7 +490,7 @@ const Vehicles = () => {
         formData.append('photos', file);
       });
       
-      const response = await api.post(`/vehicles/${selectedVehicle._id}/photos`, formData, {
+      const response = await api.post(`/vehicles/${selectedVehicle.id}/photos`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
@@ -495,8 +510,8 @@ const Vehicles = () => {
     if (!selectedVehicle) return;
     
     try {
-      await api.delete(`/vehicles/${selectedVehicle._id}/photos/${photoId}`);
-      setVehiclePhotos(prev => prev.filter(photo => photo._id !== photoId));
+      await api.delete(`/vehicles/${selectedVehicle.id}/photos/${photoId}`);
+      setVehiclePhotos(prev => prev.filter(photo => photo.id !== photoId));
       toast.success('Foto eliminada correctamente');
     } catch (error) {
        console.error('Error deleting photo:', error);
@@ -621,7 +636,7 @@ const Vehicles = () => {
                 >
                   <MenuItem value="">Todas</MenuItem>
                   {branchesData?.map((branch) => (
-                    <MenuItem key={branch._id} value={branch._id}>
+                    <MenuItem key={branch.id} value={branch.id}>
                       {branch.name}
                     </MenuItem>
                   ))}
@@ -696,7 +711,7 @@ const Vehicles = () => {
                   : 0;
                 
                 return (
-                  <TableRow key={vehicle._id} hover>
+                  <TableRow key={vehicle.id} hover>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <Avatar sx={{ mr: 2, bgcolor: 'primary.main' }}>
@@ -989,7 +1004,7 @@ const Vehicles = () => {
                         <InputLabel>Delegación</InputLabel>
                         <Select {...field} label="Delegación">
                           {branchesData?.map((branch) => (
-                            <MenuItem key={branch._id} value={branch._id}>
+                            <MenuItem key={branch.id} value={branch.id}>
                               {branch.name}
                             </MenuItem>
                           ))}
@@ -1277,7 +1292,7 @@ const Vehicles = () => {
                    {vehiclePhotos.length > 0 ? (
                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 1 }}>
                        {vehiclePhotos.map((photo, index) => (
-                         <Card key={photo._id || index} sx={{ width: 200 }}>
+                         <Card key={photo.id || index} sx={{ width: 200 }}>
                            <Box sx={{ position: 'relative' }}>
                              <img
                                src={photo.url}
@@ -1290,7 +1305,7 @@ const Vehicles = () => {
                              />
                              <IconButton
                                size="small"
-                               onClick={() => handleDeletePhoto(photo._id)}
+                               onClick={() => handleDeletePhoto(photo.id)}
                                sx={{
                                  position: 'absolute',
                                  top: 8,
@@ -1382,7 +1397,7 @@ const Vehicles = () => {
                    {vehicleDocuments.length > 0 ? (
                      <Box sx={{ mt: 1 }}>
                        {vehicleDocuments.map((doc, index) => (
-                         <Card key={doc._id || index} sx={{ mb: 1 }}>
+                         <Card key={doc.id || index} sx={{ mb: 1 }}>
                            <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                <Box>
@@ -1403,7 +1418,7 @@ const Vehicles = () => {
                                  </IconButton>
                                  <IconButton
                                    size="small"
-                                   onClick={() => handleDeleteDocument(doc._id)}
+                                   onClick={() => handleDeleteDocument(doc.id)}
                                    title="Eliminar documento"
                                    color="error"
                                  >
@@ -1485,7 +1500,7 @@ const Vehicles = () => {
                    {vehicleDocuments.length > 0 ? (
                      <Box sx={{ mt: 1 }}>
                        {vehicleDocuments.map((doc, index) => (
-                         <Card key={doc._id || index} sx={{ mb: 1 }}>
+                         <Card key={doc.id || index} sx={{ mb: 1 }}>
                            <CardContent sx={{ py: 1, '&:last-child': { pb: 1 } }}>
                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                <Box>
@@ -1506,7 +1521,7 @@ const Vehicles = () => {
                                  </IconButton>
                                  <IconButton
                                    size="small"
-                                   onClick={() => handleDeleteDocument(doc._id)}
+                                   onClick={() => handleDeleteDocument(doc.id)}
                                    title="Eliminar documento"
                                    color="error"
                                  >
@@ -1727,7 +1742,7 @@ const Vehicles = () => {
                 </TableHead>
                 <TableBody>
                   {maintenanceHistory.map((maintenance) => (
-                    <TableRow key={maintenance._id}>
+                    <TableRow key={maintenance.id}>
                       <TableCell>{maintenance.workOrderNumber}</TableCell>
                       <TableCell>
                         <Chip
@@ -1849,7 +1864,7 @@ const Vehicles = () => {
                {vehicleDocuments.length > 0 ? (
                  <Box sx={{ mt: 1 }}>
                    {vehicleDocuments.map((doc, index) => (
-                     <Card key={doc._id || index} sx={{ mb: 2 }}>
+                     <Card key={doc.id || index} sx={{ mb: 2 }}>
                        <CardContent>
                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                            <Box sx={{ flexGrow: 1 }}>
@@ -1880,9 +1895,17 @@ const Vehicles = () => {
                              <Button
                                variant="outlined"
                                size="small"
+                               startIcon={<Download />}
+                               onClick={() => handleDownloadDocument(doc)}
+                             >
+                               Descargar
+                             </Button>
+                             <Button
+                               variant="outlined"
+                               size="small"
                                color="error"
                                startIcon={<Delete />}
-                               onClick={() => handleDeleteDocument(doc._id)}
+                               onClick={() => handleDeleteDocument(doc.id)}
                              >
                                Eliminar
                              </Button>

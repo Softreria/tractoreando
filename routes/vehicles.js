@@ -21,7 +21,7 @@ router.get('/', [
   try {
     const { page = 1, limit = 10, search, status, branch, vehicleType, company } = req.query;
     
-    const whereConditions = { companyId: company || req.user.company.id };
+    const whereConditions = { companyId: company || req.user.companyId };
     
     if (search) {
       whereConditions[Op.or] = [
@@ -148,7 +148,7 @@ router.get('/:id', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && vehicle.company.id !== req.user.company.id) {
+    if (req.user.role !== 'super_admin' && vehicle.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
     }
 
@@ -273,7 +273,7 @@ router.post('/', [
       branch
     } = req.body;
 
-    const companyId = req.body.company || req.user.company.id;
+    const companyId = req.body.company || req.user.companyId;
 
     // Verificar que la sucursal pertenece a la empresa (solo si se proporciona)
     if (branch) {
@@ -380,7 +380,7 @@ router.put('/:id', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && vehicle.companyId !== req.user.company.id) {
+    if (req.user.role !== 'super_admin' && vehicle.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
     }
 
@@ -529,7 +529,7 @@ router.delete('/:id', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && vehicle.companyId !== req.user.company.id) {
+    if (req.user.role !== 'super_admin' && vehicle.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
     }
 
@@ -583,7 +583,7 @@ router.put('/:id/odometer', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && vehicle.companyId !== req.user.company.id) {
+    if (req.user.role !== 'super_admin' && vehicle.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
     }
 
@@ -619,7 +619,7 @@ router.get('/:id/maintenance-alerts', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && vehicle.companyId !== req.user.company.id) {
+    if (req.user.role !== 'super_admin' && vehicle.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
     }
 
@@ -676,7 +676,7 @@ router.get('/stats/summary', [
 ], async (req, res) => {
   try {
     const { company, branch } = req.query;
-    const companyId = company || req.user.company._id;
+    const companyId = company || req.user.companyId;
     
     const matchQuery = { company: companyId };
     
@@ -777,7 +777,7 @@ router.post('/:id/photos', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && vehicle.companyId !== req.user.company.id) {
+    if (req.user.role !== 'super_admin' && vehicle.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
     }
 
@@ -882,7 +882,7 @@ router.post('/:id/documents', [
     }
 
     // Verificar acceso a la empresa
-    if (vehicle.companyId !== req.user.company.id) {
+    if (vehicle.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
     }
 
@@ -928,7 +928,7 @@ router.get('/:id/documents', [
     }
 
     // Verificar acceso a la empresa
-    if (vehicle.companyId !== req.user.company.id) {
+    if (vehicle.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
     }
 
@@ -954,7 +954,7 @@ router.delete('/:id/documents/:documentId', [
     }
 
     // Verificar acceso a la empresa
-    if (vehicle.companyId !== req.user.company.id) {
+    if (vehicle.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
     }
 

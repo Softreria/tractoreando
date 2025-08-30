@@ -54,7 +54,7 @@ app.get('/health-check', (req, res) => {
   });
 });
 
-// Rutas de la API
+// Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/companies', require('./routes/companies'));
 app.use('/api/branches', require('./routes/branches'));
@@ -62,6 +62,7 @@ app.use('/api/vehicles', require('./routes/vehicles'));
 app.use('/api/maintenance', require('./routes/maintenance'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/reports', require('./routes/reports'));
+app.use('/api/settings', require('./routes/settings'));
 
 // Servir archivos estáticos en producción
 if (process.env.NODE_ENV === 'production') {

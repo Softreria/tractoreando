@@ -176,8 +176,8 @@ Branch.init({
     }
   },
   isActive: {
-    type: DataTypes.INTEGER,
-    defaultValue: 1
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
   },
   createdById: {
     type: DataTypes.STRING,

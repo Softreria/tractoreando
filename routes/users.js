@@ -29,7 +29,7 @@ router.get('/', [
         whereConditions.companyId = company;
       }
     } else {
-      whereConditions.companyId = req.user.company.id;
+      whereConditions.companyId = req.user.companyId;
     }
     
     if (search) {
@@ -124,6 +124,65 @@ router.get('/roles/available', [
   }
 });
 
+// @route   GET /api/users/activity
+// @desc    Obtener historial de actividad del usuario actual
+// @access  Private
+router.get('/activity', [
+  auth,
+  logActivity('Ver historial de actividad')
+], async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    
+    // Por ahora retornamos datos simulados ya que no hay un modelo de Activity
+    // En el futuro se puede implementar un sistema de logging más sofisticado
+    const mockActivity = [
+      {
+        id: 1,
+        action: 'Inicio de sesión',
+        description: 'Usuario inició sesión en el sistema',
+        timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30 minutos atrás
+        type: 'auth',
+        ip: req.ip || '127.0.0.1'
+      },
+      {
+        id: 2,
+        action: 'Actualización de perfil',
+        description: 'Usuario actualizó información del perfil',
+        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 horas atrás
+        type: 'profile',
+        ip: req.ip || '127.0.0.1'
+      },
+      {
+        id: 3,
+        action: 'Consulta de vehículos',
+        description: 'Usuario consultó la lista de vehículos',
+        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4), // 4 horas atrás
+        type: 'view',
+        ip: req.ip || '127.0.0.1'
+      }
+    ];
+
+    const startIndex = (parseInt(page) - 1) * parseInt(limit);
+    const endIndex = startIndex + parseInt(limit);
+    const paginatedActivity = mockActivity.slice(startIndex, endIndex);
+
+    res.json({
+      activity: paginatedActivity,
+      pagination: {
+        current: parseInt(page),
+        pages: Math.ceil(mockActivity.length / limit),
+        total: mockActivity.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Error obteniendo historial de actividad:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+});
+
+// @route   GET /api/users/:id
 // @desc    Obtener usuario por ID
 // @access  Private
 router.get('/:id', [
@@ -145,7 +204,7 @@ router.get('/:id', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && user.Company.id !== req.user.company.id) {
+    if (req.user.role !== 'super_admin' && user.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a este usuario' });
     }
 
@@ -196,7 +255,7 @@ router.post('/', [
       company
     } = req.body;
 
-    const companyId = company || req.user.company._id;
+    const companyId = company || req.user.companyId;
 
     // Verificar que el email no exista
     const existingUser = await User.findOne({ where: { email } });
@@ -281,7 +340,7 @@ router.put('/:id', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && user.companyId !== req.user.company.id) {
+    if (req.user.role !== 'super_admin' && user.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a este usuario' });
     }
 
@@ -396,7 +455,7 @@ router.put('/:id/password', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && user.companyId !== req.user.company.id) {
+    if (req.user.role !== 'super_admin' && user.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a este usuario' });
     }
 
@@ -445,7 +504,7 @@ router.put('/:id/activate', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && user.companyId !== req.user.company.id) {
+    if (req.user.role !== 'super_admin' && user.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a este usuario' });
     }
 
@@ -483,7 +542,7 @@ router.delete('/:id', [
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && user.companyId !== req.user.company.id) {
+    if (req.user.role !== 'super_admin' && user.companyId !== req.user.companyId) {
       return res.status(403).json({ message: 'No tienes acceso a este usuario' });
     }
 
@@ -530,7 +589,7 @@ router.get('/stats/summary', [
 ], async (req, res) => {
   try {
     const { company, branch } = req.query;
-    const companyId = company || req.user.company._id;
+    const companyId = company || req.user.companyId;
     
     const matchQuery = { company: companyId };
     

@@ -160,7 +160,7 @@ const Users = () => {
       if (hasRole('super_admin') && selectedCompany) {
         params.company = selectedCompany;
       } else if (!hasRole('super_admin')) {
-        params.company = user?.company?._id;
+        params.company = user?.company?.id;
       }
       const response = await api.get('/branches', { params });
       return response.data.branches;
@@ -182,7 +182,7 @@ const Users = () => {
   const saveUserMutation = useMutation({
     mutationFn: async (data) => {
       if (editingUser) {
-        return api.put(`/users/${editingUser._id}`, data);
+        return api.put(`/users/${editingUser.id}`, data);
       } else {
         return api.post('/users', data);
       }
@@ -229,7 +229,7 @@ const Users = () => {
   // Mutación para cambiar contraseña
   const changePasswordMutation = useMutation({
     mutationFn: async (data) => {
-      return api.patch(`/users/${selectedUser._id}/password`, data);
+      return api.patch(`/users/${selectedUser.id}/password`, data);
     },
     onSuccess: () => {
       toast.success('Contraseña actualizada');
@@ -250,8 +250,8 @@ const Users = () => {
         email: user.email,
         phone: user.phone,
         role: user.role,
-        company: user.company?._id || '',
-        branch: user.branch?._id || '',
+        company: user.company?.id || '',
+        branch: user.branch?.id || '',
         permissions: user.permissions || {},
         vehicleTypeAccess: user.vehicleTypeAccess || [],
         isActive: user.isActive
@@ -288,18 +288,18 @@ const Users = () => {
 
   const handleDelete = () => {
     setDeleteDialogOpen(true);
-    handleMenuClose();
+    setAnchorEl(null);
   };
 
   const confirmDelete = () => {
     if (selectedUser) {
-      deleteUserMutation.mutate(selectedUser._id);
+      deleteUserMutation.mutate(selectedUser.id);
     }
   };
 
   const handleToggleStatus = (user) => {
     toggleStatusMutation.mutate({
-      id: user._id,
+      id: user.id,
       isActive: !user.isActive
     });
   };
@@ -323,7 +323,7 @@ const Users = () => {
       email: data.email,
       phone: data.phone || '',
       role: data.role,
-      company: data.company || user?.company?._id,
+      company: data.company || user?.company?.id,
       branch: data.branch || '',
       permissions: data.permissions || {},
       preferences: data.preferences || {},
@@ -510,7 +510,7 @@ const Users = () => {
                 >
                   <MenuItem value="">Todas</MenuItem>
                   {branchesData?.map((branch) => (
-                    <MenuItem key={branch._id} value={branch._id}>
+                    <MenuItem key={branch.id} value={branch.id}>
                       {branch.name}
                     </MenuItem>
                   ))}
@@ -561,7 +561,7 @@ const Users = () => {
             </TableHead>
             <TableBody>
               {filteredUsers.map((userItem) => (
-                <TableRow key={userItem._id} hover>
+                <TableRow key={userItem.id} hover>
                   <TableCell>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                       <Avatar sx={{ mr: 2, bgcolor: getRoleColor(userItem.role) + '.main' }}>
@@ -572,7 +572,7 @@ const Users = () => {
                           {userItem.name} {userItem.lastName}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          ID: {userItem._id.slice(-8)}
+                          ID: {userItem.id.slice(-8)}
                         </Typography>
                         <br />
                         <Typography variant="caption" color="text.secondary">
@@ -637,7 +637,7 @@ const Users = () => {
                         <Switch
                           checked={userItem.isActive}
                           onChange={() => handleToggleStatus(userItem)}
-                          disabled={!hasPermission('users', 'update') || userItem._id === user._id}
+                          disabled={!hasPermission('users', 'update') || userItem.id === user.id}
                         />
                       }
                       label={userItem.isActive ? 'Activo' : 'Inactivo'}
@@ -701,7 +701,7 @@ const Users = () => {
           </MenuItem>
         )}
         <Divider />
-        {hasPermission('users', 'delete') && selectedUser?._id !== user._id && (
+        {hasPermission('users', 'delete') && selectedUser?.id !== user.id && (
           <MenuItem onClick={handleDelete} sx={{ color: 'error.main' }}>
             <ListItemIcon>
               <Delete fontSize="small" color="error" />
@@ -800,7 +800,7 @@ const Users = () => {
                           <Select {...field} label="Empresa">
                             <MenuItem value="">Seleccionar empresa</MenuItem>
                             {companiesData?.map((company) => (
-                              <MenuItem key={company._id} value={company._id}>
+                              <MenuItem key={company.id} value={company.id}>
                                 {company.name}
                               </MenuItem>
                             ))}
@@ -828,7 +828,7 @@ const Users = () => {
                           value={field.value || ''}
                         >
                           {branchesData?.map((branch) => (
-                            <MenuItem key={branch._id} value={branch._id}>
+                            <MenuItem key={branch.id} value={branch.id}>
                               {branch.name}
                             </MenuItem>
                           ))}
@@ -1170,7 +1170,7 @@ const Users = () => {
                       <Typography variant="body2" color="text.secondary">Delegaciones:</Typography>
                       {userDetails.branches.map((branch, index) => (
                         <Chip
-                          key={branch._id || index}
+                          key={branch.id || index}
                           label={branch.name}
                           size="small"
                           sx={{ mr: 0.5, mb: 0.5 }}

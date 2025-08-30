@@ -233,11 +233,7 @@ router.get('/profile', auth, async (req, res) => {
   try {
     const user = await User.findByPk(req.user.id, {
       include: [
-        {
-          model: Company,
-          as: 'company',
-          attributes: ['name', 'rfc', 'subscription']
-        },
+        {          model: Company,          as: 'company',          attributes: ['name', 'cif', 'settings']        },
         {
           model: Branch,
           as: 'branch',

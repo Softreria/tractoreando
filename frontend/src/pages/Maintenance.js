@@ -81,6 +81,7 @@ import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
+import MaintenanceCalendar from '../components/MaintenanceCalendar';
 
 const Maintenance = () => {
   const [page, setPage] = useState(0);
@@ -98,6 +99,7 @@ const Maintenance = () => {
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [timeDialogOpen, setTimeDialogOpen] = useState(false);
   const [tabValue, setTabValue] = useState(0);
+  const [viewMode, setViewMode] = useState('list'); // 'list' or 'calendar'
   
   const { user, hasPermission, hasRole } = useAuth();
   const queryClient = useQueryClient();
@@ -168,7 +170,7 @@ const Maintenance = () => {
   const saveMaintenanceMutation = useMutation({
     mutationFn: async (data) => {
       if (editingMaintenance) {
-        return api.put(`/maintenance/${editingMaintenance._id}`, data);
+        return api.put(`/maintenance/${editingMaintenance.id}`, data);
     } else {
       return api.post('/maintenance', data);
       }
@@ -216,7 +218,7 @@ const Maintenance = () => {
   // Mutación para registrar tiempo
   const logTimeMutation = useMutation({
     mutationFn: async (data) => {
-      return api.post(`/maintenance/${selectedMaintenance._id}/time`, data);
+      return api.post(`/maintenance/${selectedMaintenance.id}/time`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['maintenance']);
@@ -233,7 +235,7 @@ const Maintenance = () => {
     setEditingMaintenance(maintenance);
     if (maintenance) {
       reset({
-        vehicle: maintenance.vehicle._id,
+        vehicle: maintenance.vehicle.id,
         type: maintenance.type,
         priority: maintenance.priority,
         title: maintenance.title,
@@ -241,7 +243,7 @@ const Maintenance = () => {
         odometerReading: maintenance.odometerReading,
         scheduledDate: maintenance.scheduledDate ? maintenance.scheduledDate.split('T')[0] : '',
         estimatedDuration: maintenance.estimatedDuration,
-        assignedTo: maintenance.assignedTo?.map(user => user._id) || [],
+        assignedTo: maintenance.assignedTo?.map(user => user.id) || [],
         services: maintenance.services || [{ name: '', description: '', estimatedCost: 0 }],
         parts: maintenance.parts || [{ name: '', partNumber: '', quantity: 1, unitCost: 0 }],
         notes: maintenance.notes
@@ -276,12 +278,12 @@ const Maintenance = () => {
 
   const handleDelete = () => {
     setDeleteDialogOpen(true);
-    handleMenuClose();
+    setAnchorEl(null);
   };
 
   const confirmDelete = () => {
     if (selectedMaintenance) {
-      deleteMaintenanceMutation.mutate(selectedMaintenance._id);
+      deleteMaintenanceMutation.mutate(selectedMaintenance.id);
     }
   };
 
@@ -391,15 +393,32 @@ const Maintenance = () => {
             Programa y gestiona el mantenimiento de la flota
           </Typography>
         </Box>
-        {hasPermission('maintenance', 'create') && (
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          {/* Toggle de vista */}
           <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={() => handleOpenDialog()}
+            variant={viewMode === 'list' ? 'contained' : 'outlined'}
+            startIcon={<Assignment />}
+            onClick={() => setViewMode('list')}
           >
-            Nuevo Mantenimiento
+            Lista
           </Button>
-        )}
+          <Button
+            variant={viewMode === 'calendar' ? 'contained' : 'outlined'}
+            startIcon={<CalendarToday />}
+            onClick={() => setViewMode('calendar')}
+          >
+            Calendario
+          </Button>
+          {hasPermission('maintenance', 'create') && (
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={() => handleOpenDialog()}
+            >
+              Nuevo Mantenimiento
+            </Button>
+          )}
+        </Box>
       </Box>
 
       {/* Filtros */}
@@ -431,7 +450,7 @@ const Maintenance = () => {
                 >
                   <MenuItem value="">Todos</MenuItem>
                   {vehiclesData?.map((vehicle) => (
-                    <MenuItem key={vehicle._id} value={vehicle._id}>
+                    <MenuItem key={vehicle.id} value={vehicle.id}>
                       {vehicle.plateNumber} - {vehicle.make} {vehicle.model}
                     </MenuItem>
                   ))}
@@ -502,9 +521,10 @@ const Maintenance = () => {
         </CardContent>
       </Card>
 
-      {/* Tabla de mantenimientos */}
-      <Card>
-        <TableContainer>
+      {/* Vista de lista */}
+      {viewMode === 'list' && (
+        <Card>
+          <TableContainer>
           <Table>
             <TableHead>
               <TableRow>
@@ -525,7 +545,7 @@ const Maintenance = () => {
                                maintenance.status === 'scheduled' ? 0 : 25;
                 
                 return (
-                  <TableRow key={maintenance._id} hover>
+                  <TableRow key={maintenance.id} hover>
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <Avatar sx={{ mr: 2, bgcolor: 'primary.main' }}>
@@ -589,7 +609,7 @@ const Maintenance = () => {
                       {maintenance.assignedTo?.length > 0 ? (
                         <Box>
                           {maintenance.assignedTo.slice(0, 2).map((user, index) => (
-                            <Box key={user._id} sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                            <Box key={user.id} sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
                               <Person sx={{ fontSize: 16, mr: 0.5 }} />
                               <Typography variant="caption">
                                 {user.name} {user.lastName}
@@ -644,21 +664,27 @@ const Maintenance = () => {
               })}
             </TableBody>
           </Table>
-        </TableContainer>
-        
-        <TablePagination
-          rowsPerPageOptions={[5, 10, 25]}
-          component="div"
-          count={totalCount}
-          rowsPerPage={rowsPerPage}
-          page={page}
-          onPageChange={(e, newPage) => setPage(newPage)}
-          onRowsPerPageChange={(e) => {
-            setRowsPerPage(parseInt(e.target.value, 10));
-            setPage(0);
-          }}
-        />
-      </Card>
+          </TableContainer>
+          
+          <TablePagination
+            rowsPerPageOptions={[5, 10, 25]}
+            component="div"
+            count={totalCount}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={(e, newPage) => setPage(newPage)}
+            onRowsPerPageChange={(e) => {
+              setRowsPerPage(parseInt(e.target.value, 10));
+              setPage(0);
+            }}
+          />
+        </Card>
+      )}
+
+      {/* Vista de calendario */}
+      {viewMode === 'calendar' && (
+        <MaintenanceCalendar />
+      )}
 
       {/* Menú de acciones */}
       <Menu
@@ -751,7 +777,7 @@ const Maintenance = () => {
                         <InputLabel>Vehículo</InputLabel>
                         <Select {...field} label="Vehículo">
                           {vehiclesData?.map((vehicle) => (
-                            <MenuItem key={vehicle._id} value={vehicle._id}>
+                            <MenuItem key={vehicle.id} value={vehicle.id}>
                               {vehicle.plateNumber} - {vehicle.make} {vehicle.model}
                             </MenuItem>
                           ))}
@@ -857,9 +883,9 @@ const Maintenance = () => {
                         multiple
                         options={usersData || []}
                         getOptionLabel={(option) => `${option.name} ${option.lastName}`}
-                        value={usersData?.filter(user => field.value?.includes(user._id)) || []}
-                        onChange={(event, newValue) => {
-                          field.onChange(newValue.map(user => user._id));
+                        value={usersData?.filter(user => field.value?.includes(user.id)) || []}
+              onChange={(event, newValue) => {
+                field.onChange(newValue.map(user => user.id));
                         }}
                         renderInput={(params) => (
                           <TextField

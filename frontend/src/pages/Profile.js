@@ -118,7 +118,7 @@ const Profile = () => {
   // Mutación para actualizar perfil
   const updateProfileMutation = useMutation({
     mutationFn: async (data) => {
-      return axios.put('/users/profile', data);
+      return axios.put('/auth/profile', data);
     },
     onSuccess: (response) => {
       updateProfile(response.data.user);
@@ -133,7 +133,7 @@ const Profile = () => {
   // Mutación para cambiar contraseña
   const changePasswordMutation = useMutation({
     mutationFn: async (data) => {
-      return axios.patch('/users/change-password', data);
+      return axios.put('/auth/change-password', data);
     },
     onSuccess: () => {
       toast.success('Contraseña actualizada exitosamente');
@@ -334,7 +334,7 @@ const Profile = () => {
                       </ListItemIcon>
                       <ListItemText
                         primary="ID de Usuario"
-                        secondary={user?._id?.slice(-8)}
+                        secondary={user?.id?.slice(-8)}
                       />
                     </ListItem>
                     <ListItem>
@@ -566,7 +566,7 @@ const Profile = () => {
                     </TableHead>
                     <TableBody>
                       {(activityData?.activities || []).map((activity) => (
-                        <TableRow key={activity._id}>
+                        <TableRow key={activity.id}>
                           <TableCell>
                             <Box sx={{ display: 'flex', alignItems: 'center' }}>
                               {getActivityIcon(activity.action)}
