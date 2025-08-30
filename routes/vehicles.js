@@ -1,7 +1,10 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
+const { Op } = require('sequelize');
 const Vehicle = require('../models/Vehicle');
 const Branch = require('../models/Branch');
+const Company = require('../models/Company');
+const User = require('../models/User');
 const { auth, checkPermission, checkCompanyAccess, checkBranchAccess, logActivity } = require('../middleware/auth');
 const { checkVehicleLimits } = require('../middleware/companyAdmin');
 
@@ -18,78 +21,90 @@ router.get('/', [
   try {
     const { page = 1, limit = 10, search, status, branch, vehicleType, company } = req.query;
     
-    const query = { company: company || req.user.company._id };
+    const whereConditions = { companyId: company || req.user.company.id };
     
     if (search) {
-      query.$or = [
-        { plateNumber: { $regex: search, $options: 'i' } },
-        { make: { $regex: search, $options: 'i' } },
-        { model: { $regex: search, $options: 'i' } },
-        { vin: { $regex: search, $options: 'i' } },
-        { 'owner.name': { $regex: search, $options: 'i' } }
+      whereConditions[Op.or] = [
+        { plateNumber: { [Op.iLike]: `%${search}%` } },
+        { make: { [Op.iLike]: `%${search}%` } },
+        { model: { [Op.iLike]: `%${search}%` } },
+        { vin: { [Op.iLike]: `%${search}%` } },
+        { '$owner.name$': { [Op.iLike]: `%${search}%` } }
       ];
     }
     
     if (status) {
-      query.status = status;
+      whereConditions.status = status;
     }
     
     if (branch) {
-      query.branch = branch;
+      whereConditions.branchId = branch;
     }
     
     if (vehicleType) {
-      query.vehicleType = vehicleType;
+      whereConditions.vehicleType = vehicleType;
     }
 
     // Filtrar por sucursales del usuario si no es admin
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      query.branch = req.user.branch;
+      whereConditions.branchId = req.user.branchId;
     }
 
     // Filtrar por tipos de vehículos según permisos del usuario
     if (req.user.vehicleTypeAccess && req.user.vehicleTypeAccess.length > 0) {
-      query.vehicleType = { $in: req.user.vehicleTypeAccess };
+      whereConditions.vehicleType = { [Op.in]: req.user.vehicleTypeAccess };
     }
 
-    const vehicles = await Vehicle.find(query)
-      .populate('company', 'name')
-      .populate('branch', 'name code')
-      .populate('createdBy', 'name lastName')
-      .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
+    const vehicles = await Vehicle.findAll({
+      where: whereConditions,
+      include: [
+        { model: Company, as: 'company', attributes: ['name'] },
+        { model: Branch, as: 'branch', attributes: ['name', 'code'] },
+        { model: User, as: 'createdBy', attributes: ['name', 'lastName'] }
+      ],
+      order: [['createdAt', 'DESC']],
+      limit: parseInt(limit),
+      offset: (parseInt(page) - 1) * parseInt(limit)
+    });
 
-    const total = await Vehicle.countDocuments(query);
+    const total = await Vehicle.count({ where: whereConditions });
 
     // Agregar información de mantenimiento para cada vehículo
     const Maintenance = require('../models/Maintenance');
     const vehiclesWithMaintenance = await Promise.all(
       vehicles.map(async (vehicle) => {
         const [activeMaintenances, lastMaintenance, nextMaintenance] = await Promise.all([
-          Maintenance.countDocuments({ 
-            vehicle: vehicle._id, 
-            status: { $in: ['programado', 'en_proceso'] }
+          Maintenance.count({ 
+            where: {
+              vehicleId: vehicle.id, 
+              status: { [Op.in]: ['programado', 'en_proceso'] }
+            }
           }),
           Maintenance.findOne({ 
-            vehicle: vehicle._id, 
-            status: 'completado' 
-          }).sort({ completedDate: -1 }),
+            where: {
+              vehicleId: vehicle.id, 
+              status: 'completado' 
+            },
+            order: [['completedDate', 'DESC']]
+          }),
           Maintenance.findOne({ 
-            vehicle: vehicle._id, 
-            status: 'programado',
-            scheduledDate: { $gte: new Date() }
-          }).sort({ scheduledDate: 1 })
+            where: {
+              vehicleId: vehicle.id, 
+              status: 'programado',
+              scheduledDate: { [Op.gte]: new Date() }
+            },
+            order: [['scheduledDate', 'ASC']]
+          })
         ]);
         
         return {
-          ...vehicle.toObject(),
+          ...vehicle.toJSON(),
           maintenance: {
             active: activeMaintenances,
             last: lastMaintenance,
             next: nextMaintenance,
-            needsOilChange: vehicle.needsOilChange(),
-            needsInspection: vehicle.needsInspection()
+            needsOilChange: vehicle.needsOilChange ? vehicle.needsOilChange() : false,
+            needsInspection: vehicle.needsInspection ? vehicle.needsInspection() : false
           }
         };
       })
@@ -119,23 +134,26 @@ router.get('/:id', [
   logActivity('Ver vehículo')
 ], async (req, res) => {
   try {
-    const vehicle = await Vehicle.findById(req.params.id)
-      .populate('company', 'name rfc')
-      .populate('branch', 'name code address')
-      .populate('createdBy', 'name lastName email')
-      .populate('lastModifiedBy', 'name lastName');
+    const vehicle = await Vehicle.findByPk(req.params.id, {
+      include: [
+        { model: Company, as: 'company', attributes: ['name', 'rfc'] },
+        { model: Branch, as: 'branch', attributes: ['name', 'code', 'address'] },
+        { model: User, as: 'createdBy', attributes: ['name', 'lastName', 'email'] },
+        { model: User, as: 'lastModifiedBy', attributes: ['name', 'lastName'] }
+      ]
+    });
 
     if (!vehicle) {
       return res.status(404).json({ message: 'Vehículo no encontrado' });
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && vehicle.company._id.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && vehicle.company.id !== req.user.company.id) {
       return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
     }
 
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      const hasAccess = req.user.branch.toString() === vehicle.branch._id.toString();
+      const hasAccess = req.user.branchId === vehicle.branch.id;
       if (!hasAccess) {
         return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
       }
@@ -151,37 +169,49 @@ router.get('/:id', [
     // Obtener historial de mantenimiento
     const Maintenance = require('../models/Maintenance');
     const [maintenanceHistory, activeMaintenances, upcomingMaintenances] = await Promise.all([
-      Maintenance.find({ vehicle: vehicle._id })
-        .populate('branch', 'name')
-        .populate('assignedTo', 'name lastName')
-      .populate('createdBy', 'name lastName')
-        .sort({ scheduledDate: -1 })
-        .limit(10),
-      Maintenance.find({ 
-        vehicle: vehicle._id, 
-        status: { $in: ['programado', 'en_proceso'] }
+      Maintenance.findAll({
+        where: { vehicleId: vehicle.id },
+        include: [
+          { model: Branch, as: 'branch', attributes: ['name'] },
+          { model: User, as: 'assignedTo', attributes: ['name', 'lastName'] },
+          { model: User, as: 'createdBy', attributes: ['name', 'lastName'] }
+        ],
+        order: [['scheduledDate', 'DESC']],
+        limit: 10
+      }),
+      Maintenance.findAll({
+        where: { 
+          vehicleId: vehicle.id, 
+          status: { [Op.in]: ['programado', 'en_proceso'] }
+        },
+        include: [
+          { model: Branch, as: 'branch', attributes: ['name'] },
+          { model: User, as: 'assignedTo', attributes: ['name', 'lastName'] }
+        ],
+        order: [['scheduledDate', 'ASC']]
+      }),
+      Maintenance.findAll({
+        where: { 
+          vehicleId: vehicle.id, 
+          status: 'programado',
+          scheduledDate: { [Op.gte]: new Date() }
+        },
+        include: [
+          { model: Branch, as: 'branch', attributes: ['name'] },
+          { model: User, as: 'assignedTo', attributes: ['name', 'lastName'] }
+        ],
+        order: [['scheduledDate', 'ASC']],
+        limit: 5
       })
-        .populate('branch', 'name')
-        .populate('assignedTo', 'name lastName')
-        .sort({ scheduledDate: 1 }),
-      Maintenance.find({ 
-        vehicle: vehicle._id, 
-        status: 'programado',
-        scheduledDate: { $gte: new Date() }
-      })
-        .populate('branch', 'name')
-        .populate('assignedTo', 'name lastName')
-        .sort({ scheduledDate: 1 })
-        .limit(5)
     ]);
 
     res.json({
       vehicle: {
-        ...vehicle.toObject(),
+        ...vehicle.toJSON(),
         maintenance: {
-          needsOilChange: vehicle.needsOilChange(),
-          needsInspection: vehicle.needsInspection(),
-          expiringDocuments: vehicle.getExpiringDocuments(30)
+          needsOilChange: vehicle.needsOilChange ? vehicle.needsOilChange() : false,
+          needsInspection: vehicle.needsInspection ? vehicle.needsInspection() : false,
+          expiringDocuments: vehicle.getExpiringDocuments ? vehicle.getExpiringDocuments(30) : []
         }
       },
       maintenanceHistory,
@@ -243,11 +273,11 @@ router.post('/', [
       branch
     } = req.body;
 
-    const companyId = req.body.company || req.user.company._id;
+    const companyId = req.body.company || req.user.company.id;
 
     // Verificar que la sucursal pertenece a la empresa (solo si se proporciona)
     if (branch) {
-      const branchDoc = await Branch.findOne({ _id: branch, company: companyId });
+      const branchDoc = await Branch.findOne({ where: { id: branch, companyId: companyId } });
       if (!branchDoc) {
         return res.status(400).json({ message: 'Sucursal no válida' });
       }
@@ -262,8 +292,10 @@ router.post('/', [
 
     // Verificar que la placa no exista en la empresa
     const existingVehicle = await Vehicle.findOne({ 
-      company: companyId, 
-      plateNumber: plateNumber.toUpperCase() 
+      where: {
+        companyId: companyId, 
+        plateNumber: plateNumber.toUpperCase() 
+      }
     });
     
     if (existingVehicle) {
@@ -272,17 +304,17 @@ router.post('/', [
 
     // Verificar VIN si se proporciona
     if (vin) {
-      const existingVin = await Vehicle.findOne({ vin: vin.toUpperCase() });
+      const existingVin = await Vehicle.findOne({ where: { vin: vin.toUpperCase() } });
       if (existingVin) {
         return res.status(400).json({ message: 'El VIN ya está registrado' });
       }
     }
 
-    const vehicle = new Vehicle({
+    const vehicle = await Vehicle.create({
       plateNumber: plateNumber.toUpperCase(),
       vin: vin ? vin.toUpperCase() : undefined,
-      company: companyId,
-      branch,
+      companyId,
+      branchId: branch,
       make,
       model,
       year,
@@ -301,15 +333,16 @@ router.post('/', [
       maintenanceSchedule,
       costs,
       notes,
-      createdBy: req.user._id
+      createdById: req.user.id
     });
 
-    await vehicle.save();
-
-    const populatedVehicle = await Vehicle.findById(vehicle._id)
-      .populate('company', 'name')
-      .populate('branch', 'name code')
-      .populate('createdBy', 'name lastName');
+    const populatedVehicle = await Vehicle.findByPk(vehicle.id, {
+      include: [
+        { model: Company, as: 'company', attributes: ['name'] },
+        { model: Branch, as: 'branch', attributes: ['name', 'code'] },
+        { model: User, as: 'createdBy', attributes: ['name', 'lastName'] }
+      ]
+    });
 
     res.status(201).json({
       message: 'Vehículo creado exitosamente',
@@ -341,13 +374,13 @@ router.put('/:id', [
       });
     }
 
-    const vehicle = await Vehicle.findById(req.params.id);
+    const vehicle = await Vehicle.findByPk(req.params.id);
     if (!vehicle) {
       return res.status(404).json({ message: 'Vehículo no encontrado' });
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && vehicle.company.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && vehicle.companyId !== req.user.company.id) {
       return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
     }
 
@@ -387,9 +420,11 @@ router.put('/:id', [
     // Verificar placa única si se está actualizando
     if (plateNumber && plateNumber.toUpperCase() !== vehicle.plateNumber) {
       const existingVehicle = await Vehicle.findOne({ 
-        company: vehicle.company, 
-        plateNumber: plateNumber.toUpperCase(),
-        _id: { $ne: vehicle._id }
+        where: {
+          companyId: vehicle.companyId, 
+          plateNumber: plateNumber.toUpperCase(),
+          id: { [Op.ne]: vehicle.id }
+        }
       });
       
       if (existingVehicle) {
@@ -400,8 +435,10 @@ router.put('/:id', [
     // Verificar VIN único si se está actualizando
     if (vin && vin.toUpperCase() !== vehicle.vin) {
       const existingVin = await Vehicle.findOne({ 
-        vin: vin.toUpperCase(),
-        _id: { $ne: vehicle._id }
+        where: {
+          vin: vin.toUpperCase(),
+          id: { [Op.ne]: vehicle.id }
+        }
       });
       
       if (existingVin) {
@@ -419,16 +456,16 @@ router.put('/:id', [
     }
 
     // Verificar sucursal si se está cambiando
-    if (branch && branch !== vehicle.branch.toString()) {
-      const branchDoc = await Branch.findOne({ _id: branch, company: vehicle.company });
+    if (branch && branch !== vehicle.branchId) {
+      const branchDoc = await Branch.findOne({ where: { id: branch, companyId: vehicle.companyId } });
       if (!branchDoc) {
         return res.status(400).json({ message: 'Sucursal no válida' });
       }
     }
 
     const updateData = {
-      lastModifiedBy: req.user._id,
-      modifiedBy: req.user._id
+      lastModifiedById: req.user.id,
+      modifiedById: req.user.id
     };
     
     if (plateNumber) updateData.plateNumber = plateNumber.toUpperCase();
@@ -453,16 +490,18 @@ router.put('/:id', [
     if (status) updateData.status = status;
     if (condition) updateData.condition = condition;
     if (notes) updateData.notes = notes;
-    if (branch) updateData.branch = branch;
+    if (branch) updateData.branchId = branch;
 
-    const updatedVehicle = await Vehicle.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true }
-    ).populate('company', 'name')
-     .populate('branch', 'name code')
-     .populate('createdBy', 'name lastName')
-      .populate('lastModifiedBy', 'name lastName');
+    await vehicle.update(updateData);
+
+    const updatedVehicle = await Vehicle.findByPk(vehicle.id, {
+      include: [
+        { model: Company, as: 'company', attributes: ['name'] },
+        { model: Branch, as: 'branch', attributes: ['name', 'code'] },
+        { model: User, as: 'createdBy', attributes: ['name', 'lastName'] },
+        { model: User, as: 'lastModifiedBy', attributes: ['name', 'lastName'] }
+      ]
+    });
 
     res.json({
       message: 'Vehículo actualizado exitosamente',
@@ -484,30 +523,31 @@ router.delete('/:id', [
   logActivity('Eliminar vehículo')
 ], async (req, res) => {
   try {
-    const vehicle = await Vehicle.findById(req.params.id);
+    const vehicle = await Vehicle.findByPk(req.params.id);
     if (!vehicle) {
       return res.status(404).json({ message: 'Vehículo no encontrado' });
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && vehicle.company.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && vehicle.companyId !== req.user.company.id) {
       return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
     }
 
     // Verificar si tiene mantenimientos
     const Maintenance = require('../models/Maintenance');
-    const maintenanceCount = await Maintenance.countDocuments({ vehicle: vehicle._id });
+    const maintenanceCount = await Maintenance.count({ where: { vehicleId: vehicle.id } });
 
     if (maintenanceCount > 0) {
       // Soft delete
-      vehicle.isActive = false;
-      vehicle.status = 'dado_de_baja';
-      await vehicle.save();
+      await vehicle.update({
+        isActive: false,
+        status: 'dado_de_baja'
+      });
       
       res.json({ message: 'Vehículo dado de baja exitosamente' });
     } else {
       // Hard delete si no tiene mantenimientos
-      await Vehicle.findByIdAndDelete(req.params.id);
+      await vehicle.destroy();
       res.json({ message: 'Vehículo eliminado exitosamente' });
     }
 
@@ -537,13 +577,13 @@ router.put('/:id/odometer', [
 
     const { reading, date } = req.body;
     
-    const vehicle = await Vehicle.findById(req.params.id);
+    const vehicle = await Vehicle.findByPk(req.params.id);
     if (!vehicle) {
       return res.status(404).json({ message: 'Vehículo no encontrado' });
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && vehicle.company.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && vehicle.companyId !== req.user.company.id) {
       return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
     }
 
@@ -573,20 +613,20 @@ router.get('/:id/maintenance-alerts', [
   logActivity('Ver alertas de mantenimiento')
 ], async (req, res) => {
   try {
-    const vehicle = await Vehicle.findById(req.params.id);
+    const vehicle = await Vehicle.findByPk(req.params.id);
     if (!vehicle) {
       return res.status(404).json({ message: 'Vehículo no encontrado' });
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && vehicle.company.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && vehicle.companyId !== req.user.company.id) {
       return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
     }
 
     const alerts = [];
 
     // Alertas de mantenimiento
-    if (vehicle.needsOilChange()) {
+    if (vehicle.needsOilChange && vehicle.needsOilChange()) {
       alerts.push({
         type: 'maintenance',
         priority: 'alta',
@@ -596,7 +636,7 @@ router.get('/:id/maintenance-alerts', [
       });
     }
 
-    if (vehicle.needsInspection()) {
+    if (vehicle.needsInspection && vehicle.needsInspection()) {
       alerts.push({
         type: 'maintenance',
         priority: 'media',
@@ -607,7 +647,7 @@ router.get('/:id/maintenance-alerts', [
     }
 
     // Alertas de documentos
-    const expiringDocs = vehicle.getExpiringDocuments(30);
+    const expiringDocs = vehicle.getExpiringDocuments ? vehicle.getExpiringDocuments(30) : [];
     expiringDocs.forEach(doc => {
       alerts.push({
         type: 'document',
@@ -731,13 +771,13 @@ router.post('/:id/photos', [
   logActivity('Subir fotos de vehículo')
 ], async (req, res) => {
   try {
-    const vehicle = await Vehicle.findById(req.params.id);
+    const vehicle = await Vehicle.findByPk(req.params.id);
     if (!vehicle) {
       return res.status(404).json({ message: 'Vehículo no encontrado' });
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && vehicle.company.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && vehicle.companyId !== req.user.company.id) {
       return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
     }
 
@@ -757,16 +797,16 @@ router.post('/:id/photos', [
     // Añadir metadatos a las fotos
     const photosWithMetadata = photos.map(photo => ({
       ...photo,
-      uploadedBy: req.user._id,
+      uploadedBy: req.user.id,
       uploadedAt: new Date()
     }));
 
     // Actualizar vehículo con nuevas fotos
-    vehicle.photos = vehicle.photos || [];
-    vehicle.photos.push(...photosWithMetadata);
-    vehicle.lastModifiedBy = req.user._id;
-    
-    await vehicle.save();
+    const currentPhotos = vehicle.photos || [];
+    await vehicle.update({
+      photos: [...currentPhotos, ...photosWithMetadata],
+      lastModifiedById: req.user.id
+    });
 
     res.json({
       message: 'Fotos subidas exitosamente',
@@ -788,26 +828,30 @@ router.delete('/:id/photos/:photoId', [
   logActivity('Eliminar foto de vehículo')
 ], async (req, res) => {
   try {
-    const vehicle = await Vehicle.findById(req.params.id);
+    const vehicle = await Vehicle.findByPk(req.params.id);
     if (!vehicle) {
       return res.status(404).json({ message: 'Vehículo no encontrado' });
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && vehicle.company.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && vehicle.companyId !== req.user.company.id) {
       return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
     }
 
     // Encontrar y eliminar la foto
-    const photoIndex = vehicle.photos.findIndex(photo => photo._id.toString() === req.params.photoId);
+    const photos = vehicle.photos || [];
+    const photoIndex = photos.findIndex(photo => photo.id === req.params.photoId);
     if (photoIndex === -1) {
       return res.status(404).json({ message: 'Foto no encontrada' });
     }
 
-    vehicle.photos.splice(photoIndex, 1);
-    vehicle.lastModifiedBy = req.user._id;
+    const updatedPhotos = [...photos];
+    updatedPhotos.splice(photoIndex, 1);
     
-    await vehicle.save();
+    await vehicle.update({
+      photos: updatedPhotos,
+      lastModifiedById: req.user.id
+    });
 
     res.json({ message: 'Foto eliminada exitosamente' });
 
@@ -832,13 +876,13 @@ router.post('/:id/documents', [
       return res.status(400).json({ message: 'Nombre y URL del documento son requeridos' });
     }
 
-    const vehicle = await Vehicle.findById(req.params.id);
+    const vehicle = await Vehicle.findByPk(req.params.id);
     if (!vehicle) {
       return res.status(404).json({ message: 'Vehículo no encontrado' });
     }
 
     // Verificar acceso a la empresa
-    if (vehicle.company.toString() !== req.user.company._id.toString()) {
+    if (vehicle.companyId !== req.user.company.id) {
       return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
     }
 
@@ -847,12 +891,14 @@ router.post('/:id/documents', [
       url,
       type: type || 'document',
       uploadDate: new Date(),
-      uploadedBy: req.user._id
+      uploadedBy: req.user.id
     };
 
-    vehicle.attachments.push(newDocument);
-    vehicle.lastModifiedBy = req.user._id;
-    await vehicle.save();
+    const currentAttachments = vehicle.attachments || [];
+    await vehicle.update({
+      attachments: [...currentAttachments, newDocument],
+      lastModifiedById: req.user.id
+    });
 
     res.json({
       message: 'Documento subido exitosamente',
@@ -873,20 +919,20 @@ router.get('/:id/documents', [
   logActivity('Ver documentos de vehículo')
 ], async (req, res) => {
   try {
-    const vehicle = await Vehicle.findById(req.params.id)
-      .populate('attachments.uploadedBy', 'name email')
-      .select('attachments company');
+    const vehicle = await Vehicle.findByPk(req.params.id, {
+      attributes: ['attachments', 'companyId']
+    });
       
     if (!vehicle) {
       return res.status(404).json({ message: 'Vehículo no encontrado' });
     }
 
     // Verificar acceso a la empresa
-    if (vehicle.company.toString() !== req.user.company._id.toString()) {
+    if (vehicle.companyId !== req.user.company.id) {
       return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
     }
 
-    res.json(vehicle.attachments);
+    res.json(vehicle.attachments || []);
   } catch (error) {
     console.error('Error al obtener documentos:', error);
     res.status(500).json({ message: 'Error interno del servidor' });
@@ -902,27 +948,32 @@ router.delete('/:id/documents/:documentId', [
   logActivity('Eliminar documento de vehículo')
 ], async (req, res) => {
   try {
-    const vehicle = await Vehicle.findById(req.params.id);
+    const vehicle = await Vehicle.findByPk(req.params.id);
     if (!vehicle) {
       return res.status(404).json({ message: 'Vehículo no encontrado' });
     }
 
     // Verificar acceso a la empresa
-    if (vehicle.company.toString() !== req.user.company._id.toString()) {
+    if (vehicle.companyId !== req.user.company.id) {
       return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
     }
 
-    const documentIndex = vehicle.attachments.findIndex(
-      doc => doc._id.toString() === req.params.documentId
+    const attachments = vehicle.attachments || [];
+    const documentIndex = attachments.findIndex(
+      doc => doc.id === req.params.documentId
     );
 
     if (documentIndex === -1) {
       return res.status(404).json({ message: 'Documento no encontrado' });
     }
 
-    vehicle.attachments.splice(documentIndex, 1);
-    vehicle.lastModifiedBy = req.user._id;
-    await vehicle.save();
+    const updatedAttachments = [...attachments];
+    updatedAttachments.splice(documentIndex, 1);
+    
+    await vehicle.update({
+      attachments: updatedAttachments,
+      lastModifiedById: req.user.id
+    });
 
     res.json({ message: 'Documento eliminado exitosamente' });
   } catch (error) {

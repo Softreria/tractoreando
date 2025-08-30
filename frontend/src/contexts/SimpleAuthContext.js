@@ -22,7 +22,7 @@ export const AuthProvider = ({ children }) => {
       if (savedToken) {
         setIsLoading(true);
         try {
-          const response = await fetch('http://localhost:8000/api/auth/me', {
+          const response = await fetch(`${process.env.REACT_APP_API_URL}/auth/me`, {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${savedToken}`,
@@ -63,7 +63,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/auth/login', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

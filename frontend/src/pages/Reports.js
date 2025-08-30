@@ -97,7 +97,7 @@ const Reports = () => {
   const { data: dashboardData, isLoading: dashboardLoading } = useQuery({
     queryKey: ['dashboard-reports'],
     queryFn: async () => {
-      const response = await api.get('/api/reports/dashboard');
+      const response = await api.get('/reports/dashboard');
       return response.data;
     }
   });
@@ -111,7 +111,7 @@ const Reports = () => {
         endDate: dateRange.endDate.toISOString(),
         branch: selectedBranch || undefined
       };
-      const response = await api.get('/api/reports/vehicles', { params });
+      const response = await api.get('/reports/vehicles', { params });
       return response.data;
     },
     enabled: tabValue === 1
@@ -127,7 +127,7 @@ const Reports = () => {
         branch: selectedBranch || undefined,
         vehicle: selectedVehicle || undefined
       };
-      const response = await api.get('/api/reports/maintenance', { params });
+      const response = await api.get('/reports/maintenance', { params });
       return response.data;
     },
     enabled: tabValue === 2
@@ -143,7 +143,7 @@ const Reports = () => {
         groupBy,
         branch: selectedBranch || undefined
       };
-      const response = await api.get('/api/reports/costs', { params });
+      const response = await api.get('/reports/costs', { params });
       return response.data;
     },
     enabled: tabValue === 3
@@ -159,7 +159,7 @@ const Reports = () => {
         branch: selectedBranch || undefined,
         mechanic: selectedMechanic || undefined
       };
-      const response = await api.get('/api/reports/performance', { params });
+      const response = await api.get('/reports/performance', { params });
       return response.data;
     },
     enabled: tabValue === 4
@@ -169,7 +169,7 @@ const Reports = () => {
   const { data: branchesData } = useQuery({
     queryKey: ['branches-list'],
     queryFn: async () => {
-      const response = await api.get('/api/branches', { params: { limit: 100 } });
+      const response = await api.get('/branches', { params: { limit: 100 } });
       return response.data.branches;
     }
   });
@@ -180,7 +180,7 @@ const Reports = () => {
     queryFn: async () => {
       const params = { limit: 100 };
       if (selectedBranch) params.branch = selectedBranch;
-      const response = await api.get('/api/vehicles', { params });
+      const response = await api.get('/vehicles', { params });
       return response.data.vehicles;
     }
   });
@@ -191,7 +191,7 @@ const Reports = () => {
     queryFn: async () => {
       const params = { role: 'mechanic', limit: 100 };
       if (selectedBranch) params.branch = selectedBranch;
-      const response = await api.get('/api/users', { params });
+      const response = await api.get('/users', { params });
       return response.data.users;
     }
   });
@@ -207,7 +207,7 @@ const Reports = () => {
         mechanic: selectedMechanic || undefined
       };
 
-      const response = await api.get(`/api/reports/${type}/export`, {
+      const response = await api.get(`/reports/${type}/export`, {
         params,
         responseType: 'blob'
       });

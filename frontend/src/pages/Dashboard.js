@@ -278,7 +278,7 @@ const Dashboard = () => {
   const { data: dashboardData, isLoading, refetch } = useQuery({
     queryKey: ['dashboard'],
     queryFn: async () => {
-      const response = await api.get('/api/reports/dashboard');
+      const response = await api.get('/reports/dashboard');
       return response.data;
     },
     enabled: isAuthenticated && !!user && !authLoading, // Solo ejecutar cuando el usuario esté completamente cargado

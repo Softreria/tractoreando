@@ -73,7 +73,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import { useAuth } from '../contexts/AuthContext';
-import axios from 'axios';
+import api from '../utils/api';
 import toast from 'react-hot-toast';
 
 const Settings = () => {
@@ -98,7 +98,7 @@ const Settings = () => {
   const { data: settingsData, isLoading } = useQuery({
     queryKey: ['system-settings'],
     queryFn: async () => {
-      const response = await axios.get('/settings');
+      const response = await api.get('/settings');
       return response.data;
     },
     enabled: hasPermission('settings', 'read')
@@ -108,7 +108,7 @@ const Settings = () => {
   const { data: systemStats } = useQuery({
     queryKey: ['system-stats'],
     queryFn: async () => {
-      const response = await axios.get('/settings/stats');
+      const response = await api.get('/settings/stats');
       return response.data;
     },
     enabled: hasRole('super_admin')
@@ -117,7 +117,7 @@ const Settings = () => {
   // Mutación para actualizar configuraciones
   const updateSettingsMutation = useMutation({
     mutationFn: async (data) => {
-      return axios.put('/settings', data);
+      return api.put('/settings', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['system-settings']);
@@ -131,7 +131,7 @@ const Settings = () => {
   // Mutación para crear backup
   const createBackupMutation = useMutation({
     mutationFn: async () => {
-      return axios.post('/settings/backup');
+      return api.post('/settings/backup');
     },
     onSuccess: (response) => {
       toast.success('Backup creado exitosamente');
@@ -154,7 +154,7 @@ const Settings = () => {
   // Mutación para limpiar datos
   const cleanDataMutation = useMutation({
     mutationFn: async (type) => {
-      return axios.delete(`/api/settings/clean/${type}`);
+      return api.delete(`/settings/clean/${type}`);
     },
     onSuccess: () => {
       toast.success('Datos limpiados exitosamente');

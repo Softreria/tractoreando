@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
+const { Op } = require('sequelize');
 const User = require('../models/User');
 const Company = require('../models/Company');
 const Branch = require('../models/Branch');
@@ -20,52 +21,56 @@ router.get('/', [
   try {
     const { page = 1, limit = 10, search, role, branch, status, company } = req.query;
     
-    const query = {};
+    const whereConditions = {};
     
     // Filtrar por empresa
     if (req.user.role === 'super_admin') {
       if (company) {
-        query.company = company;
+        whereConditions.companyId = company;
       }
     } else {
-      query.company = req.user.company._id;
+      whereConditions.companyId = req.user.company.id;
     }
     
     if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { lastName: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-        { phone: { $regex: search, $options: 'i' } }
+      whereConditions[Op.or] = [
+        { name: { [Op.iLike]: `%${search}%` } },
+        { lastName: { [Op.iLike]: `%${search}%` } },
+        { email: { [Op.iLike]: `%${search}%` } },
+        { phone: { [Op.iLike]: `%${search}%` } }
       ];
     }
     
     if (role) {
-      query.role = role;
+      whereConditions.role = role;
     }
     
     if (branch) {
-      query.branch = branch;
+      whereConditions.branchId = branch;
     }
     
     if (status !== undefined) {
-      query.isActive = status === 'true';
+      whereConditions.isActive = status === 'true';
     }
 
     // Filtrar por sucursales del usuario si no es admin
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      query.branch = req.user.branch;
+      whereConditions.branchId = req.user.branchId;
     }
 
-    const users = await User.find(query)
-      .populate('company', 'name')
-      .populate('branch', 'name code')
-      .select('-password -resetPasswordToken -resetPasswordExpires')
-      .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
+    const users = await User.findAll({
+      where: whereConditions,
+      include: [
+        { model: Company, attributes: ['name'] },
+        { model: Branch, attributes: ['name', 'code'] }
+      ],
+      attributes: { exclude: ['password', 'resetPasswordToken', 'resetPasswordExpires'] },
+      order: [['createdAt', 'DESC']],
+      limit: parseInt(limit),
+      offset: (parseInt(page) - 1) * parseInt(limit)
+    });
 
-    const total = await User.countDocuments(query);
+    const total = await User.count({ where: whereConditions });
 
     res.json({
       users,
@@ -127,17 +132,20 @@ router.get('/:id', [
   logActivity('Ver usuario')
 ], async (req, res) => {
   try {
-    const user = await User.findById(req.params.id)
-      .populate('company', 'name rfc')
-      .populate('branch', 'name code address')
-      .select('-password -resetPasswordToken -resetPasswordExpires');
+    const user = await User.findByPk(req.params.id, {
+      include: [
+        { model: Company, attributes: ['name', 'rfc'] },
+        { model: Branch, attributes: ['name', 'code', 'address'] }
+      ],
+      attributes: { exclude: ['password', 'resetPasswordToken', 'resetPasswordExpires'] }
+    });
 
     if (!user) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && user.company._id.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && user.Company.id !== req.user.company.id) {
       return res.status(403).json({ message: 'No tienes acceso a este usuario' });
     }
 
@@ -191,14 +199,14 @@ router.post('/', [
     const companyId = company || req.user.company._id;
 
     // Verificar que el email no exista
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(400).json({ message: 'El email ya está registrado' });
     }
 
     // Verificar que la sucursal pertenece a la empresa (solo si se proporciona)
     if (branch) {
-      const branchDoc = await Branch.findOne({ _id: branch, company: companyId });
+      const branchDoc = await Branch.findOne({ where: { id: branch, companyId: companyId } });
       if (!branchDoc) {
         return res.status(400).json({ message: 'La sucursal no es válida' });
       }
@@ -211,25 +219,26 @@ router.post('/', [
       }
     }
 
-    const user = new User({
+    const user = await User.create({
       name,
       lastName,
       email,
       password,
       phone,
-      company: companyId,
+      companyId: companyId,
       role,
-      branch,
+      branchId: branch,
       permissions: permissions || {},
       preferences: preferences || {}
     });
 
-    await user.save();
-
-    const populatedUser = await User.findById(user._id)
-      .populate('company', 'name')
-      .populate('branch', 'name code')
-      .select('-password -resetPasswordToken -resetPasswordExpires');
+    const populatedUser = await User.findByPk(user.id, {
+      include: [
+        { model: Company, attributes: ['name'] },
+        { model: Branch, attributes: ['name', 'code'] }
+      ],
+      attributes: { exclude: ['password', 'resetPasswordToken', 'resetPasswordExpires'] }
+    });
 
     res.status(201).json({
       message: 'Usuario creado exitosamente',
@@ -266,18 +275,18 @@ router.put('/:id', [
       });
     }
 
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
     if (!user) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && user.company.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && user.companyId !== req.user.company.id) {
       return res.status(403).json({ message: 'No tienes acceso a este usuario' });
     }
 
     // No permitir que un usuario se modifique a sí mismo ciertos campos
-    if (req.user._id.toString() === user._id.toString()) {
+    if (req.user.id === user.id) {
       if (req.body.role || req.body.isActive === false) {
         return res.status(400).json({ message: 'No puedes modificar tu propio rol o estado' });
       }
@@ -298,8 +307,10 @@ router.put('/:id', [
     // Verificar email único si se está actualizando
     if (email && email !== user.email) {
       const existingUser = await User.findOne({ 
-        email,
-        _id: { $ne: user._id }
+        where: {
+          email,
+          id: { [Op.ne]: user.id }
+        }
       });
       
       if (existingUser) {
@@ -309,7 +320,7 @@ router.put('/:id', [
 
     // Verificar sucursal si se está actualizando
     if (branch) {
-      const branchDoc = await Branch.findOne({ _id: branch, company: user.company });
+      const branchDoc = await Branch.findOne({ where: { id: branch, companyId: user.companyId } });
       if (!branchDoc) {
         return res.status(400).json({ message: 'La sucursal no es válida' });
       }
@@ -331,18 +342,20 @@ router.put('/:id', [
     if (email) updateData.email = email;
     if (phone) updateData.phone = phone;
     if (role) updateData.role = role;
-    if (branch) updateData.branch = branch;
+    if (branch) updateData.branchId = branch;
     if (permissions) updateData.permissions = { ...user.permissions, ...permissions };
     if (preferences) updateData.preferences = { ...user.preferences, ...preferences };
     if (isActive !== undefined) updateData.isActive = isActive;
 
-    const updatedUser = await User.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true }
-    ).populate('company', 'name')
-     .populate('branch', 'name code')
-     .select('-password -resetPasswordToken -resetPasswordExpires');
+    await user.update(updateData);
+
+    const updatedUser = await User.findByPk(req.params.id, {
+      include: [
+        { model: Company, attributes: ['name'] },
+        { model: Branch, attributes: ['name', 'code'] }
+      ],
+      attributes: { exclude: ['password', 'resetPasswordToken', 'resetPasswordExpires'] }
+    });
 
     res.json({
       message: 'Usuario actualizado exitosamente',
@@ -377,13 +390,13 @@ router.put('/:id/password', [
 
     const { newPassword } = req.body;
     
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
     if (!user) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && user.company.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && user.companyId !== req.user.company.id) {
       return res.status(403).json({ message: 'No tienes acceso a este usuario' });
     }
 
@@ -391,7 +404,7 @@ router.put('/:id/password', [
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-    await User.findByIdAndUpdate(req.params.id, {
+    await user.update({
       password: hashedPassword,
       passwordChangedAt: new Date()
     });
@@ -426,22 +439,22 @@ router.put('/:id/activate', [
 
     const { isActive } = req.body;
     
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
     if (!user) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && user.company.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && user.companyId !== req.user.company.id) {
       return res.status(403).json({ message: 'No tienes acceso a este usuario' });
     }
 
     // No permitir que un usuario se desactive a sí mismo
-    if (req.user._id.toString() === user._id.toString() && !isActive) {
+    if (req.user.id === user.id && !isActive) {
       return res.status(400).json({ message: 'No puedes desactivarte a ti mismo' });
     }
 
-    await User.findByIdAndUpdate(req.params.id, { isActive });
+    await user.update({ isActive });
 
     res.json({ 
       message: `Usuario ${isActive ? 'activado' : 'desactivado'} exitosamente` 
@@ -464,39 +477,40 @@ router.delete('/:id', [
   logActivity('Eliminar usuario')
 ], async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findByPk(req.params.id);
     if (!user) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
     // Verificar acceso
-    if (req.user.role !== 'super_admin' && user.company.toString() !== req.user.company._id.toString()) {
+    if (req.user.role !== 'super_admin' && user.companyId !== req.user.company.id) {
       return res.status(403).json({ message: 'No tienes acceso a este usuario' });
     }
 
     // No permitir que un usuario se elimine a sí mismo
-    if (req.user._id.toString() === user._id.toString()) {
+    if (req.user.id === user.id) {
       return res.status(400).json({ message: 'No puedes eliminarte a ti mismo' });
     }
 
     // Verificar si tiene actividad (mantenimientos asignados, etc.)
     const Maintenance = require('../models/Maintenance');
-    const maintenanceCount = await Maintenance.countDocuments({ 
-      $or: [
-        { assignedTo: user._id },
-        { createdBy: user._id }
-      ]
+    const maintenanceCount = await Maintenance.count({ 
+      where: {
+        [Op.or]: [
+          { assignedToId: user.id },
+          { createdById: user.id }
+        ]
+      }
     });
 
     if (maintenanceCount > 0) {
       // Soft delete
-      user.isActive = false;
-      await user.save();
+      await user.update({ isActive: false });
       
       res.json({ message: 'Usuario desactivado exitosamente (tiene actividad asociada)' });
     } else {
       // Hard delete si no tiene actividad
-      await User.findByIdAndDelete(req.params.id);
+      await user.destroy();
       res.json({ message: 'Usuario eliminado exitosamente' });
     }
 

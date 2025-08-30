@@ -147,11 +147,23 @@ const Layout = ({ children }) => {
           minHeight: 64
         }}
       >
-        <Business sx={{ color: 'primary.main', mr: drawerOpen ? 1 : 0 }} />
+        {/* Logo de AutoCare Agro */}
+        <Box sx={{ mr: drawerOpen ? 1 : 0 }}>
+          <img 
+            src="/logo.svg" 
+            alt="AutoCare Agro Logo" 
+            style={{ width: '40px', height: '40px' }}
+          />
+        </Box>
         {drawerOpen && (
-          <Typography variant="h6" noWrap component="div" color="primary">
-            VehiclePro
-          </Typography>
+          <Box>
+            <Typography variant="h6" noWrap component="div" sx={{ color: '#2E7D32', fontWeight: 'bold', lineHeight: 1 }}>
+              AutoCare
+            </Typography>
+            <Typography variant="caption" noWrap component="div" sx={{ color: '#FF9800', fontWeight: 'bold', lineHeight: 1 }}>
+              Agro
+            </Typography>
+          </Box>
         )}
       </Box>
       
@@ -255,7 +267,7 @@ const Layout = ({ children }) => {
           </IconButton>
           
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            {filteredMenuItems.find(item => item.path === location.pathname)?.text || 'VehiclePro'}
+            {filteredMenuItems.find(item => item.path === location.pathname)?.text || 'AutoCare Agro'}
           </Typography>
           
           {/* Notificaciones */}

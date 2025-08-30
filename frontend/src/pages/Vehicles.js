@@ -129,7 +129,7 @@ const Vehicles = () => {
           ? user.vehicleTypeAccess.join(',') 
           : undefined
       };
-      const response = await api.get('/api/vehicles', { params });
+      const response = await api.get('/vehicles', { params });
       return response.data;
     },
     enabled: isAuthenticated && !!user && !authLoading
@@ -139,7 +139,7 @@ const Vehicles = () => {
   const { data: branchesData } = useQuery({
     queryKey: ['branches-list'],
     queryFn: async () => {
-      const response = await api.get('/api/branches', { params: { limit: 100 } });
+      const response = await api.get('/branches', { params: { limit: 100 } });
       return response.data.branches;
     },
     enabled: isAuthenticated && !!user && !authLoading
@@ -149,7 +149,7 @@ const Vehicles = () => {
   const { data: alertsData } = useQuery({
     queryKey: ['vehicle-alerts', selectedVehicle?._id],
     queryFn: async () => {
-      const response = await api.get(`/api/vehicles/${selectedVehicle._id}/alerts`);
+      const response = await api.get(`/vehicles/${selectedVehicle._id}/alerts`);
       return response.data;
     },
     enabled: !!selectedVehicle && alertsDialogOpen
@@ -159,9 +159,9 @@ const Vehicles = () => {
   const saveVehicleMutation = useMutation({
     mutationFn: async (data) => {
       if (editingVehicle) {
-        return api.put(`/api/vehicles/${editingVehicle._id}`, data);
-      } else {
-        return api.post('/api/vehicles', data);
+        return api.put(`/vehicles/${editingVehicle._id}`, data);
+    } else {
+      return api.post('/vehicles', data);
       }
     },
     onSuccess: () => {
@@ -177,7 +177,7 @@ const Vehicles = () => {
   // Mutación para eliminar vehículo
   const deleteVehicleMutation = useMutation({
     mutationFn: async (id) => {
-      return api.delete(`/api/vehicles/${id}`);
+      return api.delete(`/vehicles/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['vehicles']);
@@ -192,7 +192,7 @@ const Vehicles = () => {
   // Mutación para actualizar kilometraje
   const updateMileageMutation = useMutation({
     mutationFn: async (data) => {
-      return api.patch(`/api/vehicles/${selectedVehicle._id}/mileage`, data);
+      return api.patch(`/vehicles/${selectedVehicle._id}/mileage`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['vehicles']);
@@ -302,7 +302,7 @@ const Vehicles = () => {
 
   const loadMaintenanceHistory = async (vehicleId) => {
     try {
-      const response = await api.get(`/api/maintenance?vehicle=${vehicleId}&limit=20`);
+      const response = await api.get(`/maintenance?vehicle=${vehicleId}&limit=20`);
       setMaintenanceHistory(response.data.maintenances || []);
     } catch (error) {
       console.error('Error al cargar historial de mantenimiento:', error);

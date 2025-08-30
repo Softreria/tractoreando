@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Configuración base de Axios
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api',
+  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3001/api',
   timeout: 30000, // Aumentado a 30 segundos para producción
   headers: {
     'Content-Type': 'application/json',
@@ -34,11 +34,11 @@ api.interceptors.response.use(
       console.error('Error de red:', error.message);
     }
     
-    // Manejar errores 401 (token inválido/expirado)
+    // Manejar errores 401 (token inválido/expirado) - DESHABILITADO
+    // El manejo de autenticación se hace en AuthContext.js
     if (error.response?.status === 401) {
-      // Limpiar localStorage y recargar la página para forzar logout
-      localStorage.removeItem('token');
-      window.location.reload();
+      console.log('Error 401 detectado en api.js:', error.config?.url);
+      // NO hacer logout automático aquí - se maneja en AuthContext
     }
     
     return Promise.reject(error);

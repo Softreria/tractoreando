@@ -88,7 +88,7 @@ const Register = () => {
       };
 
       await registerUser(registrationData);
-      toast.success('¡Registro exitoso! Bienvenido a VehiclePro');
+      toast.success('¡Registro exitoso! Bienvenido a AutoCare Agro');
       navigate('/dashboard');
     } catch (error) {
       toast.error(error.message || 'Error al registrar la empresa');

@@ -7,18 +7,15 @@ import {
   TextField,
   Button,
   Typography,
-  Alert,
   InputAdornment,
   IconButton,
-  Divider,
   Container
 } from '@mui/material';
 import {
   Visibility,
   VisibilityOff,
   Email,
-  Lock,
-  Business
+  Lock
 } from '@mui/icons-material';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../../contexts/AuthContext';
@@ -69,10 +66,14 @@ const Login = () => {
           <CardContent sx={{ p: 4 }}>
             {/* Logo y título */}
             <Box sx={{ textAlign: 'center', mb: 4 }}>
-              <Business sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
-              <Typography variant="h4" component="h1" gutterBottom>
-                VehiclePro
-              </Typography>
+              {/* Logo de AutoCare Agro */}
+              <Box sx={{ mb: 2 }}>
+                <img 
+                  src="/logo.svg" 
+                  alt="AutoCare Agro Logo" 
+                  style={{ width: '160px', height: '160px' }}
+                />
+              </Box>
               <Typography variant="body2" color="text.secondary">
                 Sistema de Gestión de Mantenimiento Vehicular
               </Typography>

@@ -29,12 +29,15 @@ const auth = async (req, res, next) => {
       return res.status(401).json({ message: 'Usuario inactivo' });
     }
     
-    if (!user.company) {
-      return res.status(401).json({ message: 'Usuario sin empresa asignada' });
-    }
-    
-    if (!user.company.isActive) {
-      return res.status(401).json({ message: 'Empresa inactiva' });
+    // Solo verificar empresa para usuarios que no sean super_admin
+    if (user.role !== 'super_admin') {
+      if (!user.company) {
+        return res.status(401).json({ message: 'Usuario sin empresa asignada' });
+      }
+      
+      if (!user.company.isActive) {
+        return res.status(401).json({ message: 'Empresa inactiva' });
+      }
     }
     
     if (user.isLocked) {

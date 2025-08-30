@@ -77,13 +77,21 @@ const authReducer = (state, action) => {
       };
 
     case AUTH_ACTIONS.LOAD_USER_FAILURE:
-      // Si falla la carga del usuario, limpiar la autenticación
-      localStorage.removeItem('token');
+      // Solo limpiar autenticación si no hay token o si es un error 401
+      if (!state.token || action.payload?.status === 401) {
+        localStorage.removeItem('token');
+        return {
+          ...state,
+          user: null,
+          token: null,
+          isAuthenticated: false,
+          authLoading: false,
+          error: action.payload,
+        };
+      }
+      // Si hay token pero falló por otro motivo, mantener el estado pero marcar como no cargando
       return {
         ...state,
-        user: null,
-        token: null,
-        isAuthenticated: false,
         authLoading: false,
         error: action.payload,
       };
@@ -156,19 +164,17 @@ const setupAxiosInterceptors = (token, logout, authLoading) => {
       (error) => Promise.reject(error)
     );
     
-    // Interceptor de response - DESHABILITADO temporalmente para evitar logout automático
-    api.interceptors.response.use(
-      (response) => response,
-      (error) => {
-          // NO ejecutar logout automático por ahora
-          // Solo registrar el error para debugging
-          if (error.response?.status === 401) {
-            console.log('Error 401 detectado en:', error.config?.url);
-          }
-          
-          return Promise.reject(error);
-        }
-    );
+    // Interceptor de response - DESHABILITADO para evitar duplicación con api.js
+    // El manejo de errores 401 se hace en api.js
+    // api.interceptors.response.use(
+    //   (response) => response,
+    //   (error) => {
+    //     if (error.response?.status === 401) {
+    //       console.log('Error 401 detectado en:', error.config?.url);
+    //     }
+    //     return Promise.reject(error);
+    //   }
+    // );
     interceptorConfigured = true;
   }
 };
@@ -190,7 +196,10 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       dispatch({
         type: AUTH_ACTIONS.LOAD_USER_FAILURE,
-        payload: error.response?.data?.message || 'Error al cargar usuario',
+        payload: {
+          message: error.response?.data?.message || 'Error al cargar usuario',
+          status: error.response?.status
+        },
       });
     }
   }, []);
@@ -222,9 +231,8 @@ export const AuthProvider = ({ children }) => {
       hasInitialized.current = true;
       const token = localStorage.getItem('token');
       if (token) {
-        // Configurar el token en el estado y en axios
+        // Configurar el token en el estado
         dispatch({ type: AUTH_ACTIONS.LOGIN_SUCCESS, payload: { token, user: null } });
-        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         
         // Cargar usuario directamente sin dependencia externa
         const loadUserDirectly = async () => {
@@ -236,10 +244,20 @@ export const AuthProvider = ({ children }) => {
               payload: response.data.user,
             });
           } catch (error) {
-            dispatch({
-              type: AUTH_ACTIONS.LOAD_USER_FAILURE,
-              payload: error.response?.data?.message || 'Error al cargar usuario',
-            });
+            console.error('Error al cargar usuario:', error);
+            // Si hay error 401, limpiar token inválido
+            if (error.response?.status === 401) {
+              localStorage.removeItem('token');
+              dispatch({ type: AUTH_ACTIONS.LOGOUT });
+            } else {
+              dispatch({
+                type: AUTH_ACTIONS.LOAD_USER_FAILURE,
+                payload: {
+                  message: error.response?.data?.message || 'Error al cargar usuario',
+                  status: error.response?.status
+                },
+              });
+            }
           }
         };
         

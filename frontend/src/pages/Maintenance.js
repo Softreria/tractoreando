@@ -141,7 +141,7 @@ const Maintenance = () => {
         priority: filterPriority || undefined,
         vehicle: filterVehicle || undefined
       };
-      const response = await api.get('/api/maintenance', { params });
+      const response = await api.get('/maintenance', { params });
       return response.data;
     }
   });
@@ -150,7 +150,7 @@ const Maintenance = () => {
   const { data: vehiclesData } = useQuery({
     queryKey: ['vehicles-list'],
     queryFn: async () => {
-      const response = await api.get('/api/vehicles', { params: { limit: 100 } });
+      const response = await api.get('/vehicles', { params: { limit: 100 } });
       return response.data.vehicles;
     }
   });
@@ -159,7 +159,7 @@ const Maintenance = () => {
   const { data: usersData } = useQuery({
     queryKey: ['users-mechanics'],
     queryFn: async () => {
-      const response = await api.get('/api/users', { params: { role: 'mechanic', limit: 100 } });
+      const response = await api.get('/users', { params: { role: 'mechanic', limit: 100 } });
       return response.data.users;
     }
   });
@@ -168,9 +168,9 @@ const Maintenance = () => {
   const saveMaintenanceMutation = useMutation({
     mutationFn: async (data) => {
       if (editingMaintenance) {
-        return api.put(`/api/maintenance/${editingMaintenance._id}`, data);
-      } else {
-        return api.post('/api/maintenance', data);
+        return api.put(`/maintenance/${editingMaintenance._id}`, data);
+    } else {
+      return api.post('/maintenance', data);
       }
     },
     onSuccess: () => {
@@ -186,7 +186,7 @@ const Maintenance = () => {
   // Mutación para eliminar mantenimiento
   const deleteMaintenanceMutation = useMutation({
     mutationFn: async (id) => {
-      return api.delete(`/api/maintenance/${id}`);
+      return api.delete(`/maintenance/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['maintenance']);
@@ -201,7 +201,7 @@ const Maintenance = () => {
   // Mutación para cambiar estado
   const changeStatusMutation = useMutation({
     mutationFn: async ({ id, status, notes }) => {
-      return api.patch(`/api/maintenance/${id}/status`, { status, notes });
+      return api.patch(`/maintenance/${id}/status`, { status, notes });
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['maintenance']);
@@ -216,7 +216,7 @@ const Maintenance = () => {
   // Mutación para registrar tiempo
   const logTimeMutation = useMutation({
     mutationFn: async (data) => {
-      return api.post(`/api/maintenance/${selectedMaintenance._id}/time`, data);
+      return api.post(`/maintenance/${selectedMaintenance._id}/time`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['maintenance']);

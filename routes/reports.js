@@ -20,20 +20,20 @@ router.get('/dashboard', [
 ], async (req, res) => {
   try {
     const { company, branch, period = '30' } = req.query;
-    const companyId = company || req.user.company._id;
+    const companyId = company || req.user.company.id;
     
     const dateFrom = moment().subtract(parseInt(period), 'days').startOf('day').toDate();
     const dateTo = moment().endOf('day').toDate();
     
-    const baseQuery = { company: companyId };
+    const baseQuery = { companyId: companyId };
     
     if (branch) {
-      baseQuery.branch = branch;
+      baseQuery.branchId = branch;
     }
     
     // Filtrar por sucursales del usuario si no es admin
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      baseQuery.branch = req.user.branch;
+      baseQuery.branchId = req.user.branchId;
     }
 
     // Consultas paralelas para obtener estadísticas
@@ -87,57 +87,68 @@ router.get('/vehicles', [
       format = 'json'
     } = req.query;
     
-    const companyId = company || req.user.company._id;
-    const query = { company: companyId };
+    const { Op } = require('sequelize');
+    const companyId = company || req.user.company.id;
+    const query = { companyId: companyId };
     
-    if (branch) query.branch = branch;
+    if (branch) query.branchId = branch;
     if (status) query.status = status;
     if (vehicleType) query.vehicleType = vehicleType;
     if (condition) query.condition = condition;
     if (yearFrom || yearTo) {
       query.year = {};
-      if (yearFrom) query.year.$gte = parseInt(yearFrom);
-      if (yearTo) query.year.$lte = parseInt(yearTo);
+      if (yearFrom) query.year[Op.gte] = parseInt(yearFrom);
+      if (yearTo) query.year[Op.lte] = parseInt(yearTo);
     }
     
     // Filtrar por sucursales del usuario si no es admin
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      query.branch = req.user.branch;
+      query.branchId = req.user.branchId;
     }
 
-    const vehicles = await Vehicle.find(query)
-      .populate('company', 'name')
-      .populate('branch', 'name code')
-      .populate('createdBy', 'name lastName')
-      .sort({ createdAt: -1 });
+    const vehicles = await Vehicle.findAll({
+      where: query,
+      include: [
+        { model: Company, attributes: ['name'] },
+        { model: Branch, attributes: ['name', 'code'] },
+        { model: User, as: 'createdBy', attributes: ['firstName', 'lastName'] }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
 
     // Agregar estadísticas de mantenimiento para cada vehículo
     const vehiclesWithStats = await Promise.all(
       vehicles.map(async (vehicle) => {
-        const [totalMaintenances, completedMaintenances, totalCost, lastMaintenance] = await Promise.all([
-          Maintenance.countDocuments({ vehicle: vehicle._id }),
-          Maintenance.countDocuments({ vehicle: vehicle._id, status: 'completado' }),
-          Maintenance.aggregate([
-            { $match: { vehicle: vehicle._id, status: 'completado' } },
-            { $group: { _id: null, total: { $sum: '$costs.actual' } } }
-          ]),
+        const [totalMaintenances, completedMaintenances, totalCostResult, lastMaintenance] = await Promise.all([
+          Maintenance.count({ where: { vehicleId: vehicle.id } }),
+          Maintenance.count({ where: { vehicleId: vehicle.id, status: 'completado' } }),
+          Maintenance.findOne({
+            attributes: [[Maintenance.sequelize.fn('SUM', Maintenance.sequelize.literal('CAST(costs->\'actual\' AS DECIMAL)')), 'total']],
+            where: { vehicleId: vehicle.id, status: 'completado' },
+            raw: true
+          }),
           Maintenance.findOne({ 
-            vehicle: vehicle._id, 
-            status: 'completado' 
-          }).sort({ completedDate: -1 })
+            where: {
+              vehicleId: vehicle.id, 
+              status: 'completado' 
+            },
+            order: [['completedDate', 'DESC']]
+          })
         ]);
         
+        const totalCost = totalCostResult?.total || 0;
+        
         return {
-          ...vehicle.toObject(),
-          maintenanceStats: {
-            total: totalMaintenances,
-            completed: completedMaintenances,
-            totalCost: totalCost[0]?.total || 0,
-            lastMaintenance: lastMaintenance?.completedDate,
-            needsOilChange: vehicle.needsOilChange(),
-            needsInspection: vehicle.needsInspection()
-          }
-        };
+           ...vehicle.toJSON(),
+           maintenanceStats: {
+             total: totalMaintenances,
+             completed: completedMaintenances,
+             totalCost: totalCost,
+             lastMaintenance: lastMaintenance?.completedDate,
+             needsOilChange: vehicle.needsOilChange ? vehicle.needsOilChange() : false,
+             needsInspection: vehicle.needsInspection ? vehicle.needsInspection() : false
+           }
+         };
       })
     );
 
@@ -560,8 +571,8 @@ router.get('/performance', [
 
 async function getVehicleStats(baseQuery) {
   const [total, active, byStatus, byType, byCondition] = await Promise.all([
-    Vehicle.countDocuments(baseQuery),
-    Vehicle.countDocuments({ ...baseQuery, status: 'activo' }),
+    Vehicle.count({ where: baseQuery }),
+    Vehicle.count({ where: { ...baseQuery, status: 'activo' } }),
     getGroupedStats(baseQuery, 'status', Vehicle),
     getGroupedStats(baseQuery, 'vehicleType', Vehicle),
     getGroupedStats(baseQuery, 'condition', Vehicle)
@@ -578,20 +589,23 @@ async function getVehicleStats(baseQuery) {
 }
 
 async function getMaintenanceStats(baseQuery, dateFrom, dateTo) {
+  const { Op } = require('sequelize');
   const maintenanceQuery = {
     ...baseQuery,
-    scheduledDate: { $gte: dateFrom, $lte: dateTo }
+    scheduledDate: { [Op.between]: [dateFrom, dateTo] }
   };
 
   const [total, completed, inProgress, scheduled, overdue] = await Promise.all([
-    Maintenance.countDocuments(maintenanceQuery),
-    Maintenance.countDocuments({ ...maintenanceQuery, status: 'completado' }),
-    Maintenance.countDocuments({ ...maintenanceQuery, status: 'en_proceso' }),
-    Maintenance.countDocuments({ ...maintenanceQuery, status: 'programado' }),
-    Maintenance.countDocuments({ 
-      ...baseQuery, 
-      status: 'programado',
-      scheduledDate: { $lt: new Date() }
+    Maintenance.count({ where: maintenanceQuery }),
+    Maintenance.count({ where: { ...maintenanceQuery, status: 'completado' } }),
+    Maintenance.count({ where: { ...maintenanceQuery, status: 'en_proceso' } }),
+    Maintenance.count({ where: { ...maintenanceQuery, status: 'programado' } }),
+    Maintenance.count({ 
+      where: {
+        ...baseQuery, 
+        status: 'programado',
+        scheduledDate: { [Op.lt]: new Date() }
+      }
     })
   ]);
 
@@ -605,49 +619,70 @@ async function getMaintenanceStats(baseQuery, dateFrom, dateTo) {
 }
 
 async function getRecentMaintenances(baseQuery, limit) {
-  return await Maintenance.find(baseQuery)
-    .populate('vehicle', 'plateNumber make model')
-    .populate('branch', 'name')
-    .populate('assignedTo', 'name lastName')
-    .sort({ createdAt: -1 })
-    .limit(limit);
+  return await Maintenance.findAll({
+    where: baseQuery,
+    include: [
+      { model: Vehicle, attributes: ['plateNumber', 'make', 'model'] },
+      { model: Branch, attributes: ['name'] },
+      { model: User, as: 'assignedTo', attributes: ['firstName', 'lastName'] }
+    ],
+    order: [['createdAt', 'DESC']],
+    limit: limit
+  });
 }
 
 async function getUpcomingMaintenances(baseQuery, limit) {
-  return await Maintenance.find({
-    ...baseQuery,
-    status: 'programado',
-    scheduledDate: { $gte: new Date() }
-  })
-    .populate('vehicle', 'plateNumber make model')
-    .populate('branch', 'name')
-    .populate('assignedTo', 'firstName lastName')
-    .sort({ scheduledDate: 1 })
-    .limit(limit);
+  const { Op } = require('sequelize');
+  return await Maintenance.findAll({
+    where: {
+      ...baseQuery,
+      status: 'programado',
+      scheduledDate: { [Op.gte]: new Date() }
+    },
+    include: [
+      { model: Vehicle, attributes: ['plateNumber', 'make', 'model'] },
+      { model: Branch, attributes: ['name'] },
+      { model: User, as: 'assignedTo', attributes: ['firstName', 'lastName'] }
+    ],
+    order: [['scheduledDate', 'ASC']],
+    limit: limit
+  });
 }
 
 async function getMaintenanceAlerts(baseQuery) {
-  const overdue = await Maintenance.countDocuments({
-    ...baseQuery,
-    status: 'programado',
-    scheduledDate: { $lt: new Date() }
-  });
-
-  const dueToday = await Maintenance.countDocuments({
-    ...baseQuery,
-    status: 'programado',
-    scheduledDate: {
-      $gte: moment().startOf('day').toDate(),
-      $lte: moment().endOf('day').toDate()
+  const { Op } = require('sequelize');
+  
+  const overdue = await Maintenance.count({
+    where: {
+      ...baseQuery,
+      status: 'programado',
+      scheduledDate: { [Op.lt]: new Date() }
     }
   });
 
-  const dueTomorrow = await Maintenance.countDocuments({
-    ...baseQuery,
-    status: 'programado',
-    scheduledDate: {
-      $gte: moment().add(1, 'day').startOf('day').toDate(),
-      $lte: moment().add(1, 'day').endOf('day').toDate()
+  const dueToday = await Maintenance.count({
+    where: {
+      ...baseQuery,
+      status: 'programado',
+      scheduledDate: {
+        [Op.between]: [
+          moment().startOf('day').toDate(),
+          moment().endOf('day').toDate()
+        ]
+      }
+    }
+  });
+
+  const dueTomorrow = await Maintenance.count({
+    where: {
+      ...baseQuery,
+      status: 'programado',
+      scheduledDate: {
+        [Op.between]: [
+          moment().add(1, 'day').startOf('day').toDate(),
+          moment().add(1, 'day').endOf('day').toDate()
+        ]
+      }
     }
   });
 
@@ -747,12 +782,12 @@ async function getUserStats(baseQuery, user) {
   if (user.role === 'super_admin') {
     // Super admin puede ver todos los usuarios
   } else if (user.role === 'company_admin') {
-    userQuery.company = user.company._id;
+    userQuery.companyId = user.company.id;
   } else {
-    userQuery.branch = user.branch;
+    userQuery.branchId = user.branchId;
   }
   
-  const total = await User.countDocuments(userQuery);
+  const total = await User.count({ where: userQuery });
   
   return { total };
 }
@@ -762,7 +797,7 @@ async function getCompanyStats(user) {
     return null;
   }
   
-  const total = await Company.countDocuments({});
+  const total = await Company.count();
   
   return { total };
 }
@@ -775,10 +810,10 @@ async function getBranchStats(baseQuery, user) {
   let branchQuery = {};
   
   if (user.role === 'company_admin') {
-    branchQuery.company = user.company._id;
+    branchQuery.companyId = user.company.id;
   }
   
-  const total = await Branch.countDocuments(branchQuery);
+  const total = await Branch.count({ where: branchQuery });
   
   return { total };
 }

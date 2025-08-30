@@ -1,5 +1,5 @@
 require('dotenv').config({
-  path: process.env.NODE_ENV === 'production' ? '.env.production' : '.env'
+  path: process.env.NODE_ENV === 'production' ? '.env.production' : '.env.development'
 });
 const express = require('express');
 const cors = require('cors');
@@ -84,7 +84,7 @@ const connectDB = async () => {
     
     // Sincronizar modelos en desarrollo
     if (process.env.NODE_ENV === 'development') {
-      await sequelize.sync({ alter: true });
+      await sequelize.sync({ force: false });
       console.log('✅ Modelos sincronizados con la base de datos.');
     }
   } catch (error) {

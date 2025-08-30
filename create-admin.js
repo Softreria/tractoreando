@@ -62,54 +62,40 @@ const createAdminUser = async () => {
       return;
     }
     
-    // Hashear la contraseña
-    const saltRounds = 12;
-    const hashedPassword = await bcrypt.hash(adminPassword, saltRounds);
-    
     // Generar UUID para PostgreSQL
     const { v4: uuidv4 } = require('uuid');
     const userId = uuidv4();
     const now = new Date();
     
-    // Crear el usuario administrador con SQL directo
-    await sequelize.query(`
-      INSERT INTO "Users" (
-        id, "firstName", "lastName", email, password, role, 
-        "vehicleTypeAccess", permissions, preferences, 
-        "isActive", "loginAttempts", "createdAt", "updatedAt"
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6,
-        $7, $8, $9,
-        $10, $11, $12, $13
-      )
-    `, {
-      bind: [
-        userId,
-        'Admin',
-        'Sistema', 
-        adminEmail,
-        hashedPassword,
-        'super_admin',
-        JSON.stringify(['Tractor', 'Camión', 'Furgoneta', 'Coche', 'Motocicleta', 'Remolque', 'Maquinaria', 'Otro']),
-        JSON.stringify({
-          companies: { create: true, read: true, update: true, delete: true },
-          branches: { create: true, read: true, update: true, delete: true },
-          vehicles: { create: true, read: true, update: true, delete: true },
-          maintenance: { create: true, read: true, update: true, delete: true },
-          users: { create: true, read: true, update: true, delete: true },
-          reports: { read: true, export: true }
-        }),
-        JSON.stringify({
-          language: 'es',
-          timezone: 'Europe/Madrid',
-          notifications: { email: true, push: true, sms: false },
-          dashboard: { defaultView: 'overview', itemsPerPage: 10 }
-        }),
-        true, // isActive
-        0, // loginAttempts
-        now,
-        now
-      ]
+    // Importar el modelo User existente
+    const User = require('./models/User');
+
+    // Crear el usuario administrador usando el modelo existente
+    // La contraseña se hasheará automáticamente en el hook beforeSave
+    await User.create({
+      id: userId,
+      firstName: 'Admin',
+      lastName: 'Sistema',
+      email: adminEmail,
+      password: adminPassword, // Pasar la contraseña sin hashear
+      role: 'super_admin',
+      vehicleTypeAccess: ['Tractor', 'Camión', 'Furgoneta', 'Coche', 'Motocicleta', 'Remolque', 'Maquinaria', 'Otro'],
+      permissions: {
+        companies: { create: true, read: true, update: true, delete: true },
+        branches: { create: true, read: true, update: true, delete: true },
+        vehicles: { create: true, read: true, update: true, delete: true },
+        maintenance: { create: true, read: true, update: true, delete: true },
+        users: { create: true, read: true, update: true, delete: true },
+        reports: { read: true, export: true }
+      },
+      preferences: {
+        language: 'es',
+        timezone: 'Europe/Madrid',
+        notifications: { email: true, push: true, sms: false },
+        dashboard: { defaultView: 'overview', itemsPerPage: 10 }
+      },
+      isActive: 1, // Usar 1 en lugar de true para INTEGER
+      loginAttempts: 0
     });
     
     console.log('✅ Usuario administrador creado exitosamente!');

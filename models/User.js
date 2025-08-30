@@ -294,7 +294,7 @@ User.init({
     }
   },
   lastLogin: {
-    type: DataTypes.STRING,
+    type: DataTypes.DATE,
     allowNull: true
   },
   loginAttempts: {
@@ -302,7 +302,7 @@ User.init({
     defaultValue: 0
   },
   lockUntil: {
-    type: DataTypes.STRING,
+    type: DataTypes.DATE,
     allowNull: true
   },
   isActive: {

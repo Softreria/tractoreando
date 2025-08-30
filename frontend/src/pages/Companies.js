@@ -55,7 +55,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import { useAuth } from '../contexts/AuthContext';
-import axios from 'axios';
+import api from '../utils/api';
 import toast from 'react-hot-toast';
 
 const Companies = () => {
@@ -93,7 +93,7 @@ const Companies = () => {
         search: searchTerm,
         status: filterStatus !== 'all' ? filterStatus : undefined
       };
-      const response = await axios.get('/companies', { params });
+      const response = await api.get('/companies', { params });
       return response.data;
     },
     enabled: isAuthenticated && !!user && !authLoading
@@ -103,9 +103,9 @@ const Companies = () => {
   const saveCompanyMutation = useMutation({
     mutationFn: async (data) => {
       if (editingCompany) {
-        return axios.put(`/companies/${editingCompany._id}`, data);
+        return api.put(`/companies/${editingCompany._id}`, data);
       } else {
-        return axios.post('/companies', data);
+        return api.post('/companies', data);
       }
     },
     onSuccess: () => {
@@ -121,7 +121,7 @@ const Companies = () => {
   // Mutación para eliminar empresa
   const deleteCompanyMutation = useMutation({
     mutationFn: async (id) => {
-      return axios.delete(`/api/companies/${id}`);
+      return api.delete(`/companies/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['companies']);
@@ -136,7 +136,7 @@ const Companies = () => {
   // Mutación para cambiar estado
   const toggleStatusMutation = useMutation({
     mutationFn: async ({ id, isActive }) => {
-      return axios.patch(`/api/companies/${id}/status`, { isActive });
+      return api.patch(`/companies/${id}/status`, { isActive });
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['companies']);
@@ -152,7 +152,7 @@ const Companies = () => {
     if (company) {
       reset({
         name: company.name,
-        rfc: company.rfc,
+        cif: company.cif,
         'address.street': company.address?.street || '',
         'address.city': company.address?.city || '',
         'address.state': company.address?.state || '',
@@ -161,18 +161,16 @@ const Companies = () => {
         'contact.phone': company.contact?.phone || '',
         'contact.email': company.contact?.email || '',
         'contact.website': company.contact?.website || '',
-        subscriptionPlan: company.subscription?.plan || 'basic',
-        maxVehicles: company.subscription?.maxVehicles || 10,
-        maxUsers: company.subscription?.maxUsers || 5,
-        maxBranches: company.subscription?.maxBranches || 1
+        maxUsers: company.settings?.subscription?.maxUsers || 10,
+        maxVehicles: company.settings?.subscription?.maxVehicles || 25,
+        maxBranches: company.settings?.subscription?.maxBranches || 5
       });
     } else {
       reset({
-        subscriptionPlan: 'basic',
         'address.country': 'España',
-        maxVehicles: 10,
-        maxUsers: 5,
-        maxBranches: 1
+        maxUsers: 10,
+        maxVehicles: 25,
+        maxBranches: 5
       });
     }
     setOpenDialog(true);
@@ -227,13 +225,20 @@ const Companies = () => {
         phone: data['contact.phone'] || '',
         email: data['contact.email'] || '',
         website: data['contact.website'] || ''
+      },
+      settings: {
+        subscription: {
+          maxUsers: parseInt(data.maxUsers) || 10,
+          maxVehicles: parseInt(data.maxVehicles) || 25,
+          maxBranches: parseInt(data.maxBranches) || 5
+        }
       }
     };
 
     // Si es una nueva empresa, incluir datos del administrador
     if (!editingCompany) {
       companyData.adminData = {
-        firstName: data.adminFirstName,
+        firstName: data.adminName,
         lastName: data.adminLastName,
         email: data.adminEmail,
         phone: data.adminPhone || '',
@@ -514,8 +519,8 @@ const Companies = () => {
               <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
-                  label="Estado"
-                  {...register('address.state', { required: 'El estado es requerido' })}
+                  label="Provincia"
+                  {...register('address.state', { required: 'La provincia es requerida' })}
                   error={!!errors['address.state']}
                   helperText={errors['address.state']?.message}
                 />
@@ -564,6 +569,55 @@ const Companies = () => {
                 />
               </Grid>
               
+              {/* Límites de la empresa */}
+              <Grid item xs={12}>
+                <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
+                  Límites de la Empresa
+                </Typography>
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Máximo de Usuarios"
+                  type="number"
+                  {...register('maxUsers', { 
+                    required: 'El límite de usuarios es requerido',
+                    min: { value: 1, message: 'Debe ser al menos 1' }
+                  })}
+                  error={!!errors.maxUsers}
+                  helperText={errors.maxUsers?.message}
+                  inputProps={{ min: 1 }}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Máximo de Vehículos"
+                  type="number"
+                  {...register('maxVehicles', { 
+                    required: 'El límite de vehículos es requerido',
+                    min: { value: 1, message: 'Debe ser al menos 1' }
+                  })}
+                  error={!!errors.maxVehicles}
+                  helperText={errors.maxVehicles?.message}
+                  inputProps={{ min: 1 }}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  label="Máximo de Delegaciones"
+                  type="number"
+                  {...register('maxBranches', { 
+                    required: 'El límite de delegaciones es requerido',
+                    min: { value: 1, message: 'Debe ser al menos 1' }
+                  })}
+                  error={!!errors.maxBranches}
+                  helperText={errors.maxBranches?.message}
+                  inputProps={{ min: 1 }}
+                />
+              </Grid>
+
               {/* Datos del Administrador - Solo para nuevas empresas */}
               {!editingCompany && (
                 <>

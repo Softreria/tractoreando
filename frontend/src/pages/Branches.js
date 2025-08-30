@@ -55,7 +55,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 import { useAuth } from '../contexts/AuthContext';
-import axios from 'axios';
+import api from '../utils/api';
 import toast from 'react-hot-toast';
 
 const Branches = () => {
@@ -92,7 +92,7 @@ const Branches = () => {
         status: filterStatus !== 'all' ? filterStatus : undefined,
         company: filterCompany || undefined
       };
-      const response = await axios.get('/branches', { params });
+      const response = await api.get('/branches', { params });
       return response.data;
     }
   });
@@ -101,7 +101,7 @@ const Branches = () => {
   const { data: companiesData } = useQuery({
     queryKey: ['companies-list'],
     queryFn: async () => {
-      const response = await axios.get('/companies', { params: { limit: 100 } });
+      const response = await api.get('/companies', { params: { limit: 100 } });
       return response.data.companies;
     },
     enabled: hasRole('super_admin')
@@ -111,9 +111,9 @@ const Branches = () => {
   const saveBranchMutation = useMutation({
     mutationFn: async (data) => {
       if (editingBranch) {
-        return axios.put(`/branches/${editingBranch._id}`, data);
+        return api.put(`/branches/${editingBranch._id}`, data);
       } else {
-        return axios.post('/branches', data);
+        return api.post('/branches', data);
       }
     },
     onSuccess: () => {
@@ -129,7 +129,7 @@ const Branches = () => {
   // Mutación para eliminar delegación
   const deleteBranchMutation = useMutation({
     mutationFn: async (id) => {
-      return axios.delete(`/api/branches/${id}`);
+      return api.delete(`/branches/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['branches']);
@@ -144,7 +144,7 @@ const Branches = () => {
   // Mutación para cambiar estado
   const toggleStatusMutation = useMutation({
     mutationFn: async ({ id, isActive }) => {
-      return axios.patch(`/api/branches/${id}/status`, { isActive });
+      return api.patch(`/branches/${id}/status`, { isActive });
     },
     onSuccess: () => {
       queryClient.invalidateQueries(['branches']);
