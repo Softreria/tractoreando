@@ -848,15 +848,14 @@ const Users = () => {
                     control={control}
                     render={({ field }) => {
                       const vehicleTypes = [
-                        { value: 'automovil', label: 'Automóvil', category: 'Vehículos' },
-                        { value: 'furgoneta', label: 'Furgoneta', category: 'Vehículos' },
-                        { value: 'camion', label: 'Camión', category: 'Vehículos' },
-                        { value: 'autobus', label: 'Autobús', category: 'Vehículos' },
-                        { value: 'motocicleta', label: 'Motocicleta', category: 'Vehículos' },
-                        { value: 'tractor', label: 'Tractor', category: 'Maquinaria' },
-                        { value: 'apero_agricola', label: 'Apero Agrícola', category: 'Maquinaria' },
-                        { value: 'maquinaria_construccion', label: 'Maquinaria de Construcción', category: 'Maquinaria' },
-                        { value: 'vehiculo_especial', label: 'Vehículo Especial', category: 'Especiales' }
+                        { value: 'Coche', label: 'Coche', category: 'Vehículos' },
+                        { value: 'Furgoneta', label: 'Furgoneta', category: 'Vehículos' },
+                        { value: 'Camión', label: 'Camión', category: 'Vehículos' },
+                        { value: 'Motocicleta', label: 'Motocicleta', category: 'Vehículos' },
+                        { value: 'Tractor', label: 'Tractor', category: 'Maquinaria' },
+                        { value: 'Remolque', label: 'Remolque', category: 'Maquinaria' },
+                        { value: 'Maquinaria', label: 'Maquinaria', category: 'Maquinaria' },
+                        { value: 'Otro', label: 'Otro', category: 'Especiales' }
                       ];
                       
                       const groupedTypes = vehicleTypes.reduce((acc, type) => {

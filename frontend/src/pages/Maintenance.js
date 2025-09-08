@@ -235,7 +235,7 @@ const Maintenance = () => {
     setEditingMaintenance(maintenance);
     if (maintenance) {
       reset({
-        vehicle: maintenance.vehicle.id,
+        vehicleId: maintenance.vehicle.id,
         type: maintenance.type,
         priority: maintenance.priority,
         title: maintenance.title,
@@ -244,17 +244,17 @@ const Maintenance = () => {
         scheduledDate: maintenance.scheduledDate ? maintenance.scheduledDate.split('T')[0] : '',
         estimatedDuration: maintenance.estimatedDuration,
         assignedTo: maintenance.assignedTo?.map(user => user.id) || [],
-        services: maintenance.services || [{ name: '', description: '', estimatedCost: 0 }],
-        parts: maintenance.parts || [{ name: '', partNumber: '', quantity: 1, unitCost: 0 }],
+        services: maintenance.services || [{ category: '', description: '', estimatedCost: 0 }],
+        parts: maintenance.parts || [{ name: '', partNumber: '', quantity: 1, unitPrice: 0 }],
         notes: maintenance.notes
       });
     } else {
       reset({
-        type: 'preventive',
-        priority: 'medium',
+        type: 'preventivo',
+        priority: 'media',
         estimatedDuration: 2,
-        services: [{ name: '', description: '', estimatedCost: 0 }],
-        parts: [{ name: '', partNumber: '', quantity: 1, unitCost: 0 }]
+        services: [{ category: '', description: '', estimatedCost: 0 }],
+        parts: [{ name: '', partNumber: '', quantity: 1, unitPrice: 0 }]
       });
     }
     setOpenDialog(true);
@@ -310,7 +310,7 @@ const Maintenance = () => {
       parts: data.parts.map(part => ({
         ...part,
         quantity: parseInt(part.quantity) || 1,
-        unitCost: parseFloat(part.unitCost) || 0
+        unitPrice: parseFloat(part.unitPrice) || 0
       }))
     };
     saveMaintenanceMutation.mutate(maintenanceData);
@@ -328,34 +328,34 @@ const Maintenance = () => {
   const totalCount = maintenanceData?.total || 0;
 
   const maintenanceTypes = [
-    { value: 'preventive', label: 'Preventivo' },
-    { value: 'corrective', label: 'Correctivo' },
-    { value: 'emergency', label: 'Emergencia' },
-    { value: 'inspection', label: 'Inspección' }
+    { value: 'preventivo', label: 'Preventivo' },
+    { value: 'correctivo', label: 'Correctivo' },
+    { value: 'emergencia', label: 'Emergencia' },
+    { value: 'inspeccion', label: 'Inspección' }
   ];
 
   const priorities = [
-    { value: 'low', label: 'Baja' },
-    { value: 'medium', label: 'Media' },
-    { value: 'high', label: 'Alta' },
-    { value: 'urgent', label: 'Urgente' }
+    { value: 'baja', label: 'Baja' },
+    { value: 'media', label: 'Media' },
+    { value: 'alta', label: 'Alta' },
+    { value: 'critica', label: 'Crítica' }
   ];
 
   const statuses = [
-    { value: 'scheduled', label: 'Programado' },
-    { value: 'in_progress', label: 'En Progreso' },
-    { value: 'on_hold', label: 'En Espera' },
-    { value: 'completed', label: 'Completado' },
-    { value: 'cancelled', label: 'Cancelado' }
+    { value: 'programado', label: 'Programado' },
+    { value: 'en_proceso', label: 'En Progreso' },
+    { value: 'pausado', label: 'En Espera' },
+    { value: 'completado', label: 'Completado' },
+    { value: 'cancelado', label: 'Cancelado' }
   ];
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'scheduled': return 'info';
-      case 'in_progress': return 'warning';
-      case 'on_hold': return 'default';
-      case 'completed': return 'success';
-      case 'cancelled': return 'error';
+      case 'programado': return 'info';
+      case 'en_proceso': return 'warning';
+        case 'pausado': return 'default';
+        case 'completado': return 'success';
+        case 'cancelado': return 'error';
       default: return 'default';
     }
   };
@@ -372,11 +372,11 @@ const Maintenance = () => {
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'scheduled': return <Schedule />;
-      case 'in_progress': return <PlayArrow />;
-      case 'on_hold': return <Pause />;
-      case 'completed': return <CheckCircle />;
-      case 'cancelled': return <Cancel />;
+      case 'programado': return <Schedule />;
+      case 'en_proceso': return <PlayArrow />;
+        case 'pausado': return <Pause />;
+        case 'completado': return <CheckCircle />;
+        case 'cancelado': return <Cancel />;
       default: return <Build />;
     }
   };
@@ -540,9 +540,9 @@ const Maintenance = () => {
             </TableHead>
             <TableBody>
               {filteredMaintenance.map((maintenance) => {
-                const progress = maintenance.status === 'completed' ? 100 :
-                               maintenance.status === 'in_progress' ? 50 :
-                               maintenance.status === 'scheduled' ? 0 : 25;
+                const progress = maintenance.status === 'completado' ? 100 :
+                                maintenance.status === 'en_proceso' ? 50 :
+                               maintenance.status === 'programado' ? 0 : 25;
                 
                 return (
                   <TableRow key={maintenance.id} hover>
@@ -709,15 +709,15 @@ const Maintenance = () => {
           </MenuItem>
         )}
         {hasPermission('maintenance', 'update') && selectedMaintenance?.status !== 'completed' && (
-          <MenuItem onClick={() => handleChangeStatus('in_progress')}>
+          <MenuItem onClick={() => handleChangeStatus('en_proceso')}>
             <ListItemIcon>
               <PlayArrow fontSize="small" />
             </ListItemIcon>
             <ListItemText>Iniciar</ListItemText>
           </MenuItem>
         )}
-        {hasPermission('maintenance', 'update') && selectedMaintenance?.status === 'in_progress' && (
-          <MenuItem onClick={() => handleChangeStatus('completed')}>
+        {hasPermission('maintenance', 'update') && selectedMaintenance?.status === 'en_proceso' && (
+          <MenuItem onClick={() => handleChangeStatus('completado')}>
             <ListItemIcon>
               <CheckCircle fontSize="small" />
             </ListItemIcon>
@@ -739,7 +739,7 @@ const Maintenance = () => {
           <ListItemText>Imprimir Orden</ListItemText>
         </MenuItem>
         <Divider />
-        {hasPermission('maintenance', 'delete') && selectedMaintenance?.status === 'scheduled' && (
+        {hasPermission('maintenance', 'delete') && selectedMaintenance?.status === 'programado' && (
           <MenuItem onClick={handleDelete} sx={{ color: 'error.main' }}>
             <ListItemIcon>
               <Delete fontSize="small" color="error" />
@@ -769,11 +769,11 @@ const Maintenance = () => {
               <Grid container spacing={2} sx={{ mt: 1 }}>
                 <Grid item xs={12} md={6}>
                   <Controller
-                    name="vehicle"
+                    name="vehicleId"
                     control={control}
                     rules={{ required: 'El vehículo es requerido' }}
                     render={({ field }) => (
-                      <FormControl fullWidth error={!!errors.vehicle}>
+                      <FormControl fullWidth error={!!errors.vehicleId}>
                         <InputLabel>Vehículo</InputLabel>
                         <Select {...field} label="Vehículo">
                           {vehiclesData?.map((vehicle) => (
@@ -917,7 +917,7 @@ const Maintenance = () => {
                   <Typography variant="h6">Servicios a Realizar</Typography>
                   <Button
                     startIcon={<Add />}
-                    onClick={() => appendService({ name: '', description: '', estimatedCost: 0 })}
+                    onClick={() => appendService({ category: '', description: '', estimatedCost: 0 })}
                   >
                     Agregar Servicio
                   </Button>
@@ -929,9 +929,9 @@ const Maintenance = () => {
                         <Grid item xs={12} md={4}>
                           <TextField
                             fullWidth
-                            label="Nombre del Servicio"
-                            {...register(`services.${index}.name`, { required: 'Requerido' })}
-                            error={!!errors.services?.[index]?.name}
+                            label="Categoría del Servicio"
+                            {...register(`services.${index}.category`, { required: 'Requerido' })}
+                            error={!!errors.services?.[index]?.category}
                           />
                         </Grid>
                         <Grid item xs={12} md={5}>
@@ -976,7 +976,7 @@ const Maintenance = () => {
                   <Typography variant="h6">Partes Requeridas</Typography>
                   <Button
                     startIcon={<Add />}
-                    onClick={() => appendPart({ name: '', partNumber: '', quantity: 1, unitCost: 0 })}
+                    onClick={() => appendPart({ name: '', partNumber: '', quantity: 1, unitPrice: 0 })}
                   >
                     Agregar Parte
                   </Button>
@@ -1015,7 +1015,7 @@ const Maintenance = () => {
                             label="Costo Unitario"
                             type="number"
                             step="0.01"
-                            {...register(`parts.${index}.unitCost`)}
+                            {...register(`parts.${index}.unitPrice`)}
                             InputProps={{
                               startAdornment: <InputAdornment position="start">€</InputAdornment>
                             }}

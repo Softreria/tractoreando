@@ -84,10 +84,19 @@ Branch.init({
     },
     validate: {
       isValidAddress(value) {
-        if (!value || typeof value !== 'object') {
+        let addressObj = value;
+        // If value is a string, try to parse it
+        if (typeof value === 'string') {
+          try {
+            addressObj = JSON.parse(value);
+          } catch (e) {
+            throw new Error('Address must be a valid JSON object');
+          }
+        }
+        if (!addressObj || typeof addressObj !== 'object') {
           throw new Error('Address is required and must be an object');
         }
-        if (!value.street || !value.city || !value.state || !value.zipCode) {
+        if (!addressObj.street || !addressObj.city || !addressObj.state || !addressObj.zipCode) {
           throw new Error('Street, city, state, and zipCode are required in address');
         }
       }
@@ -116,19 +125,6 @@ Branch.init({
       return value ? JSON.parse(value) : null;
     },
     set(value) {
-      this.setDataValue('contact', JSON.stringify(value));
-    },
-    validate: {
-      isValidContact(value) {
-        if (value && typeof value !== 'object') {
-          throw new Error('Contact must be an object');
-        }
-        if (value && value.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email)) {
-          throw new Error('Invalid email format in contact');
-        }
-      }
-    },
-    set(value) {
       if (value && value.email) {
         value.email = value.email.toLowerCase().trim();
       }
@@ -138,7 +134,26 @@ Branch.init({
       if (value && value.manager) {
         value.manager = value.manager.trim();
       }
-      this.setDataValue('contact', value);
+      this.setDataValue('contact', JSON.stringify(value));
+    },
+    validate: {
+      isValidContact(value) {
+        let contactObj = value;
+        // If value is a string, try to parse it
+        if (typeof value === 'string') {
+          try {
+            contactObj = JSON.parse(value);
+          } catch (e) {
+            throw new Error('Contact must be a valid JSON object');
+          }
+        }
+        if (contactObj && typeof contactObj !== 'object') {
+          throw new Error('Contact must be an object');
+        }
+        if (contactObj && contactObj.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactObj.email)) {
+          throw new Error('Invalid email format in contact');
+        }
+      }
     }
   },
   operatingHours: {
@@ -161,13 +176,22 @@ Branch.init({
     },
     validate: {
       isValidOperatingHours(value) {
-        if (value && typeof value !== 'object') {
+        let hoursObj = value;
+        // If value is a string, try to parse it
+        if (typeof value === 'string') {
+          try {
+            hoursObj = JSON.parse(value);
+          } catch (e) {
+            throw new Error('Operating hours must be a valid JSON object');
+          }
+        }
+        if (hoursObj && typeof hoursObj !== 'object') {
           throw new Error('Operating hours must be an object');
         }
         const validDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-        if (value) {
+        if (hoursObj) {
           for (const day of validDays) {
-            if (value[day] && typeof value[day] !== 'object') {
+            if (hoursObj[day] && typeof hoursObj[day] !== 'object') {
               throw new Error(`Operating hours for ${day} must be an object`);
             }
           }

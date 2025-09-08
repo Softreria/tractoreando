@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test React State - Companies</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .state-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #fafafa;
+        }
+        .state-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .state-item {
+            margin: 10px 0;
+            padding: 8px;
+            background-color: white;
+            border-radius: 4px;
+            border-left: 4px solid #1976d2;
+        }
+        .state-item.changed {
+            border-left-color: #4caf50;
+            background-color: #e8f5e8;
+        }
+        .log-entry {
+            padding: 8px;
+            margin: 4px 0;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .log-entry.info {
+            background-color: #e3f2fd;
+            color: #1976d2;
+        }
+        .log-entry.success {
+            background-color: #e8f5e8;
+            color: #2e7d32;
+        }
+        .log-entry.error {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        .log-entry.warning {
+            background-color: #fff3e0;
+            color: #f57c00;
+        }
+        #logs {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background-color: #fafafa;
+        }
+        button {
+            background-color: #1976d2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #1565c0;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .company-card {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            background-color: white;
+        }
+        .company-card h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .company-actions {
+            margin-top: 10px;
+        }
+        .company-actions button {
+            margin-right: 10px;
+            padding: 5px 15px;
+            font-size: 12px;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .modal-header h3 {
+            margin: 0;
+        }
+        .close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test React State - Companies</h1>
+        <p>Esta página simula exactamente el comportamiento del estado de React en la página de empresas.</p>
+        
+        <div class="state-section">
+            <h3>🔧 Controles de Prueba</h3>
+            <button onclick="initializeApp()">🚀 Inicializar App</button>
+            <button onclick="loadCompanies()">📋 Cargar Empresas</button>
+            <button onclick="clearLogs()">🧹 Limpiar Logs</button>
+        </div>
+        
+        <div class="state-section">
+            <h3>📊 Estado de React</h3>
+            <div id="react-state">
+                <div class="state-item" id="state-user">user: null</div>
+                <div class="state-item" id="state-companies">companies: []</div>
+                <div class="state-item" id="state-selectedCompany">selectedCompany: null</div>
+                <div class="state-item" id="state-anchorEl">anchorEl: null</div>
+                <div class="state-item" id="state-menuOpen">menuOpen: false</div>
+                <div class="state-item" id="state-deleteDialogOpen">deleteDialogOpen: false</div>
+                <div class="state-item" id="state-detailsDialogOpen">detailsDialogOpen: false</div>
+                <div class="state-item" id="state-openDialog">openDialog: false</div>
+            </div>
+        </div>
+        
+        <div class="state-section">
+            <h3>🏢 Empresas Cargadas</h3>
+            <div id="companies-list">No hay empresas cargadas</div>
+        </div>
+        
+        <div class="state-section">
+            <h3>📝 Logs de Estado</h3>
+            <div id="logs"></div>
+        </div>
+    </div>
+    
+    <!-- Modal de Detalles -->
+    <div id="detailsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>👁️ Detalles de la Empresa</h3>
+                <button class="close" onclick="handleCloseDetailsDialog()">&times;</button>
+            </div>
+            <div id="company-details">No hay empresa seleccionada</div>
+            <div style="margin-top: 20px;">
+                <button onclick="handleCloseDetailsDialog()">Cerrar</button>
+                <button onclick="handleEditCompany()">Editar</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal de Confirmación de Eliminación -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🗑️ Confirmar Eliminación</h3>
+                <button class="close" onclick="handleCloseDeleteDialog()">&times;</button>
+            </div>
+            <div id="delete-confirmation">¿Estás seguro de que deseas eliminar esta empresa?</div>
+            <div style="margin-top: 20px;">
+                <button onclick="handleCloseDeleteDialog()">Cancelar</button>
+                <button onclick="confirmDelete()" style="background-color: #f44336;">Eliminar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001/api';
+        
+        // Simular estado de React exactamente como en el componente
+        const reactState = {
+            user: null,
+            companies: [],
+            selectedCompany: null,
+            anchorEl: null,
+            menuOpen: false,
+            deleteDialogOpen: false,
+            detailsDialogOpen: false,
+            openDialog: false,
+            editingCompany: null
+        };
+        
+        // Función para actualizar la visualización del estado
+        function updateStateDisplay() {
+            document.getElementById('state-user').textContent = `user: ${reactState.user ? reactState.user.email : 'null'}`;
+            document.getElementById('state-companies').textContent = `companies: [${reactState.companies.length} items]`;
+            document.getElementById('state-selectedCompany').textContent = `selectedCompany: ${reactState.selectedCompany ? reactState.selectedCompany.name : 'null'}`;
+            document.getElementById('state-anchorEl').textContent = `anchorEl: ${reactState.anchorEl ? 'HTMLElement' : 'null'}`;
+            document.getElementById('state-menuOpen').textContent = `menuOpen: ${reactState.menuOpen}`;
+            document.getElementById('state-deleteDialogOpen').textContent = `deleteDialogOpen: ${reactState.deleteDialogOpen}`;
+            document.getElementById('state-detailsDialogOpen').textContent = `detailsDialogOpen: ${reactState.detailsDialogOpen}`;
+            document.getElementById('state-openDialog').textContent = `openDialog: ${reactState.openDialog}`;
+            
+            // Marcar elementos que han cambiado
+            document.querySelectorAll('.state-item').forEach(item => {
+                item.classList.remove('changed');
+            });
+            
+            setTimeout(() => {
+                document.querySelectorAll('.state-item').forEach(item => {
+                    item.classList.add('changed');
+                });
+            }, 100);
+        }
+        
+        function addLog(type, message) {
+            const logsDiv = document.getElementById('logs');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logsDiv.appendChild(logEntry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+        
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+            addLog('info', 'Logs limpiados');
+        }
+        
+        // Simular función hasPermission
+        function hasPermission(module, action) {
+            if (!reactState.user) return false;
+            if (reactState.user.role === 'super_admin') return true;
+            
+            const userPermissions = reactState.user.permissions || {};
+            const modulePermissions = userPermissions[module] || {};
+            return modulePermissions[action] === true;
+        }
+        
+        // Funciones del componente Companies (exactas)
+        function setSelectedCompany(company) {
+            addLog('info', `setSelectedCompany: ${company ? company.name : 'null'}`);
+            reactState.selectedCompany = company;
+            updateStateDisplay();
+        }
+        
+        function setAnchorEl(element) {
+            addLog('info', `setAnchorEl: ${element ? 'HTMLElement' : 'null'}`);
+            reactState.anchorEl = element;
+            updateStateDisplay();
+        }
+        
+        function setDeleteDialogOpen(open) {
+            addLog('info', `setDeleteDialogOpen: ${open}`);
+            reactState.deleteDialogOpen = open;
+            document.getElementById('deleteModal').className = open ? 'modal show' : 'modal';
+            updateStateDisplay();
+        }
+        
+        function setDetailsDialogOpen(open) {
+            addLog('info', `setDetailsDialogOpen: ${open}`);
+            reactState.detailsDialogOpen = open;
+            document.getElementById('detailsModal').className = open ? 'modal show' : 'modal';
+            updateStateDisplay();
+        }
+        
+        function setOpenDialog(open) {
+            addLog('info', `setOpenDialog: ${open}`);
+            reactState.openDialog = open;
+            updateStateDisplay();
+        }
+        
+        // Event handlers exactos del componente
+        function handleMenuOpen(event, company) {
+            addLog('success', `handleMenuOpen llamado para: ${company.name}`);
+            setAnchorEl(event.currentTarget);
+            setSelectedCompany(company);
+        }
+        
+        function handleMenuClose() {
+            addLog('info', 'handleMenuClose llamado');
+            setAnchorEl(null);
+            setSelectedCompany(null);
+        }
+        
+        function handleDelete() {
+            addLog('warning', 'handleDelete llamado');
+            
+            if (!reactState.selectedCompany) {
+                addLog('error', 'No hay empresa seleccionada para eliminar');
+                return;
+            }
+            
+            if (!hasPermission('companies', 'delete')) {
+                addLog('error', 'Sin permisos para eliminar empresas');
+                return;
+            }
+            
+            setDeleteDialogOpen(true);
+            setAnchorEl(null);
+        }
+        
+        function handleViewDetails() {
+            addLog('info', 'handleViewDetails llamado');
+            
+            if (!reactState.selectedCompany) {
+                addLog('error', 'No hay empresa seleccionada para ver detalles');
+                return;
+            }
+            
+            if (!hasPermission('companies', 'read')) {
+                addLog('error', 'Sin permisos para ver detalles de empresas');
+                return;
+            }
+            
+            // Ensure edit dialog is closed
+            setOpenDialog(false);
+            setDetailsDialogOpen(true);
+            // Close menu but keep selectedCompany
+            setAnchorEl(null);
+            
+            // Actualizar contenido del modal
+            const company = reactState.selectedCompany;
+            document.getElementById('company-details').innerHTML = `
+                <p><strong>Nombre:</strong> ${company.name}</p>
+                <p><strong>CIF:</strong> ${company.cif}</p>
+                <p><strong>Email:</strong> ${company.contact?.email || 'No especificado'}</p>
+                <p><strong>Teléfono:</strong> ${company.contact?.phone || 'No especificado'}</p>
+                <p><strong>Estado:</strong> ${company.isActive ? 'Activa' : 'Inactiva'}</p>
+            `;
+        }
+        
+        function handleCloseDetailsDialog() {
+            addLog('info', 'handleCloseDetailsDialog llamado');
+            setDetailsDialogOpen(false);
+            setSelectedCompany(null);
+        }
+        
+        function handleCloseDeleteDialog() {
+            addLog('info', 'handleCloseDeleteDialog llamado');
+            setDeleteDialogOpen(false);
+            setSelectedCompany(null);
+        }
+        
+        function confirmDelete() {
+            addLog('warning', 'confirmDelete llamado');
+            if (reactState.selectedCompany) {
+                addLog('success', `Empresa ${reactState.selectedCompany.name} eliminada (simulado)`);
+                // Simular eliminación
+                const index = reactState.companies.findIndex(c => c.id === reactState.selectedCompany.id);
+                if (index > -1) {
+                    reactState.companies.splice(index, 1);
+                    renderCompanies();
+                }
+                handleCloseDeleteDialog();
+            }
+        }
+        
+        function handleEditCompany() {
+            addLog('info', 'handleEditCompany llamado');
+            setDetailsDialogOpen(false);
+            setOpenDialog(true);
+        }
+        
+        // Funciones de inicialización
+        async function initializeApp() {
+            addLog('info', '🚀 Inicializando aplicación...');
+            
+            try {
+                // Simular login
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'admin@tractoreando.com',
+                        password: 'admin123'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.token) {
+                    reactState.user = data.user;
+                    addLog('success', '✅ Usuario autenticado');
+                    updateStateDisplay();
+                    
+                    // Cargar empresas automáticamente
+                    await loadCompanies();
+                } else {
+                    addLog('error', '❌ Error en autenticación');
+                }
+            } catch (error) {
+                addLog('error', '❌ Error de conexión: ' + error.message);
+            }
+        }
+        
+        async function loadCompanies() {
+            addLog('info', '📋 Cargando empresas...');
+            
+            if (!reactState.user) {
+                addLog('error', 'Usuario no autenticado');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/companies`, {
+                    headers: {
+                        'Authorization': `Bearer ${reactState.user.token || 'token-placeholder'}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    reactState.companies = data.companies || [];
+                    addLog('success', `✅ ${reactState.companies.length} empresas cargadas`);
+                    updateStateDisplay();
+                    renderCompanies();
+                } else {
+                    addLog('error', '❌ Error cargando empresas: ' + JSON.stringify(data));
+                }
+            } catch (error) {
+                addLog('error', '❌ Error de conexión: ' + error.message);
+            }
+        }
+        
+        function renderCompanies() {
+            const companiesDiv = document.getElementById('companies-list');
+            
+            if (reactState.companies.length === 0) {
+                companiesDiv.innerHTML = 'No hay empresas cargadas';
+                return;
+            }
+            
+            companiesDiv.innerHTML = reactState.companies.map(company => `
+                <div class="company-card">
+                    <h4>${company.name}</h4>
+                    <p><strong>CIF:</strong> ${company.cif}</p>
+                    <p><strong>Estado:</strong> ${company.isActive ? 'Activa' : 'Inactiva'}</p>
+                    <div class="company-actions">
+                        <button onclick="simulateMenuOpen('${company.id}')">📋 Abrir Menú</button>
+                        <button onclick="simulateViewDetails('${company.id}')">👁️ Ver Detalles</button>
+                        <button onclick="simulateDelete('${company.id}')">🗑️ Eliminar</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Funciones de simulación
+        function simulateMenuOpen(companyId) {
+            const company = reactState.companies.find(c => c.id === companyId);
+            if (company) {
+                const mockEvent = {
+                    currentTarget: document.createElement('button')
+                };
+                handleMenuOpen(mockEvent, company);
+            }
+        }
+        
+        function simulateViewDetails(companyId) {
+            const company = reactState.companies.find(c => c.id === companyId);
+            if (company) {
+                setSelectedCompany(company);
+                handleViewDetails();
+            }
+        }
+        
+        function simulateDelete(companyId) {
+            const company = reactState.companies.find(c => c.id === companyId);
+            if (company) {
+                setSelectedCompany(company);
+                handleDelete();
+            }
+        }
+        
+        // Inicializar
+        addLog('info', '🔧 Sistema de pruebas de estado React inicializado');
+        updateStateDisplay();
+    </script>
+</body>
+</html>

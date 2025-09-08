@@ -4,11 +4,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { Box, CircularProgress, Typography } from '@mui/material';
 
 const PublicRoute = ({ children, redirectTo = '/dashboard' }) => {
-  const { user, loading } = useAuth();
+  const { user, authLoading } = useAuth();
   const location = useLocation();
 
   // Mostrar loading mientras se verifica la autenticación
-  if (loading) {
+  if (authLoading) {
     return (
       <Box
         sx={{

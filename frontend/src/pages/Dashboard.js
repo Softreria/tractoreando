@@ -283,7 +283,8 @@ const Dashboard = () => {
     },
     enabled: isAuthenticated && !!user && !authLoading, // Solo ejecutar cuando el usuario esté completamente cargado
     staleTime: 5 * 60 * 1000, // 5 minutos
-    refetchInterval: 30000 // Actualizar cada 30 segundos
+    refetchOnWindowFocus: false, // No refrescar al enfocar la ventana
+    retry: 1 // Solo reintentar una vez en caso de error
   });
 
   const handleRefresh = async () => {
@@ -386,13 +387,18 @@ const Dashboard = () => {
       totalCompanies: hasRole('super_admin') ? dashboardData.companies?.total : undefined,
       totalBranches: hasRole(['super_admin', 'company_admin']) ? dashboardData.branches?.total : undefined
     },
-    maintenanceChart: dashboardData.maintenanceChart || [],
-    vehicleDistribution: dashboardData.vehicleDistribution || [],
+    maintenanceChart: dashboardData.maintenanceChart || mockData.maintenanceChart,
+    vehicleDistribution: dashboardData.vehicleDistribution?.length > 0 ? dashboardData.vehicleDistribution : [
+      { name: 'Operativo', value: dashboardData.vehicles?.active || 0 },
+      { name: 'Mantenimiento', value: dashboardData.maintenance?.inProgress || 0 },
+      { name: 'Fuera de Servicio', value: (dashboardData.vehicles?.total || 0) - (dashboardData.vehicles?.active || 0) - (dashboardData.maintenance?.inProgress || 0) },
+      { name: 'Reserva', value: 0 }
+    ],
     recentAlerts: dashboardData.upcomingMaintenances || [],
     recentMaintenance: dashboardData.recentMaintenances || []
-  } : null;
+  } : mockData;
 
-  const data = transformedData || mockData;
+  const data = transformedData;
 
   if (isLoading) {
     return (

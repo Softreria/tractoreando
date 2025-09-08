@@ -213,7 +213,8 @@ const Companies = () => {
     // Ensure edit dialog is closed
     setOpenDialog(false);
     setDetailsDialogOpen(true);
-    handleMenuClose();
+    // Close menu but keep selectedCompany
+    setAnchorEl(null);
   };
 
   const handleCloseDetailsDialog = () => {
@@ -883,7 +884,7 @@ const Companies = () => {
                         <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'primary.50', borderRadius: 1 }}>
                           <Store sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
                           <Typography variant="h4" color="primary.main" fontWeight="bold">
-                            {selectedCompany.branchCount || 0}
+                            {selectedCompany.stats?.branches || selectedCompany.branchCount || 0}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
                             Delegaciones
@@ -894,7 +895,7 @@ const Companies = () => {
                         <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'success.50', borderRadius: 1 }}>
                           <DirectionsCar sx={{ fontSize: 40, color: 'success.main', mb: 1 }} />
                           <Typography variant="h4" color="success.main" fontWeight="bold">
-                            {selectedCompany.vehicleCount || 0}
+                            {selectedCompany.stats?.vehicles || selectedCompany.vehicleCount || 0}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
                             Vehículos
@@ -905,7 +906,7 @@ const Companies = () => {
                         <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'info.50', borderRadius: 1 }}>
                           <People sx={{ fontSize: 40, color: 'info.main', mb: 1 }} />
                           <Typography variant="h4" color="info.main" fontWeight="bold">
-                            {selectedCompany.userCount || 0}
+                            {selectedCompany.stats?.users || selectedCompany.userCount || 0}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
                             Usuarios
@@ -964,10 +965,9 @@ const Companies = () => {
             <Button 
               variant="contained" 
               onClick={() => {
-                const companyToEdit = selectedCompany;
                 handleCloseDetailsDialog();
                 setTimeout(() => {
-                  handleOpenDialog(companyToEdit);
+                  handleOpenDialog(selectedCompany);
                 }, 100);
               }}
             >

@@ -96,7 +96,7 @@ router.get('/:id', [
     const company = await Company.findByPk(req.params.id, {
       include: [{
         model: User,
-        as: 'creator',
+        as: 'createdBy',
         attributes: ['firstName', 'lastName', 'email']
       }]
     });
@@ -225,10 +225,22 @@ router.post('/', [
     // Asignar la sucursal principal al administrador
     await adminUser.update({ branchId: mainBranch.id });
 
+    // Actualizar el campo administrator de la empresa con el userId del administrador creado
+    await company.update({
+      administrator: {
+        firstName: adminData.firstName,
+        lastName: adminData.lastName,
+        email: adminData.email,
+        phone: adminData.phone,
+        canManageUsers: administrator?.canManageUsers !== false,
+        userId: adminUser.id
+      }
+    });
+
     const populatedCompany = await Company.findByPk(company.id, {
       include: [{
         model: User,
-        as: 'creator',
+        as: 'createdBy',
         attributes: ['firstName', 'lastName', 'email']
       }]
     });
@@ -286,17 +298,44 @@ router.put('/:id', [
     const updateData = {};
     if (name) updateData.name = name;
     if (cif) updateData.cif = cif.toUpperCase();
-    if (address) updateData.address = { ...company.address, ...address };
-    if (contact) updateData.contact = { ...company.contact, ...contact };
-    if (settings) updateData.settings = { ...company.settings, ...settings };
-    if (administrator) updateData.administrator = { ...company.administrator, ...administrator };
+    
+    // Manejo seguro de campos JSON
+    if (address) {
+      const currentAddress = company.address || {};
+      updateData.address = { ...currentAddress, ...address };
+    }
+    
+    if (contact) {
+      const currentContact = company.contact || {};
+      updateData.contact = { ...currentContact, ...contact };
+    }
+    
+    if (settings) {
+      const currentSettings = company.settings || {};
+      // Manejo especial para subscription dentro de settings
+      if (settings.subscription) {
+        const currentSubscription = currentSettings.subscription || {};
+        updateData.settings = {
+          ...currentSettings,
+          ...settings,
+          subscription: { ...currentSubscription, ...settings.subscription }
+        };
+      } else {
+        updateData.settings = { ...currentSettings, ...settings };
+      }
+    }
+    
+    if (administrator) {
+      const currentAdministrator = company.administrator || {};
+      updateData.administrator = { ...currentAdministrator, ...administrator };
+    }
 
     await company.update(updateData);
     
     const updatedCompany = await Company.findByPk(req.params.id, {
       include: [{
         model: User,
-        as: 'creator',
+        as: 'createdBy',
         attributes: ['firstName', 'lastName', 'email']
       }]
     });

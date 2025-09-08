@@ -25,8 +25,7 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Switch,
-  FormControlLabel,
+
   Menu,
   ListItemIcon,
   ListItemText,
@@ -62,13 +61,13 @@ const Branches = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
   const [filterCompany, setFilterCompany] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
   const [editingBranch, setEditingBranch] = useState(null);
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedBranch, setSelectedBranch] = useState(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   
   const { user, hasPermission, hasRole } = useAuth();
   const queryClient = useQueryClient();
@@ -83,13 +82,12 @@ const Branches = () => {
 
   // Consulta de delegaciones
   const { data: branchesData, isLoading } = useQuery({
-    queryKey: ['branches', page, rowsPerPage, searchTerm, filterStatus, filterCompany],
+    queryKey: ['branches', page, rowsPerPage, searchTerm, filterCompany],
     queryFn: async () => {
       const params = {
         page: page + 1,
         limit: rowsPerPage,
         search: searchTerm,
-        status: filterStatus !== 'all' ? filterStatus : undefined,
         company: filterCompany || undefined
       };
       const response = await api.get('/branches', { params });
@@ -141,19 +139,7 @@ const Branches = () => {
     }
   });
 
-  // Mutación para cambiar estado
-  const toggleStatusMutation = useMutation({
-    mutationFn: async ({ id, isActive }) => {
-      return api.patch(`/branches/${id}/status`, { isActive });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['branches']);
-      toast.success('Estado actualizado');
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.message || 'Error al actualizar estado');
-    }
-  });
+  // Las sucursales no tienen estado propio, dependen de la empresa
 
   const handleOpenDialog = (branch = null) => {
     setEditingBranch(branch);
@@ -236,18 +222,25 @@ const Branches = () => {
     setAnchorEl(null);
   };
 
+  const handleViewDetails = () => {
+    setDetailsDialogOpen(true);
+    setAnchorEl(null);
+  };
+
+  const handleCloseDetailsDialog = () => {
+    setDetailsDialogOpen(false);
+    setSelectedBranch(null);
+  };
+
   const confirmDelete = () => {
     if (selectedBranch) {
       deleteBranchMutation.mutate(selectedBranch.id);
+      setDeleteDialogOpen(false);
+      setSelectedBranch(null);
     }
   };
 
-  const handleToggleStatus = (branch) => {
-    toggleStatusMutation.mutate({
-      id: branch.id,
-      isActive: !branch.isActive
-    });
-  };
+  // Función removida: las sucursales no tienen estado propio
 
   const onSubmit = (data) => {
     const branchData = {
@@ -356,21 +349,7 @@ const Branches = () => {
                 </FormControl>
               </Grid>
             )}
-            <Grid item xs={12} md={hasRole('super_admin') ? 3 : 4}>
-              <FormControl fullWidth>
-                <InputLabel>Estado</InputLabel>
-                <Select
-                  value={filterStatus}
-                  label="Estado"
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                >
-                  <MenuItem value="all">Todos</MenuItem>
-                  <MenuItem value="active">Activos</MenuItem>
-                  <MenuItem value="inactive">Inactivos</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} md={hasRole('super_admin') ? 2 : 4}>
+            <Grid item xs={12} md={hasRole('super_admin') ? 3 : 6}>
               <Button
                 fullWidth
                 variant="outlined"
@@ -394,7 +373,6 @@ const Branches = () => {
                 <TableCell>Contacto</TableCell>
                 <TableCell>Horario</TableCell>
                 <TableCell>Estadísticas</TableCell>
-                <TableCell>Estado</TableCell>
                 <TableCell align="center">Acciones</TableCell>
               </TableRow>
             </TableHead>
@@ -477,18 +455,6 @@ const Branches = () => {
                       </Tooltip>
                     </Box>
                   </TableCell>
-                  <TableCell>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={branch.isActive}
-                          onChange={() => handleToggleStatus(branch)}
-                          disabled={!hasPermission('branches', 'update')}
-                        />
-                      }
-                      label={branch.isActive ? 'Activo' : 'Inactivo'}
-                    />
-                  </TableCell>
                   <TableCell align="center">
                     <IconButton
                       onClick={(e) => handleMenuOpen(e, branch)}
@@ -523,7 +489,7 @@ const Branches = () => {
         onClose={handleMenuClose}
       >
         {hasPermission('branches', 'read') && (
-          <MenuItem onClick={() => { /* Ver detalles */ handleMenuClose(); }}>
+          <MenuItem onClick={handleViewDetails}>
             <ListItemIcon>
               <Visibility fontSize="small" />
             </ListItemIcon>
@@ -700,6 +666,146 @@ const Branches = () => {
             </Button>
           </DialogActions>
         </form>
+      </Dialog>
+
+      {/* Dialog de detalles de delegación */}
+      <Dialog open={detailsDialogOpen} onClose={handleCloseDetailsDialog} maxWidth="md" fullWidth>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Store color="primary" />
+            <Typography variant="h6">
+              Detalles de {selectedBranch?.name}
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {selectedBranch && (
+            <Grid container spacing={3} sx={{ mt: 1 }}>
+              {/* Información básica */}
+              <Grid item xs={12} md={6}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom color="primary">
+                      Información Básica
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">Nombre:</Typography>
+                        <Typography variant="body1" fontWeight="medium">{selectedBranch.name}</Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">Código:</Typography>
+                        <Typography variant="body1" fontWeight="medium">{selectedBranch.code}</Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">Empresa:</Typography>
+                        <Typography variant="body1" fontWeight="medium">{selectedBranch.company?.name}</Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">Estado:</Typography>
+                        <Chip 
+                          label={selectedBranch.isActive ? 'Activo' : 'Inactivo'} 
+                          color={selectedBranch.isActive ? 'success' : 'error'}
+                          size="small"
+                        />
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+              
+              {/* Información de contacto */}
+              <Grid item xs={12} md={6}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom color="primary">
+                      Contacto
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">Teléfono:</Typography>
+                        <Typography variant="body1">{selectedBranch.contact?.phone || 'No especificado'}</Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">Email:</Typography>
+                        <Typography variant="body1">{selectedBranch.contact?.email || 'No especificado'}</Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="body2" color="text.secondary">Encargado:</Typography>
+                        <Typography variant="body1">{selectedBranch.contact?.manager || 'No especificado'}</Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+              
+              {/* Dirección */}
+              <Grid item xs={12}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom color="primary">
+                      Dirección
+                    </Typography>
+                    <Box>
+                      <Typography variant="body1">
+                        {selectedBranch.address ? (
+                          `${selectedBranch.address.street}, ${selectedBranch.address.city}, ${selectedBranch.address.state} ${selectedBranch.address.zipCode}, ${selectedBranch.address.country}`
+                        ) : (
+                          'No especificada'
+                        )}
+                      </Typography>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+              
+              {/* Estadísticas */}
+              <Grid item xs={12}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom color="primary">
+                      Estadísticas
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6}>
+                        <Box sx={{ textAlign: 'center' }}>
+                          <Typography variant="body2" color="text.secondary">Vehículos</Typography>
+                          <Typography variant="h6" color="primary">
+                            {selectedBranch.vehicleCount || 0}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <Box sx={{ textAlign: 'center' }}>
+                          <Typography variant="body2" color="text.secondary">Mantenimientos Activos</Typography>
+                          <Typography variant="h6" color="warning.main">
+                            {selectedBranch.activeMaintenanceCount || 0}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                    </Grid>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDetailsDialog}>Cerrar</Button>
+          {hasPermission('branches', 'update') && (
+            <Button 
+              variant="contained" 
+              onClick={() => {
+                handleCloseDetailsDialog();
+                setTimeout(() => {
+                  handleOpenDialog(selectedBranch);
+                }, 100);
+              }}
+            >
+              Editar
+            </Button>
+          )}
+        </DialogActions>
       </Dialog>
 
       {/* Dialog de confirmación de eliminación */}

@@ -78,6 +78,12 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // Conexión a la base de datos
+// Manejo de errores global
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: 'Error interno del servidor' });
+});
+
 const connectDB = async () => {
   try {
     await sequelize.authenticate();
@@ -88,26 +94,20 @@ const connectDB = async () => {
       await sequelize.sync({ force: false });
       console.log('✅ Modelos sincronizados con la base de datos.');
     }
+    
+    // Iniciar servidor después de conectar a la base de datos
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`🚀 Servidor ejecutándose en puerto ${PORT}`);
+      console.log(`🌐 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+    });
   } catch (error) {
     console.error('❌ Error conectando a PostgreSQL:', error.message);
     process.exit(1);
   }
 };
 
-// Conectar a la base de datos
+// Conectar a la base de datos e iniciar servidor
 connectDB();
-
-// Manejo de errores global
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ message: 'Error interno del servidor' });
-});
-
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor ejecutándose en puerto ${PORT}`);
-  console.log(`🌐 Ambiente: ${process.env.NODE_ENV || 'development'}`);
-});
 
 // Reinicio del servidor

@@ -37,7 +37,7 @@ router.get('/dashboard', [
     }
 
     // Consultas paralelas para obtener estadísticas
-    const [vehicleStats, maintenanceStats, recentMaintenances, upcomingMaintenances, alerts, userStats, companyStats, branchStats] = await Promise.all([
+    const [vehicleStats, maintenanceStats, recentMaintenances, upcomingMaintenances, alerts, userStats, companyStats, branchStats, maintenanceChart, vehicleDistribution] = await Promise.all([
       getVehicleStats(baseQuery),
       getMaintenanceStats(baseQuery, dateFrom, dateTo),
       getRecentMaintenances(baseQuery, 5),
@@ -45,7 +45,9 @@ router.get('/dashboard', [
       getMaintenanceAlerts(baseQuery),
       getUserStats(baseQuery, req.user),
       getCompanyStats(req.user),
-      getBranchStats(baseQuery, req.user)
+      getBranchStats(baseQuery, req.user),
+      getMaintenanceChart(baseQuery),
+      getVehicleDistribution(baseQuery)
     ]);
 
     res.json({
@@ -58,7 +60,9 @@ router.get('/dashboard', [
       alerts,
       users: userStats,
       companies: companyStats,
-      branches: branchStats
+      branches: branchStats,
+      maintenanceChart,
+      vehicleDistribution
     });
 
   } catch (error) {
@@ -886,8 +890,8 @@ async function getRecentMaintenances(baseQuery, limit) {
   return await Maintenance.findAll({
     where: baseQuery,
     include: [
-      { model: Vehicle, attributes: ['plateNumber', 'make', 'model'] },
-      { model: Branch, attributes: ['name'] },
+      { model: Vehicle, as: 'vehicle', attributes: ['plateNumber', 'make', 'model'] },
+      { model: Branch, as: 'branch', attributes: ['name'] },
       { model: User, as: 'assignedTo', attributes: ['firstName', 'lastName'] }
     ],
     order: [['createdAt', 'DESC']],
@@ -904,8 +908,8 @@ async function getUpcomingMaintenances(baseQuery, limit) {
       scheduledDate: { [Op.gte]: new Date() }
     },
     include: [
-      { model: Vehicle, attributes: ['plateNumber', 'make', 'model'] },
-      { model: Branch, attributes: ['name'] },
+      { model: Vehicle, as: 'vehicle', attributes: ['plateNumber', 'make', 'model'] },
+      { model: Branch, as: 'branch', attributes: ['name'] },
       { model: User, as: 'assignedTo', attributes: ['firstName', 'lastName'] }
     ],
     order: [['scheduledDate', 'ASC']],
@@ -1113,7 +1117,7 @@ async function getUserStats(baseQuery, user) {
   if (user.role === 'super_admin') {
     // Super admin puede ver todos los usuarios
   } else if (user.role === 'company_admin') {
-    userQuery.companyId = user.company.id;
+    userQuery.companyId = user.companyId;
   } else {
     userQuery.branchId = user.branchId;
   }
@@ -1141,12 +1145,75 @@ async function getBranchStats(baseQuery, user) {
   let branchQuery = {};
   
   if (user.role === 'company_admin') {
-    branchQuery.companyId = user.company.id;
+    branchQuery.companyId = user.companyId;
   }
   
   const total = await Branch.count({ where: branchQuery });
   
   return { total };
+}
+
+async function getMaintenanceChart(baseQuery) {
+  try {
+    const last30Days = moment().subtract(30, 'days').startOf('day');
+    const maintenances = await Maintenance.findAll({
+      where: {
+        ...baseQuery,
+        createdAt: {
+          [require('sequelize').Op.gte]: last30Days.toDate()
+        }
+      },
+      attributes: [
+        [require('sequelize').fn('DATE', require('sequelize').col('createdAt')), 'date'],
+        [require('sequelize').fn('COUNT', require('sequelize').col('id')), 'count']
+      ],
+      group: [require('sequelize').fn('DATE', require('sequelize').col('createdAt'))],
+      order: [[require('sequelize').fn('DATE', require('sequelize').col('createdAt')), 'ASC']]
+    });
+
+    // Crear array con todos los días de los últimos 30 días
+    const chartData = [];
+    for (let i = 29; i >= 0; i--) {
+      const date = moment().subtract(i, 'days').format('YYYY-MM-DD');
+      const maintenance = maintenances.find(m => m.dataValues.date === date);
+      chartData.push({
+        name: moment(date).format('DD/MM'),
+        mantenimientos: maintenance ? parseInt(maintenance.dataValues.count) : 0
+      });
+    }
+
+    return chartData;
+  } catch (error) {
+    console.error('Error obteniendo datos del gráfico de mantenimiento:', error);
+    return [];
+  }
+}
+
+async function getVehicleDistribution(baseQuery) {
+  try {
+    const [total, active, inMaintenance] = await Promise.all([
+      Vehicle.count({ where: baseQuery }),
+      Vehicle.count({ where: { ...baseQuery, status: 'activo' } }),
+      Maintenance.count({ 
+        where: { 
+          ...baseQuery,
+          status: 'en_proceso' 
+        } 
+      })
+    ]);
+
+    const outOfService = total - active - inMaintenance;
+
+    return [
+      { name: 'Operativo', value: active },
+      { name: 'Mantenimiento', value: inMaintenance },
+      { name: 'Fuera de Servicio', value: outOfService > 0 ? outOfService : 0 },
+      { name: 'Reserva', value: 0 }
+    ];
+  } catch (error) {
+    console.error('Error obteniendo distribución de vehículos:', error);
+    return [];
+  }
 }
 
 module.exports = router;

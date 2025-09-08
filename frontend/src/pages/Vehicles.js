@@ -116,7 +116,7 @@ const Vehicles = () => {
 
   // Consulta de vehículos
   const { data: vehiclesData, isLoading } = useQuery({
-    queryKey: ['vehicles', page, rowsPerPage, searchTerm, filterStatus, filterBranch, filterType, user?.vehicleTypeAccess],
+    queryKey: ['vehicles', page, rowsPerPage, searchTerm, filterStatus, filterBranch, filterType],
     queryFn: async () => {
       const params = {
         page: page + 1,
@@ -124,11 +124,8 @@ const Vehicles = () => {
         search: searchTerm,
         status: filterStatus !== 'all' ? filterStatus : undefined,
         branch: filterBranch || undefined,
-        type: filterType || undefined,
-        // Enviar tipos de vehículos autorizados para filtrar en el backend
-        vehicleTypeAccess: user?.vehicleTypeAccess && user.vehicleTypeAccess.length > 0 
-          ? user.vehicleTypeAccess.join(',') 
-          : undefined
+        type: filterType || undefined
+        // No enviamos vehicleTypeAccess como parámetro - el backend ya maneja esto internamente
       };
       const response = await api.get('/vehicles', { params });
       return response.data;
@@ -207,8 +204,8 @@ const Vehicles = () => {
   });
 
   const handleOpenDialog = (vehicle = null) => {
-    // Validar acceso al tipo de vehículo al editar
-    if (vehicle && user?.vehicleTypeAccess && user.vehicleTypeAccess.length > 0) {
+    // Validar acceso al tipo de vehículo al editar (excepto super_admin)
+    if (vehicle && user?.role !== 'super_admin' && user?.vehicleTypeAccess && user.vehicleTypeAccess.length > 0) {
       if (!user.vehicleTypeAccess.includes(vehicle.vehicleType)) {
         toast.error('No tienes acceso para editar vehículos de este tipo');
         return;
@@ -237,7 +234,7 @@ const Vehicles = () => {
       });
     } else {
       // Al crear un nuevo vehículo, usar el primer tipo disponible para el usuario
-      const defaultType = vehicleTypes.length > 0 ? vehicleTypes[0].value : 'automovil';
+      const defaultType = vehicleTypes.length > 0 ? vehicleTypes[0].value : 'Coche';
       reset({
         type: defaultType,
         'engine.type': 'gasolina',
@@ -394,8 +391,8 @@ const Vehicles = () => {
   };
 
   const onSubmit = (data) => {
-    // Validar acceso al tipo de vehículo antes de enviar
-    if (user?.vehicleTypeAccess && user.vehicleTypeAccess.length > 0) {
+    // Validar acceso al tipo de vehículo antes de enviar (excepto super_admin)
+    if (user?.role !== 'super_admin' && user?.vehicleTypeAccess && user.vehicleTypeAccess.length > 0) {
       if (!user.vehicleTypeAccess.includes(data.type)) {
         toast.error('No tienes acceso para crear/editar vehículos de este tipo');
         return;
@@ -405,8 +402,8 @@ const Vehicles = () => {
     const vehicleData = {
       plateNumber: data.plateNumber,
       vin: data.vin || undefined,
-      company: data.company || user?.company?.id,
-      branch: data.branch,
+      company: data.company || user?.companyId,
+      branch: data.branch || undefined,
       make: data.make,
       model: data.model,
       year: parseInt(data.year),
@@ -522,23 +519,22 @@ const Vehicles = () => {
   const filteredVehicles = vehiclesData?.vehicles || [];
   const totalCount = vehiclesData?.total || 0;
 
-  // Todos los tipos de vehículos disponibles
+  // Todos los tipos de vehículos disponibles (deben coincidir con el modelo Vehicle.js)
   const allVehicleTypes = [
-    { value: 'automovil', label: 'Automóvil' },
-    { value: 'furgoneta', label: 'Furgoneta' },
-    { value: 'camion', label: 'Camión' },
-    { value: 'autobus', label: 'Autobús' },
-    { value: 'motocicleta', label: 'Motocicleta' },
-    { value: 'tractor', label: 'Tractor' },
-    { value: 'apero_agricola', label: 'Apero Agrícola' },
-    { value: 'maquinaria_construccion', label: 'Maquinaria de Construcción' },
-    { value: 'vehiculo_especial', label: 'Vehículo Especial' }
+    { value: 'Coche', label: 'Coche' },
+    { value: 'Furgoneta', label: 'Furgoneta' },
+    { value: 'Camión', label: 'Camión' },
+    { value: 'Motocicleta', label: 'Motocicleta' },
+    { value: 'Tractor', label: 'Tractor' },
+    { value: 'Remolque', label: 'Remolque' },
+    { value: 'Maquinaria', label: 'Maquinaria' },
+    { value: 'Otro', label: 'Otro' }
   ];
 
-  // Filtrar tipos de vehículos según permisos del usuario
-  const vehicleTypes = user?.vehicleTypeAccess && user.vehicleTypeAccess.length > 0
-    ? allVehicleTypes.filter(type => user.vehicleTypeAccess.includes(type.value))
-    : allVehicleTypes; // Si no tiene restricciones, mostrar todos
+  // Filtrar tipos de vehículos según permisos del usuario (excepto super_admin)
+  const vehicleTypes = user?.role === 'super_admin' || !user?.vehicleTypeAccess || user.vehicleTypeAccess.length === 0
+    ? allVehicleTypes // Super admin o sin restricciones: mostrar todos
+    : allVehicleTypes.filter(type => user.vehicleTypeAccess.includes(type.value)); // Filtrar según permisos
 
   const fuelTypes = [
     { value: 'gasolina', label: 'Gasolina' },
@@ -558,18 +554,18 @@ const Vehicles = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'active': return 'success';
-      case 'maintenance': return 'warning';
-      case 'inactive': return 'error';
+      case 'activo': return 'success';
+      case 'mantenimiento': return 'warning';
+      case 'inactivo': return 'error';
       default: return 'default';
     }
   };
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'active': return <CheckCircle />;
-      case 'maintenance': return <Build />;
-      case 'inactive': return <Error />;
+      case 'activo': return <CheckCircle />;
+      case 'mantenimiento': return <Build />;
+      case 'inactivo': return <Error />;
       default: return <DirectionsCar />;
     }
   };
@@ -669,9 +665,9 @@ const Vehicles = () => {
                   onChange={(e) => setFilterStatus(e.target.value)}
                 >
                   <MenuItem value="all">Todos</MenuItem>
-                  <MenuItem value="active">Activos</MenuItem>
-                  <MenuItem value="maintenance">En Mantenimiento</MenuItem>
-                  <MenuItem value="inactive">Inactivos</MenuItem>
+                  <MenuItem value="activo">Activos</MenuItem>
+                  <MenuItem value="mantenimiento">En Mantenimiento</MenuItem>
+                  <MenuItem value="inactivo">Inactivos</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -764,8 +760,8 @@ const Vehicles = () => {
                     <TableCell>
                       <Chip
                         icon={getStatusIcon(vehicle.status)}
-                        label={vehicle.status === 'active' ? 'Activo' : 
-                               vehicle.status === 'maintenance' ? 'Mantenimiento' : 'Inactivo'}
+                        label={vehicle.status === 'activo' ? 'Activo' : 
+                               vehicle.status === 'mantenimiento' ? 'Mantenimiento' : 'Inactivo'}
                         color={getStatusColor(vehicle.status)}
                         size="small"
                       />
@@ -954,8 +950,8 @@ const Vehicles = () => {
                     rules={{ 
                       required: 'El tipo es requerido',
                       validate: (value) => {
-                        // Validar que el usuario tenga acceso al tipo de vehículo seleccionado
-                        if (user?.vehicleTypeAccess && user.vehicleTypeAccess.length > 0) {
+                        // Validar que el usuario tenga acceso al tipo de vehículo seleccionado (excepto super_admin)
+                        if (user?.role !== 'super_admin' && user?.vehicleTypeAccess && user.vehicleTypeAccess.length > 0) {
                           if (!user.vehicleTypeAccess.includes(value)) {
                             return 'No tienes acceso a este tipo de vehículo';
                           }
@@ -1001,14 +997,22 @@ const Vehicles = () => {
                     rules={{ required: 'La delegación es requerida' }}
                     render={({ field }) => (
                       <FormControl fullWidth error={!!errors.branch}>
-                        <InputLabel>Delegación</InputLabel>
-                        <Select {...field} label="Delegación">
+                        <InputLabel>Delegación *</InputLabel>
+                        <Select {...field} label="Delegación *" value={field.value || ''}>
+                          <MenuItem value="" disabled>
+                            Selecciona una delegación
+                          </MenuItem>
                           {branchesData?.map((branch) => (
                             <MenuItem key={branch.id} value={branch.id}>
                               {branch.name}
                             </MenuItem>
                           ))}
                         </Select>
+                        {errors.branch && (
+                          <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.5 }}>
+                            {errors.branch.message}
+                          </Typography>
+                        )}
                       </FormControl>
                     )}
                   />
@@ -1689,7 +1693,7 @@ const Vehicles = () => {
                 <Typography><strong>Motor:</strong> {selectedVehicle.engine?.type || 'No especificado'}</Typography>
                 <Typography><strong>Transmisión:</strong> {selectedVehicle.transmission || 'No especificado'}</Typography>
                 <Typography><strong>Kilometraje:</strong> {selectedVehicle.odometer?.current?.toLocaleString() || 0} km</Typography>
-                <Typography><strong>Estado:</strong> {selectedVehicle.status === 'active' ? 'Activo' : selectedVehicle.status === 'maintenance' ? 'En Mantenimiento' : 'Inactivo'}</Typography>
+                <Typography><strong>Estado:</strong> {selectedVehicle.status === 'activo' ? 'Activo' : selectedVehicle.status === 'mantenimiento' ? 'En Mantenimiento' : 'Inactivo'}</Typography>
                 <Typography><strong>Condición:</strong> {selectedVehicle.condition === 'excellent' ? 'Excelente' : selectedVehicle.condition === 'good' ? 'Buena' : selectedVehicle.condition === 'fair' ? 'Regular' : 'Mala'}</Typography>
               </Grid>
               <Grid item xs={12} md={6}>

@@ -54,7 +54,7 @@ Company.init({
       return value ? JSON.parse(value) : null;
     },
     set(value) {
-      this.setDataValue('address', JSON.stringify(value));
+      this.setDataValue('address', value ? JSON.stringify(value) : null);
     },
     validate: {
       isValidAddress(value) {
@@ -96,7 +96,7 @@ Company.init({
       if (value && value.email) {
         value.email = value.email.toLowerCase().trim();
       }
-      this.setDataValue('contact', JSON.stringify(value));
+      this.setDataValue('contact', value ? JSON.stringify(value) : null);
     }
   },
   logo: {
@@ -126,7 +126,7 @@ Company.init({
       return value ? JSON.parse(value) : null;
     },
     set(value) {
-      this.setDataValue('settings', JSON.stringify(value));
+      this.setDataValue('settings', value ? JSON.stringify(value) : null);
     },
     validate: {
       isValidSettings(value) {
@@ -183,7 +183,7 @@ Company.init({
       if (value && value.phone) {
         value.phone = value.phone.trim();
       }
-      this.setDataValue('administrator', JSON.stringify(value));
+      this.setDataValue('administrator', value ? JSON.stringify(value) : null);
     }
   },
   isActive: {

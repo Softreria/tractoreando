@@ -21,7 +21,26 @@ router.get('/', [
   try {
     const { page = 1, limit = 10, search, status, branch, vehicleType, company } = req.query;
     
-    const whereConditions = { companyId: company || req.user.companyId };
+    // Para super_admin: permitir ver todos los vehículos o filtrar por empresa
+    // Para otros usuarios: validar que tengan companyId
+    let whereConditions = {};
+    
+    if (req.user.role === 'super_admin') {
+      // Super admin puede ver todos los vehículos o filtrar por empresa específica
+      if (company) {
+        whereConditions.companyId = company;
+      }
+      // Si no se especifica company, no agregar filtro de companyId (ver todos)
+    } else {
+      // Para usuarios normales, validar companyId
+      const companyId = company || req.user.companyId;
+      if (!companyId) {
+        return res.status(400).json({ 
+          message: 'No se pudo determinar la empresa del usuario' 
+        });
+      }
+      whereConditions.companyId = companyId;
+    }
     
     if (search) {
       whereConditions[Op.or] = [
@@ -29,7 +48,8 @@ router.get('/', [
         { make: { [Op.iLike]: `%${search}%` } },
         { model: { [Op.iLike]: `%${search}%` } },
         { vin: { [Op.iLike]: `%${search}%` } },
-        { '$owner.name$': { [Op.iLike]: `%${search}%` } }
+        { '$createdBy.firstName$': { [Op.iLike]: `%${search}%` } },
+        { '$createdBy.lastName$': { [Op.iLike]: `%${search}%` } }
       ];
     }
     
@@ -41,33 +61,65 @@ router.get('/', [
       whereConditions.branchId = branch;
     }
     
-    if (vehicleType) {
-      whereConditions.vehicleType = vehicleType;
-    }
-
     // Filtrar por sucursales del usuario si no es admin
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
       whereConditions.branchId = req.user.branchId;
     }
 
-    // Filtrar por tipos de vehículos según permisos del usuario
-    if (req.user.vehicleTypeAccess && req.user.vehicleTypeAccess.length > 0) {
-      whereConditions.vehicleType = { [Op.in]: req.user.vehicleTypeAccess };
+    // Filtrar por tipos de vehículos según permisos del usuario (excepto super_admin)
+    if (req.user.role !== 'super_admin' && req.user.vehicleTypeAccess && req.user.vehicleTypeAccess.length > 0) {
+      const allowedTypes = req.user.vehicleTypeAccess;
+      if (vehicleType) {
+        // Si se especifica un tipo específico, verificar que esté permitido
+        if (allowedTypes.includes(vehicleType)) {
+          whereConditions.vehicleType = vehicleType;
+        } else {
+          // Si el tipo no está permitido, devolver array vacío
+          return res.json({
+            vehicles: [],
+            pagination: {
+              current: parseInt(page),
+              pages: 0,
+              total: 0
+            }
+          });
+        }
+      } else {
+        // Si no se especifica tipo, filtrar por tipos permitidos
+        whereConditions.vehicleType = { [Op.in]: allowedTypes };
+      }
+    } else if (vehicleType) {
+      // Para super_admin y company_admin, aplicar filtro de tipo si se especifica
+      whereConditions.vehicleType = vehicleType;
     }
 
     const vehicles = await Vehicle.findAll({
       where: whereConditions,
       include: [
-        { model: Company, as: 'company', attributes: ['name'] },
+        { 
+          model: Company, 
+          as: 'company', 
+          attributes: ['name'],
+          where: { isActive: true }
+        },
         { model: Branch, as: 'branch', attributes: ['name', 'code'] },
-        { model: User, as: 'createdBy', attributes: ['name', 'lastName'] }
+        { model: User, as: 'createdBy', attributes: ['firstName', 'lastName'] }
       ],
       order: [['createdAt', 'DESC']],
       limit: parseInt(limit),
       offset: (parseInt(page) - 1) * parseInt(limit)
     });
 
-    const total = await Vehicle.count({ where: whereConditions });
+    const total = await Vehicle.count({ 
+      where: whereConditions,
+      include: [
+        { 
+          model: Company, 
+          as: 'company',
+          where: { isActive: true }
+        }
+      ]
+    });
 
     // Agregar información de mantenimiento para cada vehículo
     const Maintenance = require('../models/Maintenance');
@@ -138,8 +190,8 @@ router.get('/:id', [
       include: [
         { model: Company, as: 'company', attributes: ['name', 'rfc'] },
         { model: Branch, as: 'branch', attributes: ['name', 'code', 'address'] },
-        { model: User, as: 'createdBy', attributes: ['name', 'lastName', 'email'] },
-        { model: User, as: 'lastModifiedBy', attributes: ['name', 'lastName'] }
+        { model: User, as: 'createdBy', attributes: ['firstName', 'lastName', 'email'] },
+        { model: User, as: 'lastModifiedBy', attributes: ['firstName', 'lastName'] }
       ]
     });
 
@@ -173,8 +225,8 @@ router.get('/:id', [
         where: { vehicleId: vehicle.id },
         include: [
           { model: Branch, as: 'branch', attributes: ['name'] },
-          { model: User, as: 'assignedTo', attributes: ['name', 'lastName'] },
-          { model: User, as: 'createdBy', attributes: ['name', 'lastName'] }
+          { model: User, as: 'assignedTo', attributes: ['firstName', 'lastName'] },
+          { model: User, as: 'createdBy', attributes: ['firstName', 'lastName'] }
         ],
         order: [['scheduledDate', 'DESC']],
         limit: 10
@@ -237,7 +289,7 @@ router.post('/', [
   body('model', 'Modelo es requerido').notEmpty().trim(),
   body('year', 'Año es requerido').isInt({ min: 1900, max: new Date().getFullYear() + 1 }),
   body('vehicleType', 'Tipo de vehículo es requerido').notEmpty(),
-  body('branch', 'Sucursal es requerida').notEmpty().isUUID(),
+  body('branch', 'La delegación es requerida').notEmpty().isUUID(),
   logActivity('Crear vehículo')
 ], async (req, res) => {
   try {
@@ -273,18 +325,24 @@ router.post('/', [
       branch
     } = req.body;
 
-    const companyId = req.body.company || req.user.companyId;
-
-    // Verificar que la sucursal pertenece a la empresa (solo si se proporciona)
-    if (branch) {
-      const branchDoc = await Branch.findOne({ where: { id: branch, companyId: companyId } });
-      if (!branchDoc) {
-        return res.status(400).json({ message: 'Sucursal no válida' });
-      }
+    // Obtener la delegación y derivar el companyId de ella (delegación es obligatoria)
+    const branchDoc = await Branch.findByPk(branch, {
+      include: [{ model: Company, as: 'company' }]
+    });
+    
+    if (!branchDoc) {
+      return res.status(400).json({ message: 'Delegación no válida' });
+    }
+    
+    const companyId = branchDoc.companyId;
+    
+    // Verificar que el usuario tenga acceso a esta empresa
+    if (req.user.role !== 'super_admin' && req.user.companyId !== companyId) {
+      return res.status(403).json({ message: 'No tienes acceso a esta delegación' });
     }
 
-    // Verificar acceso al tipo de vehículo
-    if (req.user.vehicleTypeAccess && req.user.vehicleTypeAccess.length > 0) {
+    // Verificar acceso al tipo de vehículo (excepto super_admin)
+    if (req.user.role !== 'super_admin' && req.user.vehicleTypeAccess && req.user.vehicleTypeAccess.length > 0) {
       if (!req.user.vehicleTypeAccess.includes(vehicleType)) {
         return res.status(403).json({ message: 'No tienes acceso para crear este tipo de vehículo' });
       }
@@ -340,7 +398,7 @@ router.post('/', [
       include: [
         { model: Company, as: 'company', attributes: ['name'] },
         { model: Branch, as: 'branch', attributes: ['name', 'code'] },
-        { model: User, as: 'createdBy', attributes: ['name', 'lastName'] }
+        { model: User, as: 'createdBy', attributes: ['firstName', 'lastName'] }
       ]
     });
 
@@ -384,8 +442,8 @@ router.put('/:id', [
       return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
     }
 
-    // Verificar acceso al tipo de vehículo actual
-    if (req.user.vehicleTypeAccess && req.user.vehicleTypeAccess.length > 0) {
+    // Verificar acceso al tipo de vehículo actual (excepto super_admin)
+    if (req.user.role !== 'super_admin' && req.user.vehicleTypeAccess && req.user.vehicleTypeAccess.length > 0) {
       if (!req.user.vehicleTypeAccess.includes(vehicle.vehicleType)) {
         return res.status(403).json({ message: 'No tienes acceso a este tipo de vehículo' });
       }
@@ -446,9 +504,9 @@ router.put('/:id', [
       }
     }
 
-    // Verificar acceso al nuevo tipo de vehículo si se está cambiando
+    // Verificar acceso al nuevo tipo de vehículo si se está cambiando (excepto super_admin)
     if (vehicleType && vehicleType !== vehicle.vehicleType) {
-      if (req.user.vehicleTypeAccess && req.user.vehicleTypeAccess.length > 0) {
+      if (req.user.role !== 'super_admin' && req.user.vehicleTypeAccess && req.user.vehicleTypeAccess.length > 0) {
         if (!req.user.vehicleTypeAccess.includes(vehicleType)) {
           return res.status(403).json({ message: 'No tienes acceso para cambiar a este tipo de vehículo' });
         }
@@ -464,8 +522,7 @@ router.put('/:id', [
     }
 
     const updateData = {
-      lastModifiedById: req.user.id,
-      modifiedById: req.user.id
+      lastModifiedById: req.user.id
     };
     
     if (plateNumber) updateData.plateNumber = plateNumber.toUpperCase();
@@ -476,17 +533,17 @@ router.put('/:id', [
     if (color) updateData.color = color;
     if (vehicleType) updateData.vehicleType = vehicleType;
     if (category) updateData.category = category;
-    if (engine) updateData.engine = { ...vehicle.engine, ...engine };
+    if (engine) updateData.engine = typeof engine === 'string' ? JSON.parse(engine) : { ...(vehicle.engine || {}), ...engine };
     if (transmission) updateData.transmission = transmission;
     if (fuelCapacity) updateData.fuelCapacity = fuelCapacity;
-    if (odometer) updateData.odometer = { ...vehicle.odometer, ...odometer };
-    if (owner) updateData.owner = { ...vehicle.owner, ...owner };
-    if (documents) updateData.documents = { ...vehicle.documents, ...documents };
-    if (specifications) updateData.specifications = { ...vehicle.specifications, ...specifications };
-    if (ownership) updateData.ownership = { ...vehicle.ownership, ...ownership };
-    if (photos) updateData.photos = photos;
-    if (maintenanceSchedule) updateData.maintenanceSchedule = { ...vehicle.maintenanceSchedule, ...maintenanceSchedule };
-    if (costs) updateData.costs = { ...vehicle.costs, ...costs };
+    if (odometer) updateData.odometer = typeof odometer === 'string' ? JSON.parse(odometer) : { ...(vehicle.odometer || {}), ...odometer };
+    if (owner) updateData.owner = typeof owner === 'string' ? JSON.parse(owner) : { ...(vehicle.owner || {}), ...owner };
+    if (documents) updateData.documents = typeof documents === 'string' ? JSON.parse(documents) : { ...(vehicle.documents || {}), ...documents };
+    if (specifications) updateData.specifications = typeof specifications === 'string' ? JSON.parse(specifications) : { ...(vehicle.specifications || {}), ...specifications };
+    if (ownership) updateData.ownership = typeof ownership === 'string' ? JSON.parse(ownership) : { ...(vehicle.ownership || {}), ...ownership };
+    if (photos) updateData.photos = Array.isArray(photos) ? photos : (typeof photos === 'string' ? JSON.parse(photos) : photos);
+    if (maintenanceSchedule) updateData.maintenanceSchedule = typeof maintenanceSchedule === 'string' ? JSON.parse(maintenanceSchedule) : { ...(vehicle.maintenanceSchedule || {}), ...maintenanceSchedule };
+    if (costs) updateData.costs = typeof costs === 'string' ? JSON.parse(costs) : { ...(vehicle.costs || {}), ...costs };
     if (status) updateData.status = status;
     if (condition) updateData.condition = condition;
     if (notes) updateData.notes = notes;
@@ -498,8 +555,8 @@ router.put('/:id', [
       include: [
         { model: Company, as: 'company', attributes: ['name'] },
         { model: Branch, as: 'branch', attributes: ['name', 'code'] },
-        { model: User, as: 'createdBy', attributes: ['name', 'lastName'] },
-        { model: User, as: 'lastModifiedBy', attributes: ['name', 'lastName'] }
+        { model: User, as: 'createdBy', attributes: ['firstName', 'lastName'] },
+        { model: User, as: 'lastModifiedBy', attributes: ['firstName', 'lastName'] }
       ]
     });
 
@@ -587,7 +644,8 @@ router.put('/:id/odometer', [
       return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
     }
 
-    if (reading < vehicle.odometer.current) {
+    const currentOdometer = vehicle.odometer?.current || 0;
+    if (reading < currentOdometer) {
       return res.status(400).json({ message: 'La nueva lectura debe ser mayor a la actual' });
     }
 
@@ -600,6 +658,108 @@ router.put('/:id/odometer', [
 
   } catch (error) {
     console.error('Error actualizando kilometraje:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+});
+
+// @route   PATCH /api/vehicles/:id/mileage
+// @desc    Actualizar kilometraje (alias para compatibilidad con frontend)
+// @access  Private
+router.patch('/:id/mileage', [
+  auth,
+  checkPermission('vehicles', 'update'),
+  body('mileage', 'Kilometraje es requerido').isNumeric().optional(),
+  body('currentMileage', 'Kilometraje actual es requerido').isNumeric().optional(),
+  logActivity('Actualizar kilometraje')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        message: 'Datos inválidos', 
+        errors: errors.array() 
+      });
+    }
+
+    const { mileage, currentMileage, notes } = req.body;
+    const reading = mileage || currentMileage;
+    
+    if (!reading) {
+      return res.status(400).json({ message: 'Kilometraje es requerido' });
+    }
+    
+    const vehicle = await Vehicle.findByPk(req.params.id);
+    if (!vehicle) {
+      return res.status(404).json({ message: 'Vehículo no encontrado' });
+    }
+
+    // Verificar acceso
+    if (req.user.role !== 'super_admin' && vehicle.companyId !== req.user.companyId) {
+      return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
+    }
+
+    const currentOdometer = vehicle.odometer?.current || 0;
+    if (reading < currentOdometer) {
+      return res.status(400).json({ message: 'La nueva lectura debe ser mayor a la actual' });
+    }
+
+    await vehicle.updateOdometer(reading, new Date());
+
+    res.json({
+      message: 'Kilometraje actualizado exitosamente',
+      odometer: vehicle.odometer,
+      notes: notes
+    });
+
+  } catch (error) {
+    console.error('Error actualizando kilometraje:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+});
+
+// @route   GET /api/vehicles/:id/maintenance-history
+// @desc    Obtener historial de mantenimiento del vehículo
+// @access  Private
+router.get('/:id/maintenance-history', [
+  auth,
+  checkPermission('vehicles', 'read'),
+  logActivity('Ver historial de mantenimiento')
+], async (req, res) => {
+  try {
+    const vehicle = await Vehicle.findByPk(req.params.id);
+    if (!vehicle) {
+      return res.status(404).json({ message: 'Vehículo no encontrado' });
+    }
+
+    // Verificar acceso
+    if (req.user.role !== 'super_admin' && vehicle.companyId !== req.user.companyId) {
+      return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
+    }
+
+    const Maintenance = require('../models/Maintenance');
+    const User = require('../models/User');
+    
+    const maintenanceHistory = await Maintenance.findAll({
+      where: { vehicleId: req.params.id },
+      include: [
+        {
+          model: User,
+          as: 'assignedTo',
+          attributes: ['firstName', 'lastName']
+        },
+        {
+          model: User,
+          as: 'createdBy',
+          attributes: ['firstName', 'lastName']
+        }
+      ],
+      order: [['scheduledDate', 'DESC']]
+    });
+
+    res.json({ maintenanceHistory });
+
+  } catch (error) {
+    console.error('Error obteniendo historial de mantenimiento:', error);
     res.status(500).json({ message: 'Error interno del servidor' });
   }
 });

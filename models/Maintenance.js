@@ -336,11 +336,19 @@ Maintenance.init({
     },
     validate: {
       isValidServices(value) {
-        if (value && !Array.isArray(value)) {
+        let parsedValue = value;
+        if (typeof value === 'string') {
+          try {
+            parsedValue = JSON.parse(value);
+          } catch (e) {
+            throw new Error('Services must be a valid JSON array');
+          }
+        }
+        if (parsedValue && !Array.isArray(parsedValue)) {
           throw new Error('Services must be an array');
         }
-        if (value) {
-          value.forEach(service => {
+        if (parsedValue && parsedValue.length > 0) {
+          parsedValue.forEach(service => {
             if (!service.category || !service.description) {
               throw new Error('Service must have category and description');
             }
@@ -365,11 +373,19 @@ Maintenance.init({
     },
     validate: {
       isValidParts(value) {
-        if (value && !Array.isArray(value)) {
+        let parsedValue = value;
+        if (typeof value === 'string') {
+          try {
+            parsedValue = JSON.parse(value);
+          } catch (e) {
+            throw new Error('Parts must be a valid JSON array');
+          }
+        }
+        if (parsedValue && !Array.isArray(parsedValue)) {
           throw new Error('Parts must be an array');
         }
-        if (value) {
-          value.forEach(part => {
+        if (parsedValue && parsedValue.length > 0) {
+          parsedValue.forEach(part => {
             if (!part.name || part.quantity < 1 || part.unitPrice < 0) {
               throw new Error('Part must have valid name, quantity and price');
             }
@@ -398,16 +414,26 @@ Maintenance.init({
     },
     validate: {
       isValidCosts(value) {
-        if (value && typeof value !== 'object') {
+        // Si es un string, intentar parsearlo
+        let parsedValue = value;
+        if (typeof value === 'string') {
+          try {
+            parsedValue = JSON.parse(value);
+          } catch (e) {
+            throw new Error('Costs must be a valid JSON object');
+          }
+        }
+        
+        if (parsedValue && typeof parsedValue !== 'object') {
           throw new Error('Costs must be an object');
         }
-        if (value) {
-          const costFields = ['labor', 'parts', 'materials', 'external', 'tax', 'discount', 'total'];
-          costFields.forEach(field => {
-            if (value[field] !== undefined && (typeof value[field] !== 'number' || value[field] < 0)) {
-              throw new Error(`Cost ${field} must be a non-negative number`);
+        const requiredFields = ['labor', 'parts', 'materials', 'external', 'tax', 'discount', 'total'];
+        if (parsedValue) {
+          for (const field of requiredFields) {
+            if (parsedValue[field] !== undefined && (typeof parsedValue[field] !== 'number' || parsedValue[field] < 0)) {
+              throw new Error(`Cost field ${field} must be a non-negative number`);
             }
-          });
+          }
         }
       }
     }
@@ -429,11 +455,20 @@ Maintenance.init({
     },
     validate: {
       isValidCostResponsibility(value) {
-        if (value && typeof value !== 'object') {
+        // Si es un string, intentar parsearlo
+        let parsedValue = value;
+        if (typeof value === 'string') {
+          try {
+            parsedValue = JSON.parse(value);
+          } catch (e) {
+            throw new Error('Cost responsibility must be a valid JSON object');
+          }
+        }
+        
+        if (parsedValue && typeof parsedValue !== 'object') {
           throw new Error('Cost responsibility must be an object');
         }
-        if (value && value.responsibleParty && 
-            !['empresa_propietaria', 'empresa_arrendataria', 'compartido'].includes(value.responsibleParty)) {
+        if (parsedValue && parsedValue.responsibleParty && !['empresa_propietaria', 'empresa_mantenimiento', 'garantia', 'seguro'].includes(parsedValue.responsibleParty)) {
           throw new Error('Invalid responsible party');
         }
       }
@@ -451,11 +486,20 @@ Maintenance.init({
     },
     validate: {
       isValidInspections(value) {
-        if (value && !Array.isArray(value)) {
+        // Handle both string and array inputs
+        let parsedValue = value;
+        if (typeof value === 'string') {
+          try {
+            parsedValue = JSON.parse(value);
+          } catch (e) {
+            throw new Error('Invalid JSON format for inspections');
+          }
+        }
+        if (parsedValue && !Array.isArray(parsedValue)) {
           throw new Error('Inspections must be an array');
         }
-        if (value) {
-          value.forEach(inspection => {
+        if (parsedValue) {
+          parsedValue.forEach(inspection => {
             if (!inspection.item || !inspection.status) {
               throw new Error('Inspection must have item and status');
             }
@@ -480,11 +524,20 @@ Maintenance.init({
     },
     validate: {
       isValidPhotos(value) {
-        if (value && !Array.isArray(value)) {
+        // Handle both string and array inputs
+        let parsedValue = value;
+        if (typeof value === 'string') {
+          try {
+            parsedValue = JSON.parse(value);
+          } catch (e) {
+            throw new Error('Invalid JSON format for photos');
+          }
+        }
+        if (parsedValue && !Array.isArray(parsedValue)) {
           throw new Error('Photos must be an array');
         }
-        if (value) {
-          value.forEach(photo => {
+        if (parsedValue) {
+          parsedValue.forEach(photo => {
             if (!photo.url) {
               throw new Error('Photo must have URL');
             }
@@ -508,11 +561,20 @@ Maintenance.init({
     },
     validate: {
       isValidAttachments(value) {
-        if (value && !Array.isArray(value)) {
+        // Handle both string and array inputs
+        let parsedValue = value;
+        if (typeof value === 'string') {
+          try {
+            parsedValue = JSON.parse(value);
+          } catch (e) {
+            throw new Error('Invalid JSON format for attachments');
+          }
+        }
+        if (parsedValue && !Array.isArray(parsedValue)) {
           throw new Error('Attachments must be an array');
         }
-        if (value) {
-          value.forEach(attachment => {
+        if (parsedValue) {
+          parsedValue.forEach(attachment => {
             if (!attachment.name || !attachment.url) {
               throw new Error('Attachment must have name and URL');
             }
@@ -536,11 +598,20 @@ Maintenance.init({
     },
     validate: {
       isValidApprovals(value) {
-        if (value && !Array.isArray(value)) {
+        // Handle both string and array inputs
+        let parsedValue = value;
+        if (typeof value === 'string') {
+          try {
+            parsedValue = JSON.parse(value);
+          } catch (e) {
+            throw new Error('Invalid JSON format for approvals');
+          }
+        }
+        if (parsedValue && !Array.isArray(parsedValue)) {
           throw new Error('Approvals must be an array');
         }
-        if (value) {
-          value.forEach(approval => {
+        if (parsedValue) {
+          parsedValue.forEach(approval => {
             if (!approval.type || !approval.requestedBy) {
               throw new Error('Approval must have type and requestedBy');
             }
@@ -569,11 +640,19 @@ Maintenance.init({
     },
     validate: {
       isValidTimeTracking(value) {
-        if (value && !Array.isArray(value)) {
+        let parsedValue = value;
+        if (typeof value === 'string') {
+          try {
+            parsedValue = JSON.parse(value);
+          } catch (e) {
+            throw new Error('Time tracking must be a valid JSON array');
+          }
+        }
+        if (parsedValue && !Array.isArray(parsedValue)) {
           throw new Error('Time tracking must be an array');
         }
-        if (value) {
-          value.forEach(entry => {
+        if (parsedValue) {
+          parsedValue.forEach(entry => {
             if (!entry.user || !entry.startTime || !entry.activity) {
               throw new Error('Time entry must have user, startTime and activity');
             }
@@ -599,16 +678,26 @@ Maintenance.init({
     },
     validate: {
       isValidQuality(value) {
-        if (value && typeof value !== 'object') {
+        // Si es un string, intentar parsearlo
+        let parsedValue = value;
+        if (typeof value === 'string') {
+          try {
+            parsedValue = JSON.parse(value);
+          } catch (e) {
+            throw new Error('Quality must be a valid JSON object');
+          }
+        }
+        
+        if (parsedValue && typeof parsedValue !== 'object') {
           throw new Error('Quality must be an object');
         }
-        if (value && value.rating && (value.rating < 1 || value.rating > 5)) {
-          throw new Error('Quality rating must be between 1 and 5');
-        }
-      }
-    }
-  },
-  warranty: {
+        if (parsedValue && parsedValue.rating && (typeof parsedValue.rating !== 'number' || parsedValue.rating < 1 || parsedValue.rating > 5)) {
+           throw new Error('Quality rating must be a number between 1 and 5');
+         }
+       }
+     }
+   },
+   warranty: {
     type: DataTypes.TEXT,
     defaultValue: JSON.stringify({
       duration: null,
@@ -626,10 +715,20 @@ Maintenance.init({
     },
     validate: {
       isValidWarranty(value) {
-        if (value && typeof value !== 'object') {
+        // Si es un string, intentar parsearlo
+        let parsedValue = value;
+        if (typeof value === 'string') {
+          try {
+            parsedValue = JSON.parse(value);
+          } catch (e) {
+            throw new Error('Warranty must be a valid JSON object');
+          }
+        }
+        
+        if (parsedValue && typeof parsedValue !== 'object') {
           throw new Error('Warranty must be an object');
         }
-        if (value && value.duration && value.duration < 0) {
+        if (parsedValue && parsedValue.duration && parsedValue.duration < 0) {
           throw new Error('Warranty duration cannot be negative');
         }
       }
@@ -652,10 +751,20 @@ Maintenance.init({
     },
     validate: {
       isValidNextMaintenance(value) {
-        if (value && typeof value !== 'object') {
+        // Si es un string, intentar parsearlo
+        let parsedValue = value;
+        if (typeof value === 'string') {
+          try {
+            parsedValue = JSON.parse(value);
+          } catch (e) {
+            throw new Error('Next maintenance must be a valid JSON object');
+          }
+        }
+        
+        if (parsedValue && typeof parsedValue !== 'object') {
           throw new Error('Next maintenance must be an object');
         }
-        if (value && value.type && !['preventivo', 'inspeccion'].includes(value.type)) {
+        if (parsedValue && parsedValue.type && !['preventivo', 'inspeccion'].includes(parsedValue.type)) {
           throw new Error('Invalid next maintenance type');
         }
       }

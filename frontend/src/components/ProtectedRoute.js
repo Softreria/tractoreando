@@ -4,11 +4,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { Box, CircularProgress, Typography } from '@mui/material';
 
 const ProtectedRoute = ({ children, requiredRole, requiredPermission }) => {
-  const { user, loading, hasRole, hasPermission } = useAuth();
+  const { user, authLoading, hasRole, hasPermission } = useAuth();
   const location = useLocation();
 
   // Mostrar loading mientras se verifica la autenticación
-  if (loading) {
+  if (authLoading) {
     return (
       <Box
         sx={{

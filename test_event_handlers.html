@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Event Handlers - Companies</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .log-entry {
+            padding: 8px;
+            margin: 4px 0;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .log-entry.info {
+            background-color: #e3f2fd;
+            color: #1976d2;
+        }
+        .log-entry.success {
+            background-color: #e8f5e8;
+            color: #2e7d32;
+        }
+        .log-entry.error {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        .log-entry.warning {
+            background-color: #fff3e0;
+            color: #f57c00;
+        }
+        #logs {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background-color: #fafafa;
+        }
+        button {
+            background-color: #1976d2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #1565c0;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status.success {
+            background-color: #e8f5e8;
+            color: #2e7d32;
+            border: 1px solid #4caf50;
+        }
+        .status.error {
+            background-color: #ffebee;
+            color: #c62828;
+            border: 1px solid #f44336;
+        }
+        .status.warning {
+            background-color: #fff3e0;
+            color: #f57c00;
+            border: 1px solid #ff9800;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Event Handlers - Companies Page</h1>
+        <p>Esta página simula las interacciones con los botones de eliminar y ver detalles en la página de empresas.</p>
+        
+        <div class="test-section">
+            <h3>🔧 Controles de Prueba</h3>
+            <button onclick="testLogin()">1. Login</button>
+            <button onclick="testLoadCompanies()">2. Cargar Empresas</button>
+            <button onclick="testMenuOpen()">3. Abrir Menú</button>
+            <button onclick="testViewDetails()">4. Ver Detalles</button>
+            <button onclick="testDelete()">5. Eliminar</button>
+            <button onclick="runAllTests()">🚀 Ejecutar Todas las Pruebas</button>
+            <button onclick="clearLogs()">🧹 Limpiar Logs</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>📊 Estado de la Aplicación</h3>
+            <div id="app-status">No iniciado</div>
+        </div>
+        
+        <div class="test-section">
+            <h3>📝 Logs de Prueba</h3>
+            <div id="logs"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001/api';
+        let authToken = null;
+        let companies = [];
+        let selectedCompany = null;
+        let anchorEl = null;
+        let menuOpen = false;
+        let deleteDialogOpen = false;
+        let detailsDialogOpen = false;
+        
+        // Simular estado de React
+        const reactState = {
+            user: null,
+            companies: [],
+            selectedCompany: null,
+            anchorEl: null,
+            menuOpen: false,
+            deleteDialogOpen: false,
+            detailsDialogOpen: false
+        };
+        
+        function addLog(type, message) {
+            const logsDiv = document.getElementById('logs');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logsDiv.appendChild(logEntry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+        
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('app-status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+        
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+            addLog('info', 'Logs limpiados');
+        }
+        
+        // Simular función hasPermission del AuthContext
+        function hasPermission(module, action) {
+            if (!reactState.user) {
+                addLog('warning', `hasPermission(${module}, ${action}): Usuario no autenticado`);
+                return false;
+            }
+            
+            // Super admin tiene todos los permisos
+            if (reactState.user.role === 'super_admin') {
+                addLog('success', `hasPermission(${module}, ${action}): Super admin - permitido`);
+                return true;
+            }
+            
+            // Verificar permisos específicos
+            const userPermissions = reactState.user.permissions || {};
+            const modulePermissions = userPermissions[module] || {};
+            const hasAccess = modulePermissions[action] === true;
+            
+            addLog(hasAccess ? 'success' : 'error', 
+                `hasPermission(${module}, ${action}): ${hasAccess ? 'Permitido' : 'Denegado'}`);
+            
+            return hasAccess;
+        }
+        
+        // Simular handleMenuOpen
+        function handleMenuOpen(event, company) {
+            addLog('info', `handleMenuOpen llamado para empresa: ${company.name}`);
+            
+            reactState.anchorEl = event.currentTarget;
+            reactState.selectedCompany = company;
+            reactState.menuOpen = true;
+            
+            addLog('success', `Estado actualizado - selectedCompany: ${company.id}, menuOpen: true`);
+            updateStatus(`Menú abierto para: ${company.name}`, 'success');
+        }
+        
+        // Simular handleMenuClose
+        function handleMenuClose() {
+            addLog('info', 'handleMenuClose llamado');
+            
+            reactState.anchorEl = null;
+            reactState.menuOpen = false;
+            
+            addLog('success', 'Estado actualizado - menuOpen: false');
+            updateStatus('Menú cerrado', 'info');
+        }
+        
+        // Simular handleViewDetails
+        function handleViewDetails() {
+            addLog('info', 'handleViewDetails llamado');
+            
+            if (!reactState.selectedCompany) {
+                addLog('error', 'No hay empresa seleccionada');
+                updateStatus('Error: No hay empresa seleccionada', 'error');
+                return;
+            }
+            
+            // Verificar permisos
+            if (!hasPermission('companies', 'read')) {
+                addLog('error', 'Sin permisos para ver detalles de empresas');
+                updateStatus('Error: Sin permisos para ver detalles', 'error');
+                return;
+            }
+            
+            // Simular apertura del diálogo
+            reactState.detailsDialogOpen = true;
+            handleMenuClose();
+            
+            addLog('success', `Diálogo de detalles abierto para: ${reactState.selectedCompany.name}`);
+            updateStatus(`Viendo detalles de: ${reactState.selectedCompany.name}`, 'success');
+        }
+        
+        // Simular handleDelete
+        function handleDelete() {
+            addLog('info', 'handleDelete llamado');
+            
+            if (!reactState.selectedCompany) {
+                addLog('error', 'No hay empresa seleccionada');
+                updateStatus('Error: No hay empresa seleccionada', 'error');
+                return;
+            }
+            
+            // Verificar permisos
+            if (!hasPermission('companies', 'delete')) {
+                addLog('error', 'Sin permisos para eliminar empresas');
+                updateStatus('Error: Sin permisos para eliminar', 'error');
+                return;
+            }
+            
+            // Simular apertura del diálogo de confirmación
+            reactState.deleteDialogOpen = true;
+            handleMenuClose();
+            
+            addLog('success', `Diálogo de eliminación abierto para: ${reactState.selectedCompany.name}`);
+            updateStatus(`Confirmando eliminación de: ${reactState.selectedCompany.name}`, 'warning');
+        }
+        
+        // Funciones de prueba
+        async function testLogin() {
+            addLog('info', '🔐 Iniciando prueba de login...');
+            updateStatus('Iniciando sesión...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'admin@tractoreando.com',
+                        password: 'admin123'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.token) {
+                    authToken = data.token;
+                    reactState.user = data.user;
+                    addLog('success', '✅ Login exitoso');
+                    updateStatus('Usuario autenticado', 'success');
+                } else {
+                    addLog('error', '❌ Login fallido: ' + JSON.stringify(data));
+                    updateStatus('Error en login', 'error');
+                }
+            } catch (error) {
+                addLog('error', '❌ Error en login: ' + error.message);
+                updateStatus('Error de conexión', 'error');
+            }
+        }
+        
+        async function testLoadCompanies() {
+            addLog('info', '🏢 Iniciando prueba de carga de empresas...');
+            updateStatus('Cargando empresas...', 'info');
+            
+            if (!authToken) {
+                addLog('error', 'Token de autenticación requerido');
+                updateStatus('Error: No autenticado', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/companies`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    companies = data.companies || [];
+                    reactState.companies = companies;
+                    addLog('success', `✅ ${companies.length} empresas cargadas`);
+                    updateStatus(`${companies.length} empresas cargadas`, 'success');
+                } else {
+                    addLog('error', '❌ Error cargando empresas: ' + JSON.stringify(data));
+                    updateStatus('Error cargando empresas', 'error');
+                }
+            } catch (error) {
+                addLog('error', '❌ Error en carga de empresas: ' + error.message);
+                updateStatus('Error de conexión', 'error');
+            }
+        }
+        
+        function testMenuOpen() {
+            addLog('info', '📋 Iniciando prueba de apertura de menú...');
+            
+            if (companies.length === 0) {
+                addLog('error', 'No hay empresas cargadas');
+                updateStatus('Error: No hay empresas', 'error');
+                return;
+            }
+            
+            // Simular evento de click
+            const mockEvent = {
+                currentTarget: document.createElement('button')
+            };
+            
+            const testCompany = companies[0];
+            handleMenuOpen(mockEvent, testCompany);
+        }
+        
+        function testViewDetails() {
+            addLog('info', '👁️ Iniciando prueba de ver detalles...');
+            handleViewDetails();
+        }
+        
+        function testDelete() {
+            addLog('info', '🗑️ Iniciando prueba de eliminación...');
+            handleDelete();
+        }
+        
+        async function runAllTests() {
+            addLog('info', '🚀 Ejecutando todas las pruebas...');
+            clearLogs();
+            
+            await testLogin();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await testLoadCompanies();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            testMenuOpen();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            testViewDetails();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Reset para probar delete
+            testMenuOpen();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            testDelete();
+            
+            addLog('success', '🎉 Todas las pruebas completadas');
+            updateStatus('Todas las pruebas completadas', 'success');
+        }
+        
+        // Inicializar
+        addLog('info', '🔧 Sistema de pruebas inicializado');
+        updateStatus('Sistema listo para pruebas', 'info');
+    </script>
+</body>
+</html>

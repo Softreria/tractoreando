@@ -4,51 +4,74 @@ const { sequelize } = require('../config/database');
 class Vehicle extends Model {
   // Método para verificar si necesita cambio de aceite
   needsOilChange() {
-    const schedule = this.maintenanceSchedule.oilChange;
-    const kmSinceLastChange = this.odometer.current - (schedule.lastKm || 0);
-    const monthsSinceLastChange = schedule.lastDate ? 
-      Math.floor((Date.now() - schedule.lastDate.getTime()) / (1000 * 60 * 60 * 24 * 30)) : 999;
-    
-    return kmSinceLastChange >= schedule.intervalKm || monthsSinceLastChange >= schedule.intervalMonths;
+    try {
+      const schedule = this.maintenanceSchedule?.oilChange;
+      if (!schedule) return false;
+      
+      const kmSinceLastChange = (this.odometer?.current || 0) - (schedule.lastKm || 0);
+      const monthsSinceLastChange = schedule.lastDate ? 
+        Math.floor((Date.now() - new Date(schedule.lastDate).getTime()) / (1000 * 60 * 60 * 24 * 30)) : 999;
+      
+      return kmSinceLastChange >= (schedule.intervalKm || 5000) || monthsSinceLastChange >= (schedule.intervalMonths || 6);
+    } catch (error) {
+      console.error('Error in needsOilChange:', error);
+      return false;
+    }
   }
 
   // Método para verificar si necesita inspección
   needsInspection() {
-    const schedule = this.maintenanceSchedule.generalInspection;
-    const kmSinceLastInspection = this.odometer.current - (schedule.lastKm || 0);
-    const monthsSinceLastInspection = schedule.lastDate ? 
-      Math.floor((Date.now() - schedule.lastDate.getTime()) / (1000 * 60 * 60 * 24 * 30)) : 999;
-    
-    return kmSinceLastInspection >= schedule.intervalKm || monthsSinceLastInspection >= schedule.intervalMonths;
+    try {
+      const schedule = this.maintenanceSchedule?.generalInspection;
+      if (!schedule) return false;
+      
+      const kmSinceLastInspection = (this.odometer?.current || 0) - (schedule.lastKm || 0);
+      const monthsSinceLastInspection = schedule.lastDate ? 
+        Math.floor((Date.now() - new Date(schedule.lastDate).getTime()) / (1000 * 60 * 60 * 24 * 30)) : 999;
+      
+      return kmSinceLastInspection >= (schedule.intervalKm || 10000) || monthsSinceLastInspection >= (schedule.intervalMonths || 12);
+    } catch (error) {
+      console.error('Error in needsInspection:', error);
+      return false;
+    }
   }
 
   // Método para obtener documentos que expiran pronto
   getExpiringDocuments(daysAhead = 30) {
-    const expiringDocs = [];
-    const checkDate = new Date();
-    checkDate.setDate(checkDate.getDate() + daysAhead);
-    
-    // Verificar ITV
-    if (this.specifications.itv.expiryDate && 
-        this.specifications.itv.expiryDate <= checkDate) {
-      expiringDocs.push({
-        type: 'itv',
-        expiryDate: this.specifications.itv.expiryDate,
-        daysUntilExpiry: Math.ceil((this.specifications.itv.expiryDate - new Date()) / (1000 * 60 * 60 * 24))
-      });
+    try {
+      const expiringDocs = [];
+      const checkDate = new Date();
+      checkDate.setDate(checkDate.getDate() + daysAhead);
+      
+      // Verificar ITV
+      if (this.specifications?.itv?.expiryDate) {
+        const itvExpiryDate = new Date(this.specifications.itv.expiryDate);
+        if (itvExpiryDate <= checkDate) {
+          expiringDocs.push({
+            type: 'itv',
+            expiryDate: itvExpiryDate,
+            daysUntilExpiry: Math.ceil((itvExpiryDate - new Date()) / (1000 * 60 * 60 * 24))
+          });
+        }
+      }
+      
+      // Verificar seguro
+      if (this.specifications?.insurance?.expiryDate) {
+        const insuranceExpiryDate = new Date(this.specifications.insurance.expiryDate);
+        if (insuranceExpiryDate <= checkDate) {
+          expiringDocs.push({
+            type: 'insurance',
+            expiryDate: insuranceExpiryDate,
+            daysUntilExpiry: Math.ceil((insuranceExpiryDate - new Date()) / (1000 * 60 * 60 * 24))
+          });
+        }
+      }
+      
+      return expiringDocs;
+    } catch (error) {
+      console.error('Error in getExpiringDocuments:', error);
+      return [];
     }
-    
-    // Verificar seguro
-    if (this.specifications.insurance.expiryDate && 
-        this.specifications.insurance.expiryDate <= checkDate) {
-      expiringDocs.push({
-        type: 'insurance',
-        expiryDate: this.specifications.insurance.expiryDate,
-        daysUntilExpiry: Math.ceil((this.specifications.insurance.expiryDate - new Date()) / (1000 * 60 * 60 * 24))
-      });
-    }
-    
-    return expiringDocs;
   }
 
   // Método para verificar si es vehículo de alquiler
@@ -159,7 +182,7 @@ Vehicle.init({
   },
   branchId: {
     type: DataTypes.STRING,
-    allowNull: false,
+    allowNull: true,
     references: {
       model: 'Branches',
       key: 'id'
@@ -205,10 +228,21 @@ Vehicle.init({
     },
     validate: {
       isValidEngine(value) {
-        if (value && typeof value !== 'object') {
+        if (!value) return;
+        
+        let parsedValue = value;
+        if (typeof value === 'string') {
+          try {
+            parsedValue = JSON.parse(value);
+          } catch (e) {
+            throw new Error('Engine must be a valid JSON object');
+          }
+        }
+        
+        if (typeof parsedValue !== 'object') {
           throw new Error('Engine must be an object');
         }
-        if (value && value.type && !['gasolina', 'diesel', 'electrico', 'hibrido', 'gas_natural', 'gas_lp'].includes(value.type)) {
+        if (parsedValue.type && !['gasolina', 'diesel', 'electrico', 'hibrido', 'gas_natural', 'gas_lp'].includes(parsedValue.type)) {
           throw new Error('Invalid engine type');
         }
       }
@@ -244,13 +278,24 @@ Vehicle.init({
     },
     validate: {
       isValidOdometer(value) {
-        if (value && typeof value !== 'object') {
+        if (!value) return;
+        
+        let parsedValue = value;
+        if (typeof value === 'string') {
+          try {
+            parsedValue = JSON.parse(value);
+          } catch (e) {
+            throw new Error('Odometer must be a valid JSON object');
+          }
+        }
+        
+        if (typeof parsedValue !== 'object') {
           throw new Error('Odometer must be an object');
         }
-        if (value && value.unit && !['km', 'miles'].includes(value.unit)) {
+        if (parsedValue.unit && !['km', 'miles'].includes(parsedValue.unit)) {
           throw new Error('Invalid odometer unit');
         }
-        if (value && value.current && value.current < 0) {
+        if (parsedValue.current && parsedValue.current < 0) {
           throw new Error('Odometer current value cannot be negative');
         }
       }
@@ -270,10 +315,21 @@ Vehicle.init({
     },
     validate: {
       isValidDocuments(value) {
-        if (value && typeof value !== 'object') {
+        if (!value) return;
+        
+        let parsedValue = value;
+        if (typeof value === 'string') {
+          try {
+            parsedValue = JSON.parse(value);
+          } catch (e) {
+            throw new Error('Documents must be a valid JSON object');
+          }
+        }
+        
+        if (typeof parsedValue !== 'object') {
           throw new Error('Documents must be an object');
         }
-        if (value && value.files && !Array.isArray(value.files)) {
+        if (parsedValue.files && !Array.isArray(parsedValue.files)) {
           throw new Error('Documents files must be an array');
         }
       }
@@ -318,16 +374,27 @@ Vehicle.init({
     },
     validate: {
       isValidSpecifications(value) {
-        if (value && typeof value !== 'object') {
+        if (!value) return;
+        
+        let parsedValue = value;
+        if (typeof value === 'string') {
+          try {
+            parsedValue = JSON.parse(value);
+          } catch (e) {
+            throw new Error('Specifications must be a valid JSON object');
+          }
+        }
+        
+        if (typeof parsedValue !== 'object') {
           throw new Error('Specifications must be an object');
         }
-        if (value && value.numberOfKeys && value.numberOfKeys < 0) {
+        if (parsedValue.numberOfKeys && parsedValue.numberOfKeys < 0) {
           throw new Error('Number of keys cannot be negative');
         }
-        if (value && value.radioCode && value.radioCode.length > 20) {
+        if (parsedValue.radioCode && parsedValue.radioCode.length > 20) {
           throw new Error('Radio code cannot exceed 20 characters');
         }
-        if (value && value.notes && value.notes.length > 1000) {
+        if (parsedValue.notes && parsedValue.notes.length > 1000) {
           throw new Error('Notes cannot exceed 1000 characters');
         }
       }
@@ -349,17 +416,28 @@ Vehicle.init({
     },
     validate: {
       isValidOwnership(value) {
-        if (value && typeof value !== 'object') {
+        if (!value) return;
+        
+        let parsedValue = value;
+        if (typeof value === 'string') {
+          try {
+            parsedValue = JSON.parse(value);
+          } catch (e) {
+            throw new Error('Ownership must be a valid JSON object');
+          }
+        }
+        
+        if (typeof parsedValue !== 'object') {
           throw new Error('Ownership must be an object');
         }
-        if (value && value.type && !['propiedad', 'alquiler'].includes(value.type)) {
+        if (parsedValue.type && !['propiedad', 'alquiler'].includes(parsedValue.type)) {
           throw new Error('Invalid ownership type');
         }
-        if (value && value.monthlyRentalPrice && value.monthlyRentalPrice < 0) {
+        if (parsedValue.monthlyRentalPrice && parsedValue.monthlyRentalPrice < 0) {
           throw new Error('Monthly rental price cannot be negative');
         }
-        if (value && value.maintenanceCostResponsibility && 
-            !['empresa_propietaria', 'empresa_arrendataria'].includes(value.maintenanceCostResponsibility)) {
+        if (parsedValue.maintenanceCostResponsibility && 
+            !['empresa_propietaria', 'empresa_arrendataria'].includes(parsedValue.maintenanceCostResponsibility)) {
           throw new Error('Invalid maintenance cost responsibility');
         }
       }
@@ -377,7 +455,18 @@ Vehicle.init({
     },
     validate: {
       isValidPhotos(value) {
-        if (value && !Array.isArray(value)) {
+        if (!value) return;
+        
+        let parsedValue = value;
+        if (typeof value === 'string') {
+          try {
+            parsedValue = JSON.parse(value);
+          } catch (e) {
+            throw new Error('Photos must be a valid JSON array');
+          }
+        }
+        
+        if (!Array.isArray(parsedValue)) {
           throw new Error('Photos must be an array');
         }
       }
@@ -436,8 +525,15 @@ Vehicle.init({
     },
     validate: {
       isValidMaintenanceSchedule(value) {
-        if (value && typeof value !== 'object') {
-          throw new Error('Maintenance schedule must be an object');
+        if (value && typeof value !== 'object' && typeof value !== 'string') {
+          throw new Error('Maintenance schedule must be an object or JSON string');
+        }
+        if (typeof value === 'string') {
+          try {
+            JSON.parse(value);
+          } catch (e) {
+            throw new Error('Maintenance schedule must be valid JSON');
+          }
         }
       }
     }
@@ -459,13 +555,21 @@ Vehicle.init({
     },
     validate: {
       isValidCosts(value) {
-        if (value && typeof value !== 'object') {
-          throw new Error('Costs must be an object');
+        if (value && typeof value !== 'object' && typeof value !== 'string') {
+          throw new Error('Costs must be an object or JSON string');
         }
-        if (value && value.purchasePrice && value.purchasePrice < 0) {
+        let costsObj = value;
+        if (typeof value === 'string') {
+          try {
+            costsObj = JSON.parse(value);
+          } catch (e) {
+            throw new Error('Costs must be valid JSON');
+          }
+        }
+        if (costsObj && costsObj.purchasePrice && costsObj.purchasePrice < 0) {
           throw new Error('Purchase price cannot be negative');
         }
-        if (value && value.currentValue && value.currentValue < 0) {
+        if (costsObj && costsObj.currentValue && costsObj.currentValue < 0) {
           throw new Error('Current value cannot be negative');
         }
       }

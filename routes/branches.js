@@ -19,53 +19,68 @@ router.get('/', [
 ], async (req, res) => {
   try {
     const { page = 1, limit = 10, search, status, company } = req.query;
+    const { Op } = require('sequelize');
     
-    const query = { company: company || req.user.companyId };
+    let whereClause = {};
+    
+    // Si es super_admin y no se especifica company, mostrar todas las sucursales
+    if (req.user.role === 'super_admin' && !company) {
+      // No agregar filtro de companyId para super_admin
+    } else {
+      whereClause.companyId = company || req.user.companyId;
+    }
     
     if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { code: { $regex: search, $options: 'i' } },
-        { 'address.city': { $regex: search, $options: 'i' } }
+      whereClause[Op.or] = [
+        { name: { [Op.iLike]: `%${search}%` } },
+        { code: { [Op.iLike]: `%${search}%` } }
       ];
     }
     
     if (status) {
-      query.isActive = status === 'active';
+      whereClause.isActive = status === 'active';
     }
 
     // Filtrar por delegaciones del usuario si no es admin
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      query.id = req.user.branches;
+      // Solo aplicar filtro si el usuario tiene sucursales asignadas
+      if (req.user.branches && req.user.branches.length > 0) {
+        whereClause.id = { [Op.in]: req.user.branches };
+      } else {
+        // Si no tiene sucursales asignadas, no mostrar ninguna
+        whereClause.id = { [Op.in]: [] };
+      }
     }
 
     const branches = await Branch.findAll({
-      where: query,
+      where: whereClause,
       include: [
         { model: Company, as: 'company', attributes: ['name'] },
-        { model: User, as: 'createdBy', attributes: ['name', 'lastName'] }
+        { model: User, as: 'createdBy', attributes: ['firstName', 'lastName'] }
       ],
       order: [['createdAt', 'DESC']],
-      limit: limit * 1,
-      offset: (page - 1) * limit
+      limit: parseInt(limit),
+      offset: (parseInt(page) - 1) * parseInt(limit)
     });
 
-    const total = await Branch.count({ where: query });
+    const total = await Branch.count({ where: whereClause });
 
     // Agregar estadísticas para cada delegación
     const branchesWithStats = await Promise.all(
       branches.map(async (branch) => {
-        const vehicleCount = await Vehicle.countDocuments({ branch: branch._id, isActive: true });
-        const userCount = await User.countDocuments({ branches: branch._id, isActive: true });
+        const vehicleCount = await Vehicle.count({ where: { branchId: branch.id, isActive: true } });
+        const userCount = await User.count({ where: { branchId: branch.id, isActive: true } });
         
         const Maintenance = require('../models/Maintenance');
-        const activeMaintenances = await Maintenance.countDocuments({ 
-          branch: branch._id, 
-          status: { $in: ['programado', 'en_proceso'] }
+        const activeMaintenances = await Maintenance.count({ 
+          where: { 
+            branchId: branch.id, 
+            status: { [Op.in]: ['programado', 'en_proceso'] }
+          }
         });
         
         return {
-          ...branch.toObject(),
+          ...branch.toJSON(),
           stats: {
             vehicles: vehicleCount,
             users: userCount,
@@ -79,7 +94,7 @@ router.get('/', [
       branches: branchesWithStats,
       pagination: {
         current: parseInt(page),
-        pages: Math.ceil(total / limit),
+        pages: Math.ceil(total / parseInt(limit)),
         total
       }
     });
@@ -99,9 +114,12 @@ router.get('/:id', [
   logActivity('Ver delegación')
 ], async (req, res) => {
   try {
-    const branch = await Branch.findById(req.params.id)
-      .populate('company', 'name rfc')
-      .populate('createdBy', 'name lastName email');
+    const branch = await Branch.findByPk(req.params.id, {
+      include: [
+        { model: Company, as: 'company', attributes: ['name', 'cif'] },
+        { model: User, as: 'createdBy', attributes: ['firstName', 'lastName', 'email'] }
+      ]
+    });
 
     if (!branch) {
       return res.status(404).json({ message: 'Sucursal no encontrada' });
@@ -113,24 +131,25 @@ router.get('/:id', [
     }
 
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      const hasAccess = req.user.branches.some(userBranch => userBranch._id.toString() === branch._id.toString());
+      const hasAccess = req.user.branches && req.user.branches.some(userBranch => userBranch.toString() === branch.id.toString());
       if (!hasAccess) {
         return res.status(403).json({ message: 'No tienes acceso a esta sucursal' });
       }
     }
 
     // Obtener estadísticas
+    const { Op } = require('sequelize');
     const Maintenance = require('../models/Maintenance');
     const [vehicleCount, userCount, activeMaintenances, completedMaintenances] = await Promise.all([
-      Vehicle.countDocuments({ branch: branch._id, isActive: true }),
-      User.countDocuments({ branches: branch._id, isActive: true }),
-      Maintenance.countDocuments({ branch: branch._id, status: { $in: ['programado', 'en_proceso'] } }),
-      Maintenance.countDocuments({ branch: branch._id, status: 'completado' })
+      Vehicle.count({ where: { branchId: branch.id, isActive: true } }),
+      User.count({ where: { branchId: branch.id, isActive: true } }),
+      Maintenance.count({ where: { branchId: branch.id, status: { [Op.in]: ['programado', 'en_proceso'] } } }),
+      Maintenance.count({ where: { branchId: branch.id, status: 'completado' } })
     ]);
 
     res.json({
       branch: {
-        ...branch.toObject(),
+        ...branch.toJSON(),
         stats: {
           vehicles: vehicleCount,
           users: userCount,
@@ -175,29 +194,32 @@ router.post('/', [
 
     // Verificar que el código no exista en la empresa
     const existingBranch = await Branch.findOne({ 
-      company: companyId, 
-      code: code.toUpperCase() 
+      where: {
+        companyId: companyId, 
+        code: code.toUpperCase() 
+      }
     });
     
     if (existingBranch) {
       return res.status(400).json({ message: 'El código de sucursal ya existe en esta empresa' });
     }
 
-    const branch = new Branch({
+    const branch = await Branch.create({
       name,
       code: code.toUpperCase(),
-      company: companyId,
+      companyId: companyId,
       address,
       contact,
       operatingHours,
-      createdBy: req.user._id
+      createdById: req.user.id
     });
 
-    await branch.save();
-
-    const populatedBranch = await Branch.findById(branch._id)
-      .populate('company', 'name')
-      .populate('createdBy', 'name lastName');
+    const populatedBranch = await Branch.findByPk(branch.id, {
+      include: [
+        { model: Company, as: 'company', attributes: ['name'] },
+        { model: User, as: 'createdBy', attributes: ['firstName', 'lastName'] }
+      ]
+    });
 
     res.status(201).json({
       message: 'Sucursal creada exitosamente',
@@ -229,28 +251,37 @@ router.put('/:id', [
       });
     }
 
-    const branch = await Branch.findById(req.params.id);
+    const branch = await Branch.findByPk(req.params.id, {
+      include: [
+        { model: Company, as: 'company', attributes: ['name'] },
+        { model: User, as: 'createdBy', attributes: ['firstName', 'lastName'] }
+      ]
+    });
+    
     if (!branch) {
-      return res.status(404).json({ message: 'Sucursal no encontrada' });
+      return res.status(404).json({ message: 'Delegación no encontrada' });
     }
 
     // Verificar acceso
     if (req.user.role !== 'super_admin' && branch.companyId !== req.user.companyId) {
-      return res.status(403).json({ message: 'No tienes acceso a esta sucursal' });
+      return res.status(403).json({ message: 'No tienes acceso a esta delegación' });
     }
 
     const { name, code, address, contact, operatingHours } = req.body;
 
     // Si se está actualizando el código, verificar que no exista
     if (code && code.toUpperCase() !== branch.code) {
+      const { Op } = require('sequelize');
       const existingBranch = await Branch.findOne({ 
-        company: branch.company, 
-        code: code.toUpperCase(),
-        _id: { $ne: branch._id }
+        where: {
+          companyId: branch.companyId,
+          code: code.toUpperCase(),
+          id: { [Op.ne]: branch.id }
+        }
       });
       
       if (existingBranch) {
-        return res.status(400).json({ message: 'El código de sucursal ya existe en esta empresa' });
+        return res.status(400).json({ message: 'El código de delegación ya existe en esta empresa' });
       }
     }
 
@@ -261,27 +292,29 @@ router.put('/:id', [
     if (contact) updateData.contact = { ...branch.contact, ...contact };
     if (operatingHours) updateData.operatingHours = { ...branch.operatingHours, ...operatingHours };
 
-
-    const updatedBranch = await Branch.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true }
-    ).populate('company', 'name')
-     .populate('createdBy', 'name lastName');
+    await branch.update(updateData);
+    
+    // Recargar con las asociaciones
+    await branch.reload({
+      include: [
+        { model: Company, as: 'company', attributes: ['name'] },
+        { model: User, as: 'createdBy', attributes: ['firstName', 'lastName'] }
+      ]
+    });
 
     res.json({
-      message: 'Sucursal actualizada exitosamente',
-      branch: updatedBranch
+      message: 'Delegación actualizada exitosamente',
+      branch: branch
     });
 
   } catch (error) {
-    console.error('Error actualizando sucursal:', error);
+    console.error('Error actualizando delegación:', error);
     res.status(500).json({ message: 'Error interno del servidor' });
   }
 });
 
 // @route   DELETE /api/branches/:id
-// @desc    Eliminar sucursal
+// @desc    Eliminar delegación
 // @access  Private
 router.delete('/:id', [
   auth,
@@ -289,36 +322,35 @@ router.delete('/:id', [
   logActivity('Eliminar delegación')
 ], async (req, res) => {
   try {
-    const branch = await Branch.findById(req.params.id);
+    const branch = await Branch.findByPk(req.params.id);
     if (!branch) {
-      return res.status(404).json({ message: 'Sucursal no encontrada' });
+      return res.status(404).json({ message: 'Delegación no encontrada' });
     }
 
     // Verificar acceso
     if (req.user.role !== 'super_admin' && branch.companyId !== req.user.companyId) {
-      return res.status(403).json({ message: 'No tienes acceso a esta sucursal' });
+      return res.status(403).json({ message: 'No tienes acceso a esta delegación' });
     }
 
     // Verificar si tiene datos dependientes
     const [vehicleCount, userCount] = await Promise.all([
-      Vehicle.countDocuments({ branch: branch._id }),
-      User.countDocuments({ branches: branch._id })
+      Vehicle.count({ where: { branchId: branch.id } }),
+      User.count({ where: { branchId: branch.id } })
     ]);
 
     if (vehicleCount > 0 || userCount > 0) {
       // Soft delete
-      branch.isActive = false;
-      await branch.save();
+      await branch.update({ isActive: false });
       
-      res.json({ message: 'Sucursal desactivada exitosamente' });
+      res.json({ message: 'Delegación desactivada exitosamente' });
     } else {
       // Hard delete si no tiene datos dependientes
-      await Branch.findByIdAndDelete(req.params.id);
-      res.json({ message: 'Sucursal eliminada exitosamente' });
+      await branch.destroy();
+      res.json({ message: 'Delegación eliminada exitosamente' });
     }
 
   } catch (error) {
-    console.error('Error eliminando sucursal:', error);
+    console.error('Error eliminando delegación:', error);
     res.status(500).json({ message: 'Error interno del servidor' });
   }
 });

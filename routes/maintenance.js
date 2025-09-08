@@ -1,8 +1,10 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
+const { Op } = require('sequelize');
 const Maintenance = require('../models/Maintenance');
 const Vehicle = require('../models/Vehicle');
 const Branch = require('../models/Branch');
+const Company = require('../models/Company');
 const { auth, checkPermission, checkCompanyAccess, checkBranchAccess, logActivity } = require('../middleware/auth');
 
 const router = express.Router();
@@ -31,62 +33,89 @@ router.get('/', [
       company 
     } = req.query;
     
-    const query = { company: company || req.user.companyId };
+    // Los filtros se construyen más abajo en el objeto where de Sequelize
+
+    // Construir filtros para Sequelize
+    const where = { companyId: company || req.user.companyId };
     
     if (search) {
-      query.$or = [
-        { workOrderNumber: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-        { 'services.name': { $regex: search, $options: 'i' } }
+      where[Op.or] = [
+        { title: { [Op.iLike]: `%${search}%` } },
+        { description: { [Op.iLike]: `%${search}%` } },
+        { workOrderNumber: { [Op.iLike]: `%${search}%` } }
       ];
     }
     
     if (status) {
-      query.status = status;
-    }
-    
-    if (priority) {
-      query.priority = priority;
+      where.status = status;
     }
     
     if (type) {
-      query.type = type;
+      where.type = type;
+    }
+    
+    if (priority) {
+      where.priority = priority;
     }
     
     if (branch) {
-      query.branch = branch;
+      where.branchId = branch;
     }
     
     if (vehicle) {
-      query.vehicle = vehicle;
+      where.vehicleId = vehicle;
     }
     
     if (assignedTo) {
-      query.assignedTo = assignedTo;
+      where.assignedToId = assignedTo;
     }
     
     if (dateFrom || dateTo) {
-      query.scheduledDate = {};
-      if (dateFrom) query.scheduledDate.$gte = new Date(dateFrom);
-      if (dateTo) query.scheduledDate.$lte = new Date(dateTo);
+      where.scheduledDate = {};
+      if (dateFrom) where.scheduledDate[Op.gte] = new Date(dateFrom);
+      if (dateTo) where.scheduledDate[Op.lte] = new Date(dateTo);
     }
 
     // Filtrar por sucursales del usuario si no es admin
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      query.branch = req.user.branch;
+      where.branchId = req.user.branchId;
     }
 
-    const maintenances = await Maintenance.find(query)
-      .populate('vehicle', 'plateNumber make model year')
-      .populate('company', 'name')
-      .populate('branch', 'name code')
-      .populate('assignedTo', 'name lastName')
-      .populate('createdBy', 'name lastName')
-      .sort({ scheduledDate: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
+    const maintenances = await Maintenance.findAll({
+      where,
+      include: [
+        {
+          model: Vehicle,
+          as: 'vehicle',
+          attributes: ['plateNumber', 'make', 'model', 'year']
+        },
+        {
+          model: require('../models/Company'),
+          as: 'company',
+          attributes: ['name']
+        },
+        {
+          model: require('../models/Branch'),
+          as: 'branch',
+          attributes: ['name', 'code']
+        },
+        {
+          model: require('../models/User'),
+          as: 'assignedTo',
+          attributes: ['firstName', 'lastName']
+        },
+        {
+          model: require('../models/User'),
+          as: 'createdBy',
+          attributes: ['firstName', 'lastName']
+        }
+      ],
+      order: [['scheduledDate', 'DESC']],
+      limit: parseInt(limit),
+      offset: (page - 1) * limit
+    });
 
-    const total = await Maintenance.countDocuments(query);
+    const total = await Maintenance.count({ where });
 
     res.json({
       maintenances,
@@ -112,14 +141,35 @@ router.get('/:id', [
   logActivity('Ver mantenimiento')
 ], async (req, res) => {
   try {
-    const maintenance = await Maintenance.findById(req.params.id)
-      .populate('vehicle', 'plateNumber make model year vin odometer')
-      .populate('company', 'name rfc')
-      .populate('branch', 'name code address')
-      .populate('assignedTo', 'name lastName email phone')
-      .populate('createdBy', 'name lastName email')
-      .populate('approvals.approvedBy', 'name lastName')
-      .populate('timeTracking.user', 'name lastName');
+    const maintenance = await Maintenance.findByPk(req.params.id, {
+      include: [
+        {
+          model: Vehicle,
+          as: 'vehicle',
+          attributes: ['plateNumber', 'make', 'model', 'year', 'vin', 'odometer']
+        },
+        {
+          model: require('../models/Company'),
+          as: 'company',
+          attributes: ['name', 'rfc']
+        },
+        {
+          model: require('../models/Branch'),
+          as: 'branch',
+          attributes: ['name', 'code', 'address']
+        },
+        {
+          model: require('../models/User'),
+          as: 'assignedTo',
+          attributes: ['firstName', 'lastName', 'email', 'phone']
+        },
+        {
+          model: require('../models/User'),
+          as: 'createdBy',
+          attributes: ['firstName', 'lastName', 'email']
+        }
+      ]
+    });
 
     if (!maintenance) {
       return res.status(404).json({ message: 'Mantenimiento no encontrado' });
@@ -151,7 +201,7 @@ router.get('/:id', [
 router.post('/', [
   auth,
   checkPermission('maintenance', 'create'),
-  body('vehicle', 'Vehículo es requerido').isUUID(),
+  body('vehicleId', 'Vehículo es requerido').isUUID(),
   body('type', 'Tipo de mantenimiento es requerido').notEmpty(),
   body('priority', 'Prioridad es requerida').isIn(['baja', 'media', 'alta', 'critica']),
   body('scheduledDate', 'Fecha programada es requerida').isISO8601(),
@@ -169,6 +219,7 @@ router.post('/', [
 
     const {
       vehicle,
+      vehicleId,
       type,
       priority,
       scheduledDate,
@@ -181,49 +232,95 @@ router.post('/', [
       branch
     } = req.body;
 
+    // Usar vehicleId si está presente, sino vehicle para compatibilidad
+    const selectedVehicle = vehicleId || vehicle;
+
     const companyId = req.body.company || req.user.companyId;
 
-    // Verificar que el vehículo existe y pertenece a la empresa
-    const vehicleDoc = await Vehicle.findOne({ _id: vehicle, company: companyId });
+    // Verificar que el vehículo existe, pertenece a la empresa y la empresa está activa
+    const vehicleDoc = await Vehicle.findOne({ 
+      where: { id: selectedVehicle, companyId: companyId },
+      include: [{
+        model: Company,
+        as: 'company',
+        where: { isActive: true }
+      }]
+    });
     if (!vehicleDoc) {
-      return res.status(400).json({ message: 'Vehículo no válido' });
+      return res.status(400).json({ message: 'Vehículo no válido o empresa inactiva' });
     }
 
     // Usar la sucursal del vehículo si no se especifica
-    const branchId = branch || vehicleDoc.branch;
+    const branchId = branch || vehicleDoc.branchId;
 
     // Verificar que la sucursal pertenece a la empresa
-    const branchDoc = await Branch.findOne({ _id: branchId, company: companyId });
+    const branchDoc = await Branch.findOne({ 
+      where: { id: branchId, companyId: companyId }
+    });
     if (!branchDoc) {
       return res.status(400).json({ message: 'Sucursal no válida' });
     }
 
-    const maintenance = new Maintenance({
-      vehicle,
-      company: companyId,
-      branch: branchId,
+    // Generar número de orden de trabajo único
+    const workOrderNumber = `WO-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    const maintenance = await Maintenance.create({
+      vehicleId: selectedVehicle,
+      companyId: companyId,
+      branchId: branchId,
       type,
       priority,
       scheduledDate: new Date(scheduledDate),
+      title: `${type} - ${description.substring(0, 50)}`,
       description,
       services: services || [],
       parts: parts || [],
       costs: {
-        estimated: estimatedCost || 0
+        estimated: estimatedCost || 0,
+        labor: 0,
+        parts: 0,
+        materials: 0,
+        external: 0,
+        tax: 0,
+        discount: 0,
+        total: 0
       },
-      assignedTo,
+      assignedToId: assignedTo,
       notes,
-      createdBy: req.user._id
+      workOrderNumber,
+      odometerReading: vehicleDoc.odometer?.current || 0,
+      createdById: req.user.id
     });
 
-    await maintenance.save();
-
-    const populatedMaintenance = await Maintenance.findById(maintenance._id)
-      .populate('vehicle', 'plateNumber make model year')
-      .populate('company', 'name')
-      .populate('branch', 'name code')
-      .populate('assignedTo', 'firstName lastName')
-      .populate('createdBy', 'name lastName');
+    const populatedMaintenance = await Maintenance.findByPk(maintenance.id, {
+      include: [
+        {
+          model: Vehicle,
+          as: 'vehicle',
+          attributes: ['plateNumber', 'make', 'model', 'year']
+        },
+        {
+          model: require('../models/Company'),
+          as: 'company',
+          attributes: ['name']
+        },
+        {
+          model: require('../models/Branch'),
+          as: 'branch',
+          attributes: ['name', 'code']
+        },
+        {
+          model: require('../models/User'),
+          as: 'assignedTo',
+          attributes: ['firstName', 'lastName']
+        },
+        {
+          model: require('../models/User'),
+          as: 'createdBy',
+          attributes: ['firstName', 'lastName']
+        }
+      ]
+    });
 
     res.status(201).json({
       message: 'Mantenimiento creado exitosamente',
@@ -255,7 +352,7 @@ router.put('/:id', [
       });
     }
 
-    const maintenance = await Maintenance.findById(req.params.id);
+    const maintenance = await Maintenance.findByPk(req.params.id);
     if (!maintenance) {
       return res.status(404).json({ message: 'Mantenimiento no encontrado' });
     }
@@ -278,7 +375,7 @@ router.put('/:id', [
     } = req.body;
 
     const updateData = {
-      lastModifiedBy: req.user._id
+      lastModifiedById: req.user.id
     };
     
     if (type) updateData.type = type;
@@ -287,20 +384,46 @@ router.put('/:id', [
     if (description) updateData.description = description;
     if (services) updateData.services = services;
     if (parts) updateData.parts = parts;
-    if (assignedTo) updateData.assignedTo = assignedTo;
+    if (assignedTo) updateData.assignedToId = assignedTo;
     if (notes) updateData.notes = notes;
     if (status) updateData.status = status;
 
-    const updatedMaintenance = await Maintenance.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true }
-    ).populate('vehicle', 'plateNumber make model year')
-     .populate('company', 'name')
-     .populate('branch', 'name code')
-     .populate('assignedTo', 'name lastName')
-      .populate('createdBy', 'name lastName')
-      .populate('lastModifiedBy', 'name lastName');
+    await maintenance.update(updateData);
+
+    const updatedMaintenance = await Maintenance.findByPk(req.params.id, {
+      include: [
+        {
+          model: Vehicle,
+          as: 'vehicle',
+          attributes: ['plateNumber', 'make', 'model', 'year']
+        },
+        {
+          model: require('../models/Company'),
+          as: 'company',
+          attributes: ['name']
+        },
+        {
+          model: require('../models/Branch'),
+          as: 'branch',
+          attributes: ['name', 'code']
+        },
+        {
+          model: require('../models/User'),
+          as: 'assignedTo',
+          attributes: ['firstName', 'lastName']
+        },
+        {
+          model: require('../models/User'),
+          as: 'createdBy',
+          attributes: ['firstName', 'lastName']
+        },
+        {
+          model: require('../models/User'),
+          as: 'lastModifiedBy',
+          attributes: ['firstName', 'lastName']
+        }
+      ]
+    });
 
     res.json({
       message: 'Mantenimiento actualizado exitosamente',
@@ -333,7 +456,7 @@ router.put('/:id/status', [
 
     const { status, notes } = req.body;
     
-    const maintenance = await Maintenance.findById(req.params.id);
+    const maintenance = await Maintenance.findByPk(req.params.id);
     if (!maintenance) {
       return res.status(404).json({ message: 'Mantenimiento no encontrado' });
     }
@@ -345,7 +468,7 @@ router.put('/:id/status', [
 
     const updateData = {
       status,
-      lastModifiedBy: req.user._id
+      lastModifiedById: req.user.id
     };
 
     // Actualizar fechas según el estado
@@ -371,12 +494,22 @@ router.put('/:id/status', [
       updateData.notes = notes;
     }
 
-    const updatedMaintenance = await Maintenance.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true }
-    ).populate('vehicle', 'plateNumber make model year')
-     .populate('assignedTo', 'firstName lastName');
+    await maintenance.update(updateData);
+
+    const updatedMaintenance = await Maintenance.findByPk(req.params.id, {
+      include: [
+        {
+          model: Vehicle,
+          as: 'vehicle',
+          attributes: ['plateNumber', 'make', 'model', 'year']
+        },
+        {
+          model: require('../models/User'),
+          as: 'assignedTo',
+          attributes: ['firstName', 'lastName']
+        }
+      ]
+    });
 
     res.json({
       message: 'Estado actualizado exitosamente',
@@ -411,7 +544,7 @@ router.post('/:id/time', [
 
     const { startTime, endTime, description } = req.body;
     
-    const maintenance = await Maintenance.findById(req.params.id);
+    const maintenance = await Maintenance.findByPk(req.params.id);
     if (!maintenance) {
       return res.status(404).json({ message: 'Mantenimiento no encontrado' });
     }
@@ -430,18 +563,23 @@ router.post('/:id/time', [
 
     const duration = Math.round((end - start) / (1000 * 60)); // minutos
 
-    maintenance.addTimeEntry({
-      user: req.user._id,
+    await maintenance.addTimeEntry({
+      user: req.user.id,
       startTime: start,
       endTime: end,
       duration,
       description
     });
 
-    await maintenance.save();
-
-    const updatedMaintenance = await Maintenance.findById(maintenance._id)
-      .populate('timeTracking.user', 'firstName lastName');
+    const updatedMaintenance = await Maintenance.findByPk(maintenance.id, {
+      include: [
+        {
+          model: require('../models/User'),
+          as: 'timeTracking.user',
+          attributes: ['firstName', 'lastName']
+        }
+      ]
+    });
 
     res.json({
       message: 'Tiempo registrado exitosamente',
@@ -465,7 +603,7 @@ router.post('/:id/services/:serviceId/complete', [
   try {
     const { notes, quality } = req.body;
     
-    const maintenance = await Maintenance.findById(req.params.id);
+    const maintenance = await Maintenance.findByPk(req.params.id);
     if (!maintenance) {
       return res.status(404).json({ message: 'Mantenimiento no encontrado' });
     }
@@ -475,8 +613,7 @@ router.post('/:id/services/:serviceId/complete', [
       return res.status(403).json({ message: 'No tienes acceso a este mantenimiento' });
     }
 
-    maintenance.completeService(req.params.serviceId, req.user._id, notes, quality);
-    await maintenance.save();
+    await maintenance.completeService(req.params.serviceId, req.user.id, notes, quality);
 
     res.json({
       message: 'Servicio completado exitosamente',
@@ -509,7 +646,7 @@ router.post('/:id/parts/:partId/install', [
 
     const { quantity, notes } = req.body;
     
-    const maintenance = await Maintenance.findById(req.params.id);
+    const maintenance = await Maintenance.findByPk(req.params.id);
     if (!maintenance) {
       return res.status(404).json({ message: 'Mantenimiento no encontrado' });
     }
@@ -519,8 +656,7 @@ router.post('/:id/parts/:partId/install', [
       return res.status(403).json({ message: 'No tienes acceso a este mantenimiento' });
     }
 
-    maintenance.installPart(req.params.partId, quantity, req.user._id, notes);
-    await maintenance.save();
+    await maintenance.installPart(req.params.partId, quantity, req.user.id, notes);
 
     res.json({
       message: 'Parte instalada exitosamente',
@@ -542,7 +678,7 @@ router.delete('/:id', [
   logActivity('Eliminar mantenimiento')
 ], async (req, res) => {
   try {
-    const maintenance = await Maintenance.findById(req.params.id);
+    const maintenance = await Maintenance.findByPk(req.params.id);
     if (!maintenance) {
       return res.status(404).json({ message: 'Mantenimiento no encontrado' });
     }
@@ -557,7 +693,7 @@ router.delete('/:id', [
       return res.status(400).json({ message: 'Solo se pueden eliminar mantenimientos programados' });
     }
 
-    await Maintenance.findByIdAndDelete(req.params.id);
+    await maintenance.destroy();
     res.json({ message: 'Mantenimiento eliminado exitosamente' });
 
   } catch (error) {
@@ -578,30 +714,21 @@ router.get('/stats/summary', [
     const { company, branch, dateFrom, dateTo } = req.query;
     const companyId = company || req.user.companyId;
     
-    const matchQuery = { company: companyId };
+    const whereConditions = { companyId: companyId };
     
     if (branch) {
-      matchQuery.branch = branch;
+      whereConditions.branchId = branch;
     }
     
     if (dateFrom || dateTo) {
-      matchQuery.scheduledDate = {};
-      if (dateFrom) matchQuery.scheduledDate.$gte = new Date(dateFrom);
-      if (dateTo) matchQuery.scheduledDate.$lte = new Date(dateTo);
+      whereConditions.scheduledDate = {};
+      if (dateFrom) whereConditions.scheduledDate[Op.gte] = new Date(dateFrom);
+      if (dateTo) whereConditions.scheduledDate[Op.lte] = new Date(dateTo);
     }
     
     // Filtrar por sucursales del usuario si no es admin
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      matchQuery.branch = req.user.branch;
-    }
-
-    // Convertir matchQuery de MongoDB a condiciones de Sequelize
-    const whereConditions = {};
-    if (matchQuery.scheduledDate) {
-      whereConditions.scheduledDate = matchQuery.scheduledDate;
-    }
-    if (matchQuery.branch) {
-      whereConditions.branchId = matchQuery.branch;
+      whereConditions.branchId = req.user.branchId;
     }
 
     const [statusStats, typeStats, priorityStats, totalMaintenances, avgCost] = await Promise.all([
@@ -676,32 +803,48 @@ router.get('/calendar/events', [
     const { start, end, branch, company } = req.query;
     const companyId = company || req.user.companyId;
     
-    const query = { 
-      company: companyId,
+    const whereConditions = { 
+      companyId: companyId,
       scheduledDate: {
-        $gte: new Date(start),
-        $lte: new Date(end)
+        [Op.gte]: new Date(start),
+        [Op.lte]: new Date(end)
       }
     };
     
     if (branch) {
-      query.branch = branch;
+      whereConditions.branchId = branch;
     }
     
     // Filtrar por sucursales del usuario si no es admin
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      query.branch = { $in: req.user.branches };
+      whereConditions.branchId = { [Op.in]: req.user.branches };
     }
 
-    const maintenances = await Maintenance.find(query)
-      .populate('vehicle', 'plateNumber make model')
-      .populate('branch', 'name')
-      .populate('assignedTo', 'firstName lastName')
-      .select('workOrderNumber type priority status scheduledDate vehicle branch assignedTo')
-      .sort({ scheduledDate: 1 });
+    const maintenances = await Maintenance.findAll({
+      where: whereConditions,
+      include: [
+        {
+          model: Vehicle,
+          as: 'vehicle',
+          attributes: ['plateNumber', 'make', 'model']
+        },
+        {
+          model: Branch,
+          as: 'branch',
+          attributes: ['name']
+        },
+        {
+          model: require('../models/User'),
+          as: 'assignedTo',
+          attributes: ['firstName', 'lastName']
+        }
+      ],
+      attributes: ['id', 'workOrderNumber', 'type', 'priority', 'status', 'scheduledDate'],
+      order: [['scheduledDate', 'ASC']]
+    });
 
     const events = maintenances.map(maintenance => ({
-      id: maintenance._id,
+      id: maintenance.id,
       title: `${maintenance.vehicle.plateNumber} - ${maintenance.type}`,
       start: maintenance.scheduledDate,
       end: maintenance.scheduledDate,

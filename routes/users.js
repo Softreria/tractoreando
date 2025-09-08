@@ -61,8 +61,8 @@ router.get('/', [
     const users = await User.findAll({
       where: whereConditions,
       include: [
-        { model: Company, attributes: ['name'] },
-        { model: Branch, attributes: ['name', 'code'] }
+        { model: Company, as: 'company', attributes: ['name'] },
+        { model: Branch, as: 'branch', attributes: ['name', 'code'] }
       ],
       attributes: { exclude: ['password', 'resetPasswordToken', 'resetPasswordExpires'] },
       order: [['createdAt', 'DESC']],
@@ -87,9 +87,45 @@ router.get('/', [
   }
 });
 
+// @route   GET /api/users/roles
+// @desc    Obtener roles disponibles
+// @access  Private
+router.get('/roles', [
+  auth,
+  logActivity('Ver roles disponibles')
+], async (req, res) => {
+  try {
+    let availableRoles = [];
+
+    switch (req.user.role) {
+      case 'super_admin':
+        availableRoles = ['company_admin', 'branch_manager', 'mechanic', 'operator', 'viewer'];
+        break;
+      case 'company_admin':
+        availableRoles = ['branch_manager', 'mechanic', 'operator', 'viewer'];
+        break;
+      case 'branch_manager':
+        availableRoles = ['mechanic', 'operator', 'viewer'];
+        break;
+      default:
+        availableRoles = [];
+    }
+
+    const rolesWithDescriptions = availableRoles.map(role => ({
+      value: role,
+      label: getRoleDescription(role)
+    }));
+
+    res.json(rolesWithDescriptions);
+  } catch (error) {
+    console.error('Error obteniendo roles disponibles:', error);
+    res.status(500).json({ message: 'Error del servidor' });
+  }
+});
+
 // @route   GET /api/users/:id});
 
-// @desc    Obtener roles disponibles
+// @desc    Obtener roles disponibles (ruta alternativa)
 // @access  Private
 router.get('/roles/available', [
   auth,
@@ -193,8 +229,8 @@ router.get('/:id', [
   try {
     const user = await User.findByPk(req.params.id, {
       include: [
-        { model: Company, attributes: ['name', 'rfc'] },
-        { model: Branch, attributes: ['name', 'code', 'address'] }
+        { model: Company, as: 'company', attributes: ['name', 'cif'] },
+        { model: Branch, as: 'branch', attributes: ['name', 'code', 'address'] }
       ],
       attributes: { exclude: ['password', 'resetPasswordToken', 'resetPasswordExpires'] }
     });
@@ -293,8 +329,8 @@ router.post('/', [
 
     const populatedUser = await User.findByPk(user.id, {
       include: [
-        { model: Company, attributes: ['name'] },
-        { model: Branch, attributes: ['name', 'code'] }
+        { model: Company, as: 'company', attributes: ['name'] },
+        { model: Branch, as: 'branch', attributes: ['name', 'code'] }
       ],
       attributes: { exclude: ['password', 'resetPasswordToken', 'resetPasswordExpires'] }
     });
