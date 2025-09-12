@@ -446,66 +446,16 @@ const Settings = () => {
       {/* Tab 1: Notificaciones */}
       {tabValue === 1 && (
         <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
+          <Grid item xs={12}>
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
                   Configuración de Email
                 </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Servidor SMTP"
-                      {...register('smtpHost')}
-                      defaultValue={settingsData?.smtpHost || ''}
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Puerto"
-                      type="number"
-                      {...register('smtpPort')}
-                      defaultValue={settingsData?.smtpPort || 587}
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <FormControlLabel
-                      control={
-                        <Controller
-                          name="smtpSecure"
-                          control={control}
-                          defaultValue={settingsData?.smtpSecure || false}
-                          render={({ field }) => (
-                            <Switch
-                              checked={field.value}
-                              onChange={field.onChange}
-                            />
-                          )}
-                        />
-                      }
-                      label="Conexión Segura (SSL/TLS)"
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Usuario SMTP"
-                      {...register('smtpUser')}
-                      defaultValue={settingsData?.smtpUser || ''}
-                    />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <TextField
-                      fullWidth
-                      label="Contraseña SMTP"
-                      type="password"
-                      {...register('smtpPassword')}
-                      defaultValue={settingsData?.smtpPassword || ''}
-                    />
-                  </Grid>
-                </Grid>
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  La configuración SMTP se gestiona a nivel de sistema por el administrador.
+                  Las notificaciones por email se envían automáticamente según la configuración del servidor.
+                </Alert>
               </CardContent>
             </Card>
           </Grid>
