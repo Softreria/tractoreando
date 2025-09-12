@@ -34,27 +34,7 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// Ruta raíz de bienvenida
-app.get('/', (req, res) => {
-  res.json({
-    message: '🚜 Bienvenido a la API de Tractoreando',
-    version: '1.0.0',
-    status: 'running',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    endpoints: {
-      health: '/api/health',
-      auth: '/api/auth',
-      companies: '/api/companies',
-      branches: '/api/branches',
-      vehicles: '/api/vehicles',
-      maintenance: '/api/maintenance',
-      users: '/api/users',
-      reports: '/api/reports',
-      settings: '/api/settings'
-    }
-  });
-});
+
 
 // Ruta de prueba
 app.get('/api/health', (req, res) => {
@@ -90,6 +70,11 @@ app.use('/api/settings', require('./routes/settings'));
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, 'frontend/build')));
   
+  // Ruta raíz sirve el frontend
+  app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'frontend/build', 'index.html'));
+  });
+  
   // Solo capturar rutas que no sean de API
   app.get('*', (req, res) => {
     if (req.path.startsWith('/api/')) {
@@ -118,10 +103,11 @@ const connectDB = async () => {
     }
     
     // Iniciar servidor después de conectar a la base de datos
-    const PORT = process.env.PORT || 5000;
+    const PORT = process.env.PORT || 8001;
     app.listen(PORT, () => {
       console.log(`🚀 Servidor ejecutándose en puerto ${PORT}`);
-      console.log(`🌐 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🌍 Entorno: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`📁 Sirviendo frontend desde: ${process.env.NODE_ENV === 'production' ? 'frontend/build' : 'desarrollo'}`);
     });
   } catch (error) {
     console.error('❌ Error conectando a PostgreSQL:', error.message);
