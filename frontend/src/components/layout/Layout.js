@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Drawer,
@@ -18,7 +18,11 @@ import {
   Badge,
   Tooltip,
   useTheme,
-  useMediaQuery
+  useMediaQuery,
+  Popover,
+  Card,
+  CardContent,
+  Chip
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -29,12 +33,16 @@ import {
   Build,
   People,
   Assessment,
+  LocalGasStation,
   Settings,
   Logout,
   Person,
   Notifications,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Warning,
+  Error,
+  Schedule
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -68,6 +76,12 @@ const menuItems = [
     roles: ['super_admin', 'company_admin', 'branch_manager', 'mechanic', 'operator', 'viewer']
   },
   {
+    text: 'Resumen Combustible',
+    icon: <LocalGasStation />,
+    path: '/fuel-summary',
+    roles: ['super_admin', 'company_admin', 'branch_manager', 'viewer']
+  },
+  {
     text: 'Mantenimiento',
     icon: <Build />,
     path: '/maintenance',
@@ -91,11 +105,41 @@ const Layout = ({ children }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(true);
   const [anchorEl, setAnchorEl] = useState(null);
+  const [notificationAnchorEl, setNotificationAnchorEl] = useState(null);
+  const [notifications, setNotifications] = useState([]);
   const { user, logout, hasRole } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  // Obtener notificaciones
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        const response = await fetch('/api/dashboard', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setNotifications(data.recentAlerts || []);
+        }
+      } catch (error) {
+        console.error('Error fetching notifications:', error);
+      }
+    };
+
+    fetchNotifications();
+    // Actualizar cada 30 segundos
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleDrawerToggle = () => {
     if (isMobile) {
@@ -111,6 +155,14 @@ const Layout = ({ children }) => {
 
   const handleProfileMenuClose = () => {
     setAnchorEl(null);
+  };
+
+  const handleNotificationClick = (event) => {
+    setNotificationAnchorEl(event.currentTarget);
+  };
+
+  const handleNotificationClose = () => {
+    setNotificationAnchorEl(null);
   };
 
   const handleLogout = async () => {
@@ -271,8 +323,12 @@ const Layout = ({ children }) => {
           </Typography>
           
           {/* Notificaciones */}
-          <IconButton color="inherit" sx={{ mr: 1 }}>
-            <Badge badgeContent={3} color="error">
+          <IconButton 
+            color="inherit" 
+            sx={{ mr: 1 }}
+            onClick={handleNotificationClick}
+          >
+            <Badge badgeContent={notifications.length} color="error">
               <Notifications />
             </Badge>
           </IconButton>
@@ -332,8 +388,74 @@ const Layout = ({ children }) => {
           Cerrar Sesión
         </MenuItem>
       </Menu>
-      
-      {/* Drawer */}
+
+      {/* Popover de notificaciones */}
+      <Popover
+        open={Boolean(notificationAnchorEl)}
+        anchorEl={notificationAnchorEl}
+        onClose={handleNotificationClose}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'right',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+      >
+        <Card sx={{ width: 350, maxHeight: 400, overflow: 'auto' }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Notificaciones ({notifications.length})
+            </Typography>
+            {notifications.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                No hay notificaciones pendientes
+              </Typography>
+            ) : (
+              <List sx={{ p: 0 }}>
+                {notifications.map((notification, index) => (
+                  <ListItem key={index} sx={{ px: 0, py: 1 }}>
+                    <ListItemIcon>
+                      {notification.type === 'critical' ? (
+                        <Error color="error" />
+                      ) : notification.type === 'warning' ? (
+                        <Warning color="warning" />
+                      ) : (
+                        <Schedule color="info" />
+                      )}
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={notification.title}
+                      secondary={
+                        <>
+                          <Typography component="span" variant="body2">
+                            {typeof notification.vehicle === 'object' 
+                              ? notification.vehicle?.plateNumber 
+                              : notification.vehicle}
+                          </Typography>
+                          <br />
+                          <Typography variant="caption" color="text.secondary">
+                            {notification.time}
+                          </Typography>
+                        </>
+                      }
+                    />
+                    <Chip
+                      label={notification.type}
+                      size="small"
+                      color={notification.type === 'critical' ? 'error' : 
+                             notification.type === 'warning' ? 'warning' : 'info'}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            )}
+          </CardContent>
+        </Card>
+      </Popover>
+
+      {/* Drawer para móvil */}
       <Box
         component="nav"
         sx={{ width: { md: drawerOpen ? drawerWidth : 64 }, flexShrink: { md: 0 } }}

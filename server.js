@@ -34,6 +34,28 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
+// Ruta raíz de bienvenida
+app.get('/', (req, res) => {
+  res.json({
+    message: '🚜 Bienvenido a la API de Tractoreando',
+    version: '1.0.0',
+    status: 'running',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    endpoints: {
+      health: '/api/health',
+      auth: '/api/auth',
+      companies: '/api/companies',
+      branches: '/api/branches',
+      vehicles: '/api/vehicles',
+      maintenance: '/api/maintenance',
+      users: '/api/users',
+      reports: '/api/reports',
+      settings: '/api/settings'
+    }
+  });
+});
+
 // Ruta de prueba
 app.get('/api/health', (req, res) => {
   res.json({ 
@@ -110,4 +132,4 @@ const connectDB = async () => {
 // Conectar a la base de datos e iniciar servidor
 connectDB();
 
-// Reinicio del servidor
+// Servidor configurado correctamente

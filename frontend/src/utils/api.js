@@ -1,11 +1,14 @@
 import axios from 'axios';
 
 // Configuración base de Axios
+console.log('🔧 API URL configurada:', process.env.REACT_APP_API_URL || 'http://localhost:3002/api');
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3002/api',
   timeout: 30000, // Aumentado a 30 segundos para producción
   headers: {
     'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
   },
 });
 

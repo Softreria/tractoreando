@@ -50,8 +50,9 @@ node create-admin-production.js
 ### Credenciales por Defecto
 
 - **Email**: admin@tractoreando.com
-- **Contraseña**: Admin123!
+- **Contraseña**: admin123
 - **⚠️ IMPORTANTE**: Cambiar la contraseña después del primer acceso
+- **📝 Nota**: Si tienes problemas de login, asegúrate de usar exactamente estas credenciales sin espacios extra
 
 ## 📋 Scripts Disponibles
 

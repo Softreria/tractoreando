@@ -284,7 +284,7 @@ router.put('/profile', [
         {
           model: Company,
           as: 'company',
-          attributes: ['name', 'rfc']
+          attributes: ['name', 'cif']
         },
         {
           model: Branch,

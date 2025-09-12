@@ -244,8 +244,8 @@ export const AuthProvider = ({ children }) => {
               payload: response.data.user,
             });
           } catch (error) {
-            console.error('Error al cargar usuario:', error);
-            // Si hay error 401, limpiar token inválido
+            console.error('Error al cargar usuario durante inicialización:', error);
+            // Si hay error 401, limpiar token inválido silenciosamente
             if (error.response?.status === 401) {
               localStorage.removeItem('token');
               dispatch({ type: AUTH_ACTIONS.LOGOUT });
@@ -270,7 +270,7 @@ export const AuthProvider = ({ children }) => {
   }, []); // Sin dependencias para ejecutar solo una vez
 
   // Función para iniciar sesión
-  const login = async (email, password) => {
+  const login = async (email, password, showWelcomeToast = true) => {
     try {
       dispatch({ type: AUTH_ACTIONS.LOGIN_START });
 
@@ -287,7 +287,9 @@ export const AuthProvider = ({ children }) => {
         },
       });
 
-      toast.success(`¡Bienvenido, ${response.data.user.firstName}!`);
+      if (showWelcomeToast) {
+        toast.success(`¡Bienvenido, ${response.data.user.firstName}!`);
+      }
       return { success: true };
     } catch (error) {
       const message = error.response?.data?.message || 'Error al iniciar sesión';
@@ -295,7 +297,9 @@ export const AuthProvider = ({ children }) => {
         type: AUTH_ACTIONS.LOGIN_FAILURE,
         payload: message,
       });
-      toast.error(message);
+      if (showWelcomeToast) {
+        toast.error(message);
+      }
       return { success: false, error: message };
     }
   };

@@ -29,7 +29,8 @@ import {
   MoreVert,
   CheckCircle,
   Schedule,
-  Error
+  Error,
+  LocalGasStation
 } from '@mui/icons-material';
 import {
   LineChart,
@@ -385,7 +386,10 @@ const Dashboard = () => {
       pendingAlerts: (dashboardData.alerts?.overdue || 0) + (dashboardData.alerts?.dueToday || 0),
       totalUsers: dashboardData.users?.total || 0,
       totalCompanies: hasRole('super_admin') ? dashboardData.companies?.total : undefined,
-      totalBranches: hasRole(['super_admin', 'company_admin']) ? dashboardData.branches?.total : undefined
+      totalBranches: hasRole(['super_admin', 'company_admin']) ? dashboardData.branches?.total : undefined,
+      fuelRecords: dashboardData.fuel?.totalRecords || 0,
+      totalLiters: dashboardData.fuel?.totalLiters || 0,
+      totalFuelCost: dashboardData.fuel?.totalCost || 0
     },
     maintenanceChart: dashboardData.maintenanceChart || mockData.maintenanceChart,
     vehicleDistribution: dashboardData.vehicleDistribution?.length > 0 ? dashboardData.vehicleDistribution : [

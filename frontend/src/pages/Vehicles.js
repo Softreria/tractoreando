@@ -65,12 +65,14 @@ import {
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
 import documentService from '../services/documentService';
 
 const Vehicles = () => {
+  const navigate = useNavigate();
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState('');
@@ -865,6 +867,12 @@ const Vehicles = () => {
             <Assignment fontSize="small" />
           </ListItemIcon>
           <ListItemText>Gestionar Documentos</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => { navigate(`/vehicles/${selectedVehicle?.id}/fuel`); handleMenuClose(); }}>
+          <ListItemIcon>
+            <LocalGasStation fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Gestión de Combustible</ListItemText>
         </MenuItem>
         <Divider />
         {hasPermission('vehicles', 'delete') && (

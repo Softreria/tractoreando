@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const Vehicle = require('../models/Vehicle');
 const Maintenance = require('../models/Maintenance');
+const FuelRecord = require('../models/FuelRecord');
 const Company = require('../models/Company');
 const Branch = require('../models/Branch');
 const User = require('../models/User');
@@ -37,9 +38,10 @@ router.get('/dashboard', [
     }
 
     // Consultas paralelas para obtener estadísticas
-    const [vehicleStats, maintenanceStats, recentMaintenances, upcomingMaintenances, alerts, userStats, companyStats, branchStats, maintenanceChart, vehicleDistribution] = await Promise.all([
+    const [vehicleStats, maintenanceStats, fuelStats, recentMaintenances, upcomingMaintenances, alerts, userStats, companyStats, branchStats, maintenanceChart, vehicleDistribution] = await Promise.all([
       getVehicleStats(baseQuery),
       getMaintenanceStats(baseQuery, dateFrom, dateTo),
+      getFuelStats(baseQuery, dateFrom, dateTo),
       getRecentMaintenances(baseQuery, 5),
       getUpcomingMaintenances(baseQuery, 10),
       getMaintenanceAlerts(baseQuery),
@@ -55,6 +57,7 @@ router.get('/dashboard', [
       dateRange: { from: dateFrom, to: dateTo },
       vehicles: vehicleStats,
       maintenance: maintenanceStats,
+      fuel: fuelStats,
       recentMaintenances,
       upcomingMaintenances,
       alerts,
@@ -264,7 +267,7 @@ router.get('/maintenance', [
 });
 
 // @route   GET /api/reports/costs
-// @desc    Reporte de costos
+// @desc    Reporte de costos (mantenimiento + combustible)
 // @access  Private
 router.get('/costs', [
   auth,
@@ -283,55 +286,120 @@ router.get('/costs', [
     } = req.query;
     
     const companyId = company || req.user.companyId;
-    const query = { 
-      company: companyId,
-      status: 'completado'
+    const dateFromParsed = dateFrom ? new Date(dateFrom) : moment().subtract(12, 'months').startOf('month').toDate();
+    const dateToParsed = dateTo ? new Date(dateTo) : moment().endOf('month').toDate();
+    
+    // Condiciones base para mantenimientos
+    const maintenanceWhere = {
+      companyId,
+      status: 'completado',
+      completedDate: {
+        [require('sequelize').Op.between]: [dateFromParsed, dateToParsed]
+      }
     };
     
-    if (branch) query.branch = branch;
-    if (vehicle) query.vehicle = vehicle;
+    // Condiciones base para combustible
+    const fuelWhere = {
+      companyId,
+      fuelDate: {
+        [require('sequelize').Op.between]: [dateFromParsed, dateToParsed]
+      }
+    };
     
-    if (dateFrom || dateTo) {
-      query.completedDate = {};
-      if (dateFrom) query.completedDate.$gte = new Date(dateFrom);
-      if (dateTo) query.completedDate.$lte = new Date(dateTo);
+    if (branch) {
+      maintenanceWhere.branchId = branch;
+      fuelWhere.branchId = branch;
+    }
+    if (vehicle) {
+      maintenanceWhere.vehicleId = vehicle;
+      fuelWhere.vehicleId = vehicle;
     }
     
     // Filtrar por sucursales del usuario si no es admin
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      query.branch = { $in: req.user.branches };
+      maintenanceWhere.branchId = req.user.branchId;
+      fuelWhere.branchId = req.user.branchId;
     }
 
-    // Convertir query de MongoDB a condiciones de Sequelize
-    const whereConditions = {};
-    if (query.scheduledDate) {
-      whereConditions.scheduledDate = query.scheduledDate;
-    }
-    if (query.status) {
-      whereConditions.status = query.status;
-    }
-    if (query.vehicleId) {
-      whereConditions.vehicleId = query.vehicleId;
-    }
-    if (query.branchId) {
-      whereConditions.branchId = query.branchId;
-    }
-
-    // Agregación para costos por período usando Sequelize
+    // Agregación para costos de mantenimiento por período
     const groupFormat = getSequelizeGroupFormat(groupBy);
-    const costsByPeriod = await Maintenance.findAll({
+    const maintenanceCostsByPeriod = await Maintenance.findAll({
       attributes: [
         [groupFormat, '_id'],
-        [Maintenance.sequelize.fn('SUM', Maintenance.sequelize.cast(Maintenance.sequelize.json('costs.actual'), 'DECIMAL')), 'totalCost'],
+        [Maintenance.sequelize.fn('SUM', Maintenance.sequelize.cast(Maintenance.sequelize.json('costs.actual'), 'DECIMAL')), 'maintenanceCost'],
         [Maintenance.sequelize.fn('SUM', Maintenance.sequelize.cast(Maintenance.sequelize.json('costs.labor'), 'DECIMAL')), 'laborCost'],
         [Maintenance.sequelize.fn('SUM', Maintenance.sequelize.cast(Maintenance.sequelize.json('costs.parts'), 'DECIMAL')), 'partsCost'],
-        [Maintenance.sequelize.fn('COUNT', '*'), 'count']
+        [Maintenance.sequelize.fn('COUNT', '*'), 'maintenanceCount']
       ],
-      where: whereConditions,
+      where: maintenanceWhere,
       group: [groupFormat],
       order: [[Maintenance.sequelize.literal('_id'), 'ASC']],
       raw: true
     });
+
+    // Agregación para costos de combustible por período
+    const fuelGroupFormat = groupBy === 'month' ? 
+      FuelRecord.sequelize.fn('DATE_FORMAT', FuelRecord.sequelize.col('fuelDate'), '%Y-%m') :
+      groupBy === 'week' ?
+      FuelRecord.sequelize.fn('YEARWEEK', FuelRecord.sequelize.col('fuelDate')) :
+      FuelRecord.sequelize.fn('DATE_FORMAT', FuelRecord.sequelize.col('fuelDate'), '%Y-%m-%d');
+    
+    const fuelCostsByPeriod = await FuelRecord.findAll({
+      attributes: [
+        [fuelGroupFormat, '_id'],
+        [FuelRecord.sequelize.fn('SUM', FuelRecord.sequelize.col('totalCost')), 'fuelCost'],
+        [FuelRecord.sequelize.fn('SUM', FuelRecord.sequelize.col('liters')), 'totalLiters'],
+        [FuelRecord.sequelize.fn('COUNT', '*'), 'fuelCount']
+      ],
+      where: fuelWhere,
+      group: [fuelGroupFormat],
+      order: [[FuelRecord.sequelize.literal('_id'), 'ASC']],
+      raw: true
+    });
+
+    // Combinar costos de mantenimiento y combustible por período
+    const costsByPeriod = {};
+    
+    // Agregar costos de mantenimiento
+    maintenanceCostsByPeriod.forEach(item => {
+      const period = item._id;
+      costsByPeriod[period] = {
+        _id: period,
+        maintenanceCost: parseFloat(item.maintenanceCost) || 0,
+        laborCost: parseFloat(item.laborCost) || 0,
+        partsCost: parseFloat(item.partsCost) || 0,
+        maintenanceCount: item.maintenanceCount || 0,
+        fuelCost: 0,
+        totalLiters: 0,
+        fuelCount: 0,
+        totalCost: parseFloat(item.maintenanceCost) || 0
+      };
+    });
+    
+    // Agregar costos de combustible
+    fuelCostsByPeriod.forEach(item => {
+      const period = item._id;
+      if (!costsByPeriod[period]) {
+        costsByPeriod[period] = {
+          _id: period,
+          maintenanceCost: 0,
+          laborCost: 0,
+          partsCost: 0,
+          maintenanceCount: 0,
+          fuelCost: 0,
+          totalLiters: 0,
+          fuelCount: 0,
+          totalCost: 0
+        };
+      }
+      costsByPeriod[period].fuelCost = parseFloat(item.fuelCost) || 0;
+      costsByPeriod[period].totalLiters = parseFloat(item.totalLiters) || 0;
+      costsByPeriod[period].fuelCount = item.fuelCount || 0;
+      costsByPeriod[period].totalCost += parseFloat(item.fuelCost) || 0;
+    });
+    
+    // Convertir a array y ordenar
+    const costsByPeriodArray = Object.values(costsByPeriod).sort((a, b) => a._id.localeCompare(b._id));
 
     // Costos por vehículo usando Sequelize con JOIN
     const costsByVehicle = await Maintenance.findAll({
@@ -345,7 +413,7 @@ router.get('/costs', [
         as: 'vehicle',
         attributes: ['id', 'licensePlate', 'brand', 'model']
       }],
-      where: whereConditions,
+      where: maintenanceWhere,
       group: ['vehicleId', 'vehicle.id', 'vehicle.licensePlate', 'vehicle.brand', 'vehicle.model'],
       order: [[Maintenance.sequelize.literal('totalCost'), 'DESC']],
       limit: 10,
@@ -360,40 +428,30 @@ router.get('/costs', [
         [Maintenance.sequelize.fn('SUM', Maintenance.sequelize.cast(Maintenance.sequelize.json('costs.actual'), 'DECIMAL')), 'totalCost'],
         [Maintenance.sequelize.fn('COUNT', '*'), 'count']
       ],
-      where: whereConditions,
+      where: maintenanceWhere,
       group: ['type'],
       order: [[Maintenance.sequelize.literal('totalCost'), 'DESC']],
       raw: true
     });
 
-    // Estadísticas generales
-    const totalStats = await Maintenance.findOne({
-      attributes: [
-        [Maintenance.sequelize.fn('SUM', Maintenance.sequelize.cast(Maintenance.sequelize.json('costs.actual'), 'DECIMAL')), 'totalCost'],
-        [Maintenance.sequelize.fn('SUM', Maintenance.sequelize.cast(Maintenance.sequelize.json('costs.labor'), 'DECIMAL')), 'totalLaborCost'],
-        [Maintenance.sequelize.fn('SUM', Maintenance.sequelize.cast(Maintenance.sequelize.json('costs.parts'), 'DECIMAL')), 'totalPartsCost'],
-        [Maintenance.sequelize.fn('COUNT', '*'), 'count'],
-        [Maintenance.sequelize.fn('AVG', Maintenance.sequelize.cast(Maintenance.sequelize.json('costs.actual'), 'DECIMAL')), 'avgCost']
-      ],
-      where: whereConditions,
-      raw: true
-    });
-
-    const stats = totalStats || {
-      totalCost: 0,
-      totalLaborCost: 0,
-      totalPartsCost: 0,
-      count: 0,
-      avgCost: 0
+    // Estadísticas totales
+    const totalStats = {
+      totalCost: costsByPeriodArray.reduce((sum, item) => sum + (parseFloat(item.totalCost) || 0), 0),
+      maintenanceCost: costsByPeriodArray.reduce((sum, item) => sum + (parseFloat(item.maintenanceCost) || 0), 0),
+      fuelCost: costsByPeriodArray.reduce((sum, item) => sum + (parseFloat(item.fuelCost) || 0), 0),
+      laborCost: costsByPeriodArray.reduce((sum, item) => sum + (parseFloat(item.laborCost) || 0), 0),
+      partsCost: costsByPeriodArray.reduce((sum, item) => sum + (parseFloat(item.partsCost) || 0), 0),
+      totalLiters: costsByPeriodArray.reduce((sum, item) => sum + (parseFloat(item.totalLiters) || 0), 0),
+      totalRecords: costsByPeriodArray.reduce((sum, item) => sum + (item.maintenanceCount || 0) + (item.fuelCount || 0), 0)
     };
 
     if (format === 'csv') {
-      return generateCSVResponse(res, costsByPeriod, 'costs_report');
+      return generateCSVResponse(res, costsByPeriodArray, 'costs_report');
     }
 
     res.json({
-      summary: stats,
-      byPeriod: costsByPeriod,
+      summary: totalStats,
+      byPeriod: costsByPeriodArray,
       byVehicle: costsByVehicle,
       byType: costsByType,
       generatedAt: new Date()
@@ -567,6 +625,146 @@ router.get('/performance', [
 
   } catch (error) {
     console.error('Error generando reporte de rendimiento:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+});
+
+// @route   GET /api/reports/fuel
+// @desc    Reporte de combustible
+// @access  Private
+router.get('/fuel', [
+  auth,
+  checkPermission('reports', 'read'),
+  logActivity('Generar reporte de combustible')
+], async (req, res) => {
+  try {
+    const { 
+      company, 
+      branch, 
+      vehicle,
+      dateFrom,
+      dateTo,
+      format = 'json'
+    } = req.query;
+    
+    const companyId = company || req.user.companyId;
+    const { Op } = require('sequelize');
+    
+    // Construir query base
+    const baseQuery = { companyId };
+    
+    if (branch) baseQuery.branchId = branch;
+    if (vehicle) baseQuery.vehicleId = vehicle;
+    
+    // Filtrar por fechas
+    if (dateFrom || dateTo) {
+      baseQuery.fuelDate = {};
+      if (dateFrom) baseQuery.fuelDate[Op.gte] = new Date(dateFrom);
+      if (dateTo) baseQuery.fuelDate[Op.lte] = new Date(dateTo);
+    }
+    
+    // Filtrar por sucursales del usuario si no es admin
+    if (!['super_admin', 'company_admin'].includes(req.user.role)) {
+      // Obtener vehículos de la sucursal del usuario
+      const userVehicles = await Vehicle.findAll({
+        where: { branchId: req.user.branchId },
+        attributes: ['id']
+      });
+      const vehicleIds = userVehicles.map(v => v.id);
+      baseQuery.vehicleId = { [Op.in]: vehicleIds };
+    }
+
+    // Obtener registros de combustible
+    const fuelRecords = await FuelRecord.findAll({
+      where: baseQuery,
+      include: [
+        {
+          model: Vehicle,
+          as: 'vehicle',
+          attributes: ['id', 'plateNumber', 'make', 'model', 'vehicleType'],
+          include: [
+            { model: Branch, as: 'branch', attributes: ['name'] }
+          ]
+        },
+        {
+          model: User,
+          as: 'createdBy',
+          attributes: ['firstName', 'lastName']
+        }
+      ],
+      order: [['fuelDate', 'DESC']]
+    });
+
+    // Calcular estadísticas
+    const stats = {
+      totalRecords: fuelRecords.length,
+      totalLiters: fuelRecords.reduce((sum, record) => sum + (record.liters || 0), 0),
+      totalCost: fuelRecords.reduce((sum, record) => sum + (record.totalCost || 0), 0),
+      averagePrice: fuelRecords.length > 0 ? 
+        fuelRecords.reduce((sum, record) => sum + (record.pricePerLiter || 0), 0) / fuelRecords.length : 0,
+      byFuelType: {},
+      byVehicle: {},
+      byMonth: {}
+    };
+
+    // Agrupar por tipo de combustible
+    fuelRecords.forEach(record => {
+      const fuelType = record.fuelType || 'diesel';
+      if (!stats.byFuelType[fuelType]) {
+        stats.byFuelType[fuelType] = { count: 0, liters: 0, cost: 0 };
+      }
+      stats.byFuelType[fuelType].count++;
+      stats.byFuelType[fuelType].liters += record.liters || 0;
+      stats.byFuelType[fuelType].cost += record.totalCost || 0;
+    });
+
+    // Agrupar por vehículo
+    fuelRecords.forEach(record => {
+      const vehicleKey = record.vehicle?.plateNumber || 'N/A';
+      if (!stats.byVehicle[vehicleKey]) {
+        stats.byVehicle[vehicleKey] = { count: 0, liters: 0, cost: 0 };
+      }
+      stats.byVehicle[vehicleKey].count++;
+      stats.byVehicle[vehicleKey].liters += record.liters || 0;
+      stats.byVehicle[vehicleKey].cost += record.totalCost || 0;
+    });
+
+    // Agrupar por mes
+    fuelRecords.forEach(record => {
+      const month = moment(record.fuelDate).format('YYYY-MM');
+      if (!stats.byMonth[month]) {
+        stats.byMonth[month] = { count: 0, liters: 0, cost: 0 };
+      }
+      stats.byMonth[month].count++;
+      stats.byMonth[month].liters += record.liters || 0;
+      stats.byMonth[month].cost += record.totalCost || 0;
+    });
+
+    if (format === 'csv') {
+      const exportData = fuelRecords.map(record => ({
+        'Fecha': moment(record.fuelDate).format('DD/MM/YYYY'),
+        'Vehículo': record.vehicle?.plateNumber || 'N/A',
+        'Marca/Modelo': `${record.vehicle?.make || ''} ${record.vehicle?.model || ''}`.trim(),
+        'Tipo Combustible': record.fuelType || 'diesel',
+        'Litros': record.liters || 0,
+        'Precio/Litro': record.pricePerLiter || 0,
+        'Costo Total': record.totalCost || 0,
+        'Odómetro': record.odometer || 'N/A',
+        'Estación': record.station || 'N/A',
+        'Ubicación': record.location || 'N/A',
+        'Sucursal': record.vehicle?.branch?.name || 'N/A'
+      }));
+      return generateCSVResponse(res, exportData, 'reporte-combustible');
+    }
+
+    res.json({
+      fuelRecords,
+      stats,
+      generatedAt: new Date()
+    });
+
+  } catch (error) {
+    console.error('Error generando reporte de combustible:', error);
     res.status(500).json({ message: 'Error interno del servidor' });
   }
 });
@@ -1213,6 +1411,54 @@ async function getVehicleDistribution(baseQuery) {
   } catch (error) {
     console.error('Error obteniendo distribución de vehículos:', error);
     return [];
+  }
+}
+
+async function getFuelStats(baseQuery, dateFrom, dateTo) {
+  try {
+    const { Op } = require('sequelize');
+    
+    // Construir query para registros de combustible
+    const fuelQuery = {
+      companyId: baseQuery.companyId,
+      fuelDate: { [Op.between]: [dateFrom, dateTo] }
+    };
+    
+    if (baseQuery.branchId) {
+      // Obtener vehículos de la sucursal
+      const vehicles = await Vehicle.findAll({
+        where: { branchId: baseQuery.branchId },
+        attributes: ['id']
+      });
+      const vehicleIds = vehicles.map(v => v.id);
+      fuelQuery.vehicleId = { [Op.in]: vehicleIds };
+    }
+    
+    const [totalRecords, totalLiters, totalCost, avgPrice] = await Promise.all([
+      FuelRecord.count({ where: fuelQuery }),
+      FuelRecord.sum('liters', { where: fuelQuery }) || 0,
+      FuelRecord.sum('totalCost', { where: fuelQuery }) || 0,
+      FuelRecord.findOne({
+        attributes: [[FuelRecord.sequelize.fn('AVG', FuelRecord.sequelize.col('pricePerLiter')), 'avgPrice']],
+        where: fuelQuery,
+        raw: true
+      })
+    ]);
+    
+    return {
+      totalRecords,
+      totalLiters: parseFloat(totalLiters) || 0,
+      totalCost: parseFloat(totalCost) || 0,
+      averagePrice: parseFloat(avgPrice?.avgPrice) || 0
+    };
+  } catch (error) {
+    console.error('Error obteniendo estadísticas de combustible:', error);
+    return {
+      totalRecords: 0,
+      totalLiters: 0,
+      totalCost: 0,
+      averagePrice: 0
+    };
   }
 }
 

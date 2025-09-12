@@ -1,8 +1,6 @@
 const nodemailer = require('nodemailer');
-const Vehicle = require('../models/Vehicle');
-const Maintenance = require('../models/Maintenance');
-const Company = require('../models/Company');
-const User = require('../models/User');
+const { Vehicle, Maintenance, Company, User } = require('../models');
+const { Op } = require('sequelize');
 const cron = require('node-cron');
 
 class AlertService {
@@ -12,7 +10,7 @@ class AlertService {
   }
 
   createTransporter() {
-    return nodemailer.createTransporter({
+    return nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
       port: process.env.SMTP_PORT || 587,
       secure: false,
@@ -29,17 +27,25 @@ class AlertService {
       const thirtyDaysFromNow = new Date();
       thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
-      const vehicles = await Vehicle.find({
-        'specifications.itv.expiryDate': { $lte: thirtyDaysFromNow },
-        'specifications.itv.isValid': true,
-        isActive: true
-      }).populate('company').populate('branch');
+      const vehicles = await Vehicle.findAll({
+        where: {
+          isActive: true
+        },
+        include: [
+          { model: Company, as: 'company' }
+        ]
+      });
 
-      for (const vehicle of vehicles) {
+      const vehiclesWithITVExpiring = vehicles.filter(vehicle => {
+        const itvExpiryDate = vehicle.specifications?.itv?.expiryDate;
+        return itvExpiryDate && new Date(itvExpiryDate) <= thirtyDaysFromNow && vehicle.specifications.itv.isValid;
+      });
+
+      for (const vehicle of vehiclesWithITVExpiring) {
         await this.sendITVExpirationAlert(vehicle);
       }
 
-      console.log(`Verificadas ${vehicles.length} alertas de ITV`);
+      console.log(`Verificadas ${vehiclesWithITVExpiring.length} alertas de ITV`);
     } catch (error) {
       console.error('Error verificando vencimientos de ITV:', error);
     }
@@ -51,17 +57,25 @@ class AlertService {
       const thirtyDaysFromNow = new Date();
       thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
-      const vehicles = await Vehicle.find({
-        'specifications.insurance.expiryDate': { $lte: thirtyDaysFromNow },
-        'specifications.insurance.isValid': true,
-        isActive: true
-      }).populate('company').populate('branch');
+      const vehicles = await Vehicle.findAll({
+        where: {
+          isActive: true
+        },
+        include: [
+          { model: Company, as: 'company' }
+        ]
+      });
 
-      for (const vehicle of vehicles) {
+      const vehiclesWithInsuranceExpiring = vehicles.filter(vehicle => {
+        const insuranceExpiryDate = vehicle.specifications?.insurance?.expiryDate;
+        return insuranceExpiryDate && new Date(insuranceExpiryDate) <= thirtyDaysFromNow && vehicle.specifications.insurance.isValid;
+      });
+
+      for (const vehicle of vehiclesWithInsuranceExpiring) {
         await this.sendInsuranceExpirationAlert(vehicle);
       }
 
-      console.log(`Verificadas ${vehicles.length} alertas de seguro`);
+      console.log(`Verificadas ${vehiclesWithInsuranceExpiring.length} alertas de seguro`);
     } catch (error) {
       console.error('Error verificando vencimientos de seguro:', error);
     }
@@ -73,19 +87,108 @@ class AlertService {
       const sevenDaysFromNow = new Date();
       sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
 
-      const maintenances = await Maintenance.find({
-        scheduledDate: { $lte: sevenDaysFromNow },
-        status: { $in: ['programado', 'pendiente_aprobacion'] },
-        isActive: true
-      }).populate('vehicle').populate('company').populate('assignedTo');
+      // Verificar mantenimientos programados por fecha
+      const maintenances = await Maintenance.findAll({
+        where: {
+          scheduledDate: { [Op.lte]: sevenDaysFromNow },
+          status: { [Op.in]: ['programado', 'pendiente_aprobacion'] },
+          isActive: true
+        },
+        include: [
+          { model: Vehicle, as: 'vehicle' },
+          { model: Company, as: 'company' },
+          { model: User, as: 'assignedTo' }
+        ]
+      });
 
       for (const maintenance of maintenances) {
         await this.sendMaintenanceAlert(maintenance);
       }
 
-      console.log(`Verificadas ${maintenances.length} alertas de mantenimiento`);
+      // Verificar mantenimientos basados en kilometraje
+      await this.checkKilometerBasedMaintenance();
+
+      console.log(`Verificadas ${maintenances.length} alertas de mantenimiento programado`);
     } catch (error) {
       console.error('Error verificando alertas de mantenimiento:', error);
+    }
+  }
+
+  // Verificar mantenimientos basados en kilometraje
+  async checkKilometerBasedMaintenance() {
+    try {
+      const vehicles = await Vehicle.findAll({
+        where: {
+          isActive: true
+        },
+        include: [
+          { model: Company, as: 'company' }
+        ]
+      });
+
+      let alertsGenerated = 0;
+
+      for (const vehicle of vehicles) {
+        // Verificar si necesita cambio de aceite
+        if (vehicle.needsOilChange()) {
+          await this.sendKilometerMaintenanceAlert(vehicle, 'oil_change');
+          alertsGenerated++;
+        }
+
+        // Verificar si necesita inspección general
+        if (vehicle.needsInspection()) {
+          await this.sendKilometerMaintenanceAlert(vehicle, 'general_inspection');
+          alertsGenerated++;
+        }
+      }
+
+      console.log(`Generadas ${alertsGenerated} alertas de mantenimiento por kilometraje`);
+    } catch (error) {
+      console.error('Error verificando mantenimientos por kilometraje:', error);
+    }
+  }
+
+  // Enviar alerta de mantenimiento por kilometraje
+  async sendKilometerMaintenanceAlert(vehicle, maintenanceType) {
+    try {
+      const maintenanceTypes = {
+        oil_change: {
+          title: 'Cambio de Aceite',
+          description: 'El vehículo necesita cambio de aceite',
+          schedule: vehicle.maintenanceSchedule?.oilChange
+        },
+        general_inspection: {
+          title: 'Inspección General',
+          description: 'El vehículo necesita inspección general',
+          schedule: vehicle.maintenanceSchedule?.generalInspection
+        }
+      };
+
+      const maintenance = maintenanceTypes[maintenanceType];
+      if (!maintenance) return;
+
+      const currentKm = vehicle.odometer?.current || 0;
+      const lastKm = maintenance.schedule?.lastKm || 0;
+      const intervalKm = maintenance.schedule?.intervalKm || 5000;
+      const kmOverdue = currentKm - (lastKm + intervalKm);
+
+      const subject = `🔧 Mantenimiento Vencido por Kilometraje - ${vehicle.plateNumber}`;
+      const html = `
+        <h2>Alerta de Mantenimiento por Kilometraje</h2>
+        <p><strong>Vehículo:</strong> ${vehicle.plateNumber} - ${vehicle.make} ${vehicle.model}</p>
+        <p><strong>Empresa:</strong> ${vehicle.company.name}</p>
+        <p><strong>Tipo de mantenimiento:</strong> ${maintenance.title}</p>
+        <p><strong>Kilometraje actual:</strong> ${currentKm.toLocaleString()} km</p>
+        <p><strong>Último mantenimiento:</strong> ${lastKm.toLocaleString()} km</p>
+        <p><strong>Intervalo programado:</strong> ${intervalKm.toLocaleString()} km</p>
+        <p><strong>Kilometraje de retraso:</strong> <span style="color: red; font-weight: bold;">${kmOverdue.toLocaleString()} km</span></p>
+        <p style="color: red; font-weight: bold;">⚠️ MANTENIMIENTO VENCIDO - Requiere atención inmediata</p>
+        <p>${maintenance.description}</p>
+      `;
+
+      await this.sendEmailToCompanyAdmins(vehicle.companyId, subject, html);
+    } catch (error) {
+      console.error('Error enviando alerta de mantenimiento por kilometraje:', error);
     }
   }
 
@@ -261,14 +364,21 @@ class AlertService {
   async sendEmailToCompanyAdmins(companyId, subject, html) {
     try {
       const [company, admins] = await Promise.all([
-        Company.findById(companyId),
-        User.find({
-          company: companyId,
-          role: { $in: ['admin', 'gerente'] },
-          isActive: true,
-          email: { $exists: true, $ne: '' }
+        Company.findByPk(companyId),
+        User.findAll({
+          where: {
+            companyId: companyId,
+            role: { [Op.in]: ['company_admin', 'admin', 'gerente'] },
+            isActive: true,
+            email: { [Op.ne]: null }
+          }
         })
       ]);
+
+      if (!company) {
+        console.log(`Empresa con ID ${companyId} no encontrada`);
+        return;
+      }
 
       const recipients = [];
       

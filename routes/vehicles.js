@@ -5,6 +5,7 @@ const Vehicle = require('../models/Vehicle');
 const Branch = require('../models/Branch');
 const Company = require('../models/Company');
 const User = require('../models/User');
+const FuelRecord = require('../models/FuelRecord');
 const { auth, checkPermission, checkCompanyAccess, checkBranchAccess, logActivity } = require('../middleware/auth');
 const { checkVehicleLimits } = require('../middleware/companyAdmin');
 
@@ -188,8 +189,8 @@ router.get('/:id', [
   try {
     const vehicle = await Vehicle.findByPk(req.params.id, {
       include: [
-        { model: Company, as: 'company', attributes: ['name', 'rfc'] },
-        { model: Branch, as: 'branch', attributes: ['name', 'code', 'address'] },
+        { model: Company, as: 'company', attributes: ['id', 'name', 'cif'] },
+        { model: Branch, as: 'branch', attributes: ['id', 'name', 'code', 'address'] },
         { model: User, as: 'createdBy', attributes: ['firstName', 'lastName', 'email'] },
         { model: User, as: 'lastModifiedBy', attributes: ['firstName', 'lastName'] }
       ]
@@ -205,7 +206,7 @@ router.get('/:id', [
     }
 
     if (!['super_admin', 'company_admin'].includes(req.user.role)) {
-      const hasAccess = req.user.branchId === vehicle.branch.id;
+      const hasAccess = req.user.branchId === vehicle.branchId;
       if (!hasAccess) {
         return res.status(403).json({ message: 'No tienes acceso a este vehículo' });
       }
@@ -238,7 +239,7 @@ router.get('/:id', [
         },
         include: [
           { model: Branch, as: 'branch', attributes: ['name'] },
-          { model: User, as: 'assignedTo', attributes: ['name', 'lastName'] }
+          { model: User, as: 'assignedTo', attributes: ['firstName', 'lastName'] }
         ],
         order: [['scheduledDate', 'ASC']]
       }),
@@ -250,7 +251,7 @@ router.get('/:id', [
         },
         include: [
           { model: Branch, as: 'branch', attributes: ['name'] },
-          { model: User, as: 'assignedTo', attributes: ['name', 'lastName'] }
+          { model: User, as: 'assignedTo', attributes: ['firstName', 'lastName'] }
         ],
         order: [['scheduledDate', 'ASC']],
         limit: 5
@@ -1138,6 +1139,578 @@ router.delete('/:id/documents/:documentId', [
     res.json({ message: 'Documento eliminado exitosamente' });
   } catch (error) {
     console.error('Error al eliminar documento:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+});
+
+// ==================== RUTAS DE COMBUSTIBLE ====================
+
+// @route   GET /api/vehicles/:id/fuel
+// @desc    Obtener registros de combustible de un vehículo
+// @access  Private
+router.get('/:id/fuel', [
+  auth,
+  checkPermission('vehicles', 'read'),
+  logActivity('Ver registros de combustible')
+], async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 20, startDate, endDate } = req.query;
+    
+    // Verificar que el vehículo existe y el usuario tiene acceso
+    const vehicle = await Vehicle.findOne({
+      where: { 
+        id,
+        ...(req.user.role !== 'super_admin' && { companyId: req.user.companyId })
+      }
+    });
+    
+    if (!vehicle) {
+      return res.status(404).json({ message: 'Vehículo no encontrado' });
+    }
+    
+    // Construir condiciones de búsqueda
+    const whereConditions = { vehicleId: id };
+    
+    if (startDate || endDate) {
+      whereConditions.fuelDate = {};
+      if (startDate) whereConditions.fuelDate[Op.gte] = new Date(startDate);
+      if (endDate) whereConditions.fuelDate[Op.lte] = new Date(endDate);
+    }
+    
+    // Obtener registros con paginación
+    const offset = (page - 1) * limit;
+    const { count, rows: fuelRecords } = await FuelRecord.findAndCountAll({
+      where: whereConditions,
+      include: [
+        {
+          model: User,
+          as: 'createdBy',
+          attributes: ['id', 'firstName', 'lastName', 'email']
+        }
+      ],
+      order: [['fuelDate', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+    
+    // Obtener estadísticas
+    const stats = await FuelRecord.getFuelStats(id, startDate, endDate);
+    
+    res.json({
+      fuelRecords,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(count / limit),
+        totalRecords: count,
+        hasNext: page * limit < count,
+        hasPrev: page > 1
+      },
+      stats
+    });
+    
+  } catch (error) {
+    console.error('Error obteniendo registros de combustible:', error);
+    res.status(500).json({ 
+      message: 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// @route   POST /api/vehicles/:id/fuel
+// @desc    Crear nuevo registro de combustible
+// @access  Private
+router.post('/:id/fuel', [
+  auth,
+  checkPermission('vehicles', 'update'),
+  body('fuelDate', 'Fecha de repostaje es requerida').isISO8601().toDate(),
+  body('liters', 'Litros son requeridos').isFloat({ min: 0.1, max: 1000 }),
+  body('odometer', 'Odómetro debe ser un número válido').optional().isInt({ min: 0 }),
+  body('pricePerLiter', 'Precio por litro debe ser válido').optional().isFloat({ min: 0 }),
+  body('totalCost', 'Costo total debe ser válido').optional().isFloat({ min: 0 }),
+  body('fuelType', 'Tipo de combustible inválido').optional().isIn(['diesel', 'gasolina_95', 'gasolina_98', 'gas_natural', 'electrico', 'hibrido', 'otro']),
+  body('station', 'Nombre de estación muy largo').optional().isLength({ max: 100 }),
+  body('location', 'Ubicación muy larga').optional().isLength({ max: 200 }),
+  body('isFull', 'isFull debe ser booleano').optional().isBoolean(),
+  body('notes', 'Notas muy largas').optional().isLength({ max: 500 }),
+  logActivity('Registrar combustible')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        message: 'Datos inválidos',
+        errors: errors.array()
+      });
+    }
+    
+    const { id } = req.params;
+    const {
+      fuelDate,
+      liters,
+      odometer,
+      pricePerLiter,
+      totalCost,
+      fuelType = 'diesel',
+      station,
+      location,
+      isFull = true,
+      notes,
+      receipt
+    } = req.body;
+    
+    // Verificar que el vehículo existe y el usuario tiene acceso
+    const vehicle = await Vehicle.findOne({
+      where: { 
+        id,
+        ...(req.user.role !== 'super_admin' && { companyId: req.user.companyId })
+      }
+    });
+    
+    if (!vehicle) {
+      return res.status(404).json({ message: 'Vehículo no encontrado' });
+    }
+    
+    // Crear el registro de combustible
+    const fuelRecord = await FuelRecord.create({
+      vehicleId: id,
+      fuelDate,
+      liters,
+      odometer,
+      pricePerLiter,
+      totalCost,
+      fuelType,
+      station,
+      location,
+      isFull,
+      notes,
+      receipt,
+      createdById: req.user.id,
+      companyId: vehicle.companyId
+    });
+    
+    // Obtener el registro creado con las asociaciones
+    const createdRecord = await FuelRecord.findByPk(fuelRecord.id, {
+      include: [
+        {
+          model: User,
+          as: 'createdBy',
+          attributes: ['id', 'firstName', 'lastName', 'email']
+        }
+      ]
+    });
+    
+    res.status(201).json({
+      message: 'Registro de combustible creado exitosamente',
+      fuelRecord: createdRecord
+    });
+    
+  } catch (error) {
+    console.error('Error creando registro de combustible:', error);
+    
+    if (error.name === 'SequelizeValidationError') {
+      return res.status(400).json({
+        message: 'Error de validación',
+        errors: error.errors.map(err => ({
+          field: err.path,
+          message: err.message
+        }))
+      });
+    }
+    
+    res.status(500).json({ 
+      message: 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// @route   PUT /api/vehicles/:id/fuel/:fuelId
+// @desc    Actualizar registro de combustible
+// @access  Private
+router.put('/:id/fuel/:fuelId', [
+  auth,
+  checkPermission('vehicles', 'update'),
+  body('fuelDate', 'Fecha de repostaje es requerida').optional().isISO8601().toDate(),
+  body('liters', 'Litros son requeridos').optional().isFloat({ min: 0.1, max: 1000 }),
+  body('odometer', 'Odómetro debe ser un número válido').optional().isInt({ min: 0 }),
+  body('pricePerLiter', 'Precio por litro debe ser válido').optional().isFloat({ min: 0 }),
+  body('totalCost', 'Costo total debe ser válido').optional().isFloat({ min: 0 }),
+  body('fuelType', 'Tipo de combustible inválido').optional().isIn(['diesel', 'gasolina_95', 'gasolina_98', 'gas_natural', 'electrico', 'hibrido', 'otro']),
+  body('station', 'Nombre de estación muy largo').optional().isLength({ max: 100 }),
+  body('location', 'Ubicación muy larga').optional().isLength({ max: 200 }),
+  body('isFull', 'isFull debe ser booleano').optional().isBoolean(),
+  body('notes', 'Notas muy largas').optional().isLength({ max: 500 }),
+  logActivity('Actualizar registro de combustible')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        message: 'Datos inválidos',
+        errors: errors.array()
+      });
+    }
+    
+    const { id, fuelId } = req.params;
+    
+    // Verificar que el vehículo existe y el usuario tiene acceso
+    const vehicle = await Vehicle.findOne({
+      where: { 
+        id,
+        ...(req.user.role !== 'super_admin' && { companyId: req.user.companyId })
+      }
+    });
+    
+    if (!vehicle) {
+      return res.status(404).json({ message: 'Vehículo no encontrado' });
+    }
+    
+    // Buscar el registro de combustible
+    const fuelRecord = await FuelRecord.findOne({
+      where: {
+        id: fuelId,
+        vehicleId: id,
+        companyId: vehicle.companyId
+      }
+    });
+    
+    if (!fuelRecord) {
+      return res.status(404).json({ message: 'Registro de combustible no encontrado' });
+    }
+    
+    // Actualizar el registro
+    await fuelRecord.update(req.body);
+    
+    // Obtener el registro actualizado con las asociaciones
+    const updatedRecord = await FuelRecord.findByPk(fuelRecord.id, {
+      include: [
+        {
+          model: User,
+          as: 'createdBy',
+          attributes: ['id', 'firstName', 'lastName', 'email']
+        }
+      ]
+    });
+    
+    res.json({
+      message: 'Registro de combustible actualizado exitosamente',
+      fuelRecord: updatedRecord
+    });
+    
+  } catch (error) {
+    console.error('Error actualizando registro de combustible:', error);
+    
+    if (error.name === 'SequelizeValidationError') {
+      return res.status(400).json({
+        message: 'Error de validación',
+        errors: error.errors.map(err => ({
+          field: err.path,
+          message: err.message
+        }))
+      });
+    }
+    
+    res.status(500).json({ 
+      message: 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// @route   DELETE /api/vehicles/:id/fuel/:fuelId
+// @desc    Eliminar registro de combustible
+// @access  Private
+router.delete('/:id/fuel/:fuelId', [
+  auth,
+  checkPermission('vehicles', 'delete'),
+  logActivity('Eliminar registro de combustible')
+], async (req, res) => {
+  try {
+    const { id, fuelId } = req.params;
+    
+    // Verificar que el vehículo existe y el usuario tiene acceso
+    const vehicle = await Vehicle.findOne({
+      where: { 
+        id,
+        ...(req.user.role !== 'super_admin' && { companyId: req.user.companyId })
+      }
+    });
+    
+    if (!vehicle) {
+      return res.status(404).json({ message: 'Vehículo no encontrado' });
+    }
+    
+    // Buscar el registro de combustible
+    const fuelRecord = await FuelRecord.findOne({
+      where: {
+        id: fuelId,
+        vehicleId: id,
+        companyId: vehicle.companyId
+      }
+    });
+    
+    if (!fuelRecord) {
+      return res.status(404).json({ message: 'Registro de combustible no encontrado' });
+    }
+    
+    // Eliminar el registro
+    await fuelRecord.destroy();
+    
+    res.json({ message: 'Registro de combustible eliminado exitosamente' });
+    
+  } catch (error) {
+    console.error('Error eliminando registro de combustible:', error);
+    res.status(500).json({ 
+      message: 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// @route   GET /api/vehicles/:id/fuel/stats
+// @desc    Obtener estadísticas de combustible de un vehículo
+// @access  Private
+router.get('/:id/fuel/stats', [
+  auth,
+  checkPermission('vehicles', 'read'),
+  logActivity('Ver estadísticas de combustible')
+], async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { startDate, endDate, period = '30' } = req.query;
+    
+    // Verificar que el vehículo existe y el usuario tiene acceso
+    const vehicle = await Vehicle.findOne({
+      where: { 
+        id,
+        ...(req.user.role !== 'super_admin' && { companyId: req.user.companyId })
+      }
+    });
+    
+    if (!vehicle) {
+      return res.status(404).json({ message: 'Vehículo no encontrado' });
+    }
+    
+    // Calcular fechas si no se proporcionan
+    let start = startDate ? new Date(startDate) : null;
+    let end = endDate ? new Date(endDate) : null;
+    
+    if (!start && !end) {
+      end = new Date();
+      start = new Date();
+      start.setDate(start.getDate() - parseInt(period));
+    }
+    
+    // Obtener estadísticas generales
+    const generalStats = await FuelRecord.getFuelStats(id, start, end);
+    
+    // Obtener consumo promedio
+    const averageConsumption = await FuelRecord.getAverageConsumption(id, parseInt(period));
+    
+    // Obtener registros recientes para gráficos
+    const recentRecords = await FuelRecord.findAll({
+      where: {
+        vehicleId: id,
+        ...(start && end && {
+          fuelDate: {
+            [Op.between]: [start, end]
+          }
+        })
+      },
+      order: [['fuelDate', 'ASC']],
+      limit: 50,
+      attributes: ['fuelDate', 'liters', 'totalCost', 'pricePerLiter', 'odometer']
+    });
+    
+    // Calcular tendencias mensuales
+    const monthlyStats = {};
+    recentRecords.forEach(record => {
+      const month = record.fuelDate.toISOString().substring(0, 7); // YYYY-MM
+      if (!monthlyStats[month]) {
+        monthlyStats[month] = {
+          totalLiters: 0,
+          totalCost: 0,
+          recordCount: 0
+        };
+      }
+      monthlyStats[month].totalLiters += record.liters;
+      monthlyStats[month].totalCost += record.totalCost || 0;
+      monthlyStats[month].recordCount += 1;
+    });
+    
+    res.json({
+      vehicle: {
+        id: vehicle.id,
+        plateNumber: vehicle.plateNumber,
+        make: vehicle.make,
+        model: vehicle.model,
+        fuelCapacity: vehicle.fuelCapacity
+      },
+      period: {
+        startDate: start,
+        endDate: end,
+        days: period
+      },
+      stats: {
+        ...generalStats,
+        averageConsumption
+      },
+      monthlyStats,
+      recentRecords
+    });
+    
+  } catch (error) {
+    console.error('Error obteniendo estadísticas de combustible:', error);
+    res.status(500).json({ 
+      message: 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Endpoint para resumen mensual de combustible por empresa
+router.get('/fuel/company-summary', [
+  auth,
+  checkPermission('vehicles', 'read'),
+  logActivity('Ver resumen de combustible por empresa')
+], async (req, res) => {
+  try {
+    const { year, month } = req.query;
+    const currentDate = new Date();
+    const targetYear = year ? parseInt(year) : currentDate.getFullYear();
+    const targetMonth = month ? parseInt(month) : currentDate.getMonth() + 1;
+
+    // Validar parámetros
+    if (targetMonth < 1 || targetMonth > 12) {
+      return res.status(400).json({ message: 'Mes inválido' });
+    }
+
+    const startDate = new Date(targetYear, targetMonth - 1, 1);
+    const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59);
+
+    // Obtener todos los vehículos de la empresa del usuario
+    const vehicles = await Vehicle.findAll({
+      where: {
+        companyId: req.user.companyId,
+        isActive: true
+      },
+      include: [
+        {
+          model: FuelRecord,
+          as: 'fuelRecords',
+          where: {
+            fuelDate: {
+              [Op.between]: [startDate, endDate]
+            }
+          },
+          required: false
+        },
+        { model: Branch, as: 'branch', attributes: ['id', 'name'] }
+      ],
+      order: [['plateNumber', 'ASC']]
+    });
+
+    // Procesar datos por vehículo
+    const vehicleSummaries = vehicles.map(vehicle => {
+      const fuelRecords = vehicle.fuelRecords || [];
+      
+      const totalLiters = fuelRecords.reduce((sum, record) => sum + (record.liters || 0), 0);
+      const totalCost = fuelRecords.reduce((sum, record) => sum + (record.totalCost || 0), 0);
+      const recordCount = fuelRecords.length;
+      
+      // Calcular consumo promedio si hay registros con odómetro
+      const recordsWithOdometer = fuelRecords.filter(r => r.odometer && r.odometer > 0).sort((a, b) => a.odometer - b.odometer);
+      let averageConsumption = null;
+      
+      if (recordsWithOdometer.length >= 2) {
+        const totalKm = recordsWithOdometer[recordsWithOdometer.length - 1].odometer - recordsWithOdometer[0].odometer;
+        const totalLitersForConsumption = recordsWithOdometer.slice(1).reduce((sum, record) => sum + (record.liters || 0), 0);
+        if (totalKm > 0 && totalLitersForConsumption > 0) {
+          averageConsumption = (totalLitersForConsumption / totalKm * 100).toFixed(2);
+        }
+      }
+
+      return {
+        vehicleId: vehicle.id,
+        plateNumber: vehicle.plateNumber,
+        make: vehicle.make,
+        model: vehicle.model,
+        vehicleType: vehicle.vehicleType,
+        branch: vehicle.branch ? vehicle.branch.name : 'Sin asignar',
+        totalLiters: parseFloat(totalLiters.toFixed(2)),
+        totalCost: parseFloat(totalCost.toFixed(2)),
+        recordCount,
+        averageConsumption: averageConsumption ? parseFloat(averageConsumption) : null,
+        averagePricePerLiter: totalLiters > 0 ? parseFloat((totalCost / totalLiters).toFixed(2)) : null
+      };
+    });
+
+    // Calcular totales generales
+    const totalCompanyLiters = vehicleSummaries.reduce((sum, v) => sum + v.totalLiters, 0);
+    const totalCompanyCost = vehicleSummaries.reduce((sum, v) => sum + v.totalCost, 0);
+    const totalRecords = vehicleSummaries.reduce((sum, v) => sum + v.recordCount, 0);
+    
+    // Agrupar por tipo de vehículo
+    const byVehicleType = vehicleSummaries.reduce((acc, vehicle) => {
+      const type = vehicle.vehicleType;
+      if (!acc[type]) {
+        acc[type] = {
+          count: 0,
+          totalLiters: 0,
+          totalCost: 0,
+          recordCount: 0
+        };
+      }
+      acc[type].count += 1;
+      acc[type].totalLiters += vehicle.totalLiters;
+      acc[type].totalCost += vehicle.totalCost;
+      acc[type].recordCount += vehicle.recordCount;
+      return acc;
+    }, {});
+
+    // Agrupar por sucursal
+    const byBranch = vehicleSummaries.reduce((acc, vehicle) => {
+      const branch = vehicle.branch;
+      if (!acc[branch]) {
+        acc[branch] = {
+          count: 0,
+          totalLiters: 0,
+          totalCost: 0,
+          recordCount: 0
+        };
+      }
+      acc[branch].count += 1;
+      acc[branch].totalLiters += vehicle.totalLiters;
+      acc[branch].totalCost += vehicle.totalCost;
+      acc[branch].recordCount += vehicle.recordCount;
+      return acc;
+    }, {});
+
+    res.json({
+      period: {
+        year: targetYear,
+        month: targetMonth,
+        monthName: new Date(targetYear, targetMonth - 1).toLocaleString('es-ES', { month: 'long' }),
+        startDate,
+        endDate
+      },
+      summary: {
+        totalVehicles: vehicles.length,
+        vehiclesWithRecords: vehicleSummaries.filter(v => v.recordCount > 0).length,
+        totalLiters: parseFloat(totalCompanyLiters.toFixed(2)),
+        totalCost: parseFloat(totalCompanyCost.toFixed(2)),
+        totalRecords,
+        averagePricePerLiter: totalCompanyLiters > 0 ? parseFloat((totalCompanyCost / totalCompanyLiters).toFixed(2)) : null
+      },
+      vehicles: vehicleSummaries,
+      byVehicleType,
+      byBranch
+    });
+
+  } catch (error) {
+    console.error('Error obteniendo resumen de combustible por empresa:', error);
     res.status(500).json({ message: 'Error interno del servidor' });
   }
 });

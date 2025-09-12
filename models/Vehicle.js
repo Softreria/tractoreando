@@ -665,6 +665,11 @@ Vehicle.associate = (models) => {
     foreignKey: 'vehicleId',
     as: 'maintenances'
   });
+  
+  Vehicle.hasMany(models.FuelRecord, {
+    foreignKey: 'vehicleId',
+    as: 'fuelRecords'
+  });
 };
 
 module.exports = Vehicle;

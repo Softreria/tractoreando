@@ -11,6 +11,8 @@ import Dashboard from './pages/Dashboard';
 import Companies from './pages/Companies';
 import Branches from './pages/Branches';
 import Vehicles from './pages/Vehicles';
+import VehicleFuel from './pages/VehicleFuel';
+import FuelSummaryPage from './pages/FuelSummaryPage';
 import Maintenance from './pages/Maintenance';
 import Users from './pages/Users';
 import Profile from './pages/Profile';
@@ -60,6 +62,8 @@ function App() {
       <Route path="/companies" element={<ProtectedRoute><Layout><Companies /></Layout></ProtectedRoute>} />
       <Route path="/branches" element={<ProtectedRoute><Layout><Branches /></Layout></ProtectedRoute>} />
       <Route path="/vehicles" element={<ProtectedRoute><Layout><Vehicles /></Layout></ProtectedRoute>} />
+      <Route path="/vehicles/:vehicleId/fuel" element={<ProtectedRoute><Layout><VehicleFuel /></Layout></ProtectedRoute>} />
+      <Route path="/fuel-summary" element={<ProtectedRoute><Layout><FuelSummaryPage /></Layout></ProtectedRoute>} />
       <Route path="/maintenance" element={<ProtectedRoute><Layout><Maintenance /></Layout></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute><Layout><Users /></Layout></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><Layout><Reports /></Layout></ProtectedRoute>} />

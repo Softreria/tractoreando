@@ -6,6 +6,7 @@ const Company = require('./Company');
 const Branch = require('./Branch');
 const Vehicle = require('./Vehicle');
 const Maintenance = require('./Maintenance');
+const FuelRecord = require('./FuelRecord');
 
 // Crear objeto con todos los modelos
 const models = {
@@ -13,7 +14,8 @@ const models = {
   Company,
   Branch,
   Vehicle,
-  Maintenance
+  Maintenance,
+  FuelRecord
 };
 
 // Configurar asociaciones
