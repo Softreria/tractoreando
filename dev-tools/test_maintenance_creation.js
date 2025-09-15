@@ -20,7 +20,7 @@ async function testMaintenanceCreation() {
     for (const credentials of credentialsList) {
       try {
         console.log(`   Probando: ${credentials.email} / ${credentials.password}`);
-        const loginResponse = await axios.post('http://localhost:3002/api/auth/login', credentials);
+        const loginResponse = await axios.post('http://localhost:8001/api/auth/login', credentials);
         token = loginResponse.data.token;
         successCredentials = credentials;
         console.log('   ✅ Login exitoso!');
@@ -35,7 +35,7 @@ async function testMaintenanceCreation() {
       console.log('   Verificando si el servidor está ejecutándose...');
       
       try {
-        await axios.get('http://localhost:3002/api/health');
+        await axios.get('http://localhost:8001/api/health');
         console.log('   ✅ Servidor está ejecutándose');
       } catch (error) {
         console.log('   ❌ Servidor no responde. Asegúrate de que esté ejecutándose.');
@@ -49,7 +49,7 @@ async function testMaintenanceCreation() {
     
     // Paso 2: Obtener lista de vehículos
     console.log('\n2. 🚗 Obteniendo lista de vehículos...');
-    const vehiclesResponse = await axios.get('http://localhost:3002/api/vehicles', {
+    const vehiclesResponse = await axios.get('http://localhost:8001/api/vehicles', {
       headers: {
         'Authorization': `Bearer ${token}`
       }
@@ -101,7 +101,7 @@ async function testMaintenanceCreation() {
     console.log(`   - Fecha programada: ${maintenanceData.scheduledDate}`);
     console.log(`   - Descripción: ${maintenanceData.description}`);
     
-    const maintenanceResponse = await axios.post('http://localhost:3002/api/maintenance', maintenanceData, {
+    const maintenanceResponse = await axios.post('http://localhost:8001/api/maintenance', maintenanceData, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -115,7 +115,7 @@ async function testMaintenanceCreation() {
     
     // Paso 4: Verificar que el mantenimiento se creó correctamente
     console.log('\n4. ✅ Verificando mantenimiento creado...');
-    const verifyResponse = await axios.get(`http://localhost:3002/api/maintenance/${maintenanceResponse.data.id}`, {
+    const verifyResponse = await axios.get(`http://localhost:8001/api/maintenance/${maintenanceResponse.data.id}`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }
@@ -145,7 +145,7 @@ async function testMaintenanceCreation() {
         
         // Información adicional para debug
         try {
-          const userResponse = await axios.get('http://localhost:3002/api/auth/me', {
+          const userResponse = await axios.get('http://localhost:8001/api/auth/me', {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           console.error(`   Usuario companyId: ${userResponse.data.companyId}`);

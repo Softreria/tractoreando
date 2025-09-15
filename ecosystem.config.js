@@ -27,7 +27,7 @@ module.exports = {
       },
       env_development: {
         NODE_ENV: 'development',
-        PORT: 8000,
+        PORT: 8001,
         DB_NAME: 'tractoreando_dev',
         DB_USER: 'postgres',
         DB_PASSWORD: 'postgres',

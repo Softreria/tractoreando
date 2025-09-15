@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 // Configuración
-const API_BASE = 'http://localhost:3002/api';
+const API_BASE = 'http://localhost:8001/api';
 const FRONTEND_URL = 'http://localhost:3000';
 
 // Credenciales a probar

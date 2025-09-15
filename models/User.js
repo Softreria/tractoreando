@@ -270,7 +270,14 @@ User.init({
     }),
     get() {
       const value = this.getDataValue('permissions');
-      return value ? JSON.parse(value) : {};
+      if (!value) return {};
+      if (typeof value === 'object') return value;
+      try {
+        return JSON.parse(value);
+      } catch (e) {
+        console.error('Error parsing permissions JSON:', e);
+        return {};
+      }
     },
     set(value) {
       this.setDataValue('permissions', JSON.stringify(value || {}));
@@ -293,7 +300,14 @@ User.init({
     }),
     get() {
       const value = this.getDataValue('preferences');
-      return value ? JSON.parse(value) : {};
+      if (!value) return {};
+      if (typeof value === 'object') return value;
+      try {
+        return JSON.parse(value);
+      } catch (e) {
+        console.error('Error parsing preferences JSON:', e);
+        return {};
+      }
     },
     set(value) {
       this.setDataValue('preferences', JSON.stringify(value || {}));

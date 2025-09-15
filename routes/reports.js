@@ -1204,7 +1204,7 @@ function getGroupFormat(groupBy) {
 function getSequelizeGroupFormat(groupBy) {
   switch (groupBy) {
     case 'day':
-      return Maintenance.sequelize.fn('DATE', Maintenance.sequelize.col('completedDate'));
+      return Maintenance.sequelize.cast(Maintenance.sequelize.col('completedDate'), 'DATE');
     case 'week':
       return Maintenance.sequelize.fn('DATE_TRUNC', 'week', Maintenance.sequelize.col('completedDate'));
     case 'month':
@@ -1354,6 +1354,7 @@ async function getBranchStats(baseQuery, user) {
 async function getMaintenanceChart(baseQuery) {
   try {
     const last30Days = moment().subtract(30, 'days').startOf('day');
+    const { sequelize } = require('../config/database');
     const maintenances = await Maintenance.findAll({
       where: {
         ...baseQuery,
@@ -1362,11 +1363,11 @@ async function getMaintenanceChart(baseQuery) {
         }
       },
       attributes: [
-        [require('sequelize').fn('DATE', require('sequelize').col('createdAt')), 'date'],
-        [require('sequelize').fn('COUNT', require('sequelize').col('id')), 'count']
+        [sequelize.fn('DATE_TRUNC', 'day', sequelize.col('createdAt')), 'date'],
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
       ],
-      group: [require('sequelize').fn('DATE', require('sequelize').col('createdAt'))],
-      order: [[require('sequelize').fn('DATE', require('sequelize').col('createdAt')), 'ASC']]
+      group: [sequelize.fn('DATE_TRUNC', 'day', sequelize.col('createdAt'))],
+      order: [[sequelize.fn('DATE_TRUNC', 'day', sequelize.col('createdAt')), 'ASC']]
     });
 
     // Crear array con todos los días de los últimos 30 días

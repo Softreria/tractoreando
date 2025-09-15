@@ -47,6 +47,7 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
+import api from '../../services/api';
 
 const drawerWidth = 280;
 
@@ -120,16 +121,8 @@ const Layout = ({ children }) => {
         const token = localStorage.getItem('token');
         if (!token) return;
 
-        const response = await fetch('/api/dashboard', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setNotifications(data.recentAlerts || []);
-        }
+        const response = await api.get('/reports/dashboard');
+        setNotifications(response.data.alerts || []);
       } catch (error) {
         console.error('Error fetching notifications:', error);
       }
