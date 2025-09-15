@@ -229,7 +229,7 @@ router.get('/:id', [
   try {
     const user = await User.findByPk(req.params.id, {
       include: [
-        { model: Company, as: 'company', attributes: ['name', 'cif'] },
+        { model: Company, as: 'company', attributes: ['name', 'taxId'] },
         { model: Branch, as: 'branch', attributes: ['name', 'code', 'address'] }
       ],
       attributes: { exclude: ['password', 'resetPasswordToken', 'resetPasswordExpires'] }

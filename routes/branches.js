@@ -116,7 +116,7 @@ router.get('/:id', [
   try {
     const branch = await Branch.findByPk(req.params.id, {
       include: [
-        { model: Company, as: 'company', attributes: ['name', 'cif'] },
+        { model: Company, as: 'company', attributes: ['name', 'taxId'] },
         { model: User, as: 'createdBy', attributes: ['firstName', 'lastName', 'email'] }
       ]
     });

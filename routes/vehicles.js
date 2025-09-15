@@ -189,7 +189,7 @@ router.get('/:id', [
   try {
     const vehicle = await Vehicle.findByPk(req.params.id, {
       include: [
-        { model: Company, as: 'company', attributes: ['id', 'name', 'cif'] },
+        { model: Company, as: 'company', attributes: ['id', 'name', 'taxId'] },
         { model: Branch, as: 'branch', attributes: ['id', 'name', 'code', 'address'] },
         { model: User, as: 'createdBy', attributes: ['firstName', 'lastName', 'email'] },
         { model: User, as: 'lastModifiedBy', attributes: ['firstName', 'lastName'] }

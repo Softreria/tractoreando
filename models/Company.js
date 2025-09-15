@@ -110,4 +110,27 @@ Company.init({
   ]
 });
 
+// Definir asociaciones
+Company.associate = (models) => {
+  Company.hasMany(models.User, {
+    foreignKey: 'companyId',
+    as: 'users'
+  });
+  
+  Company.hasMany(models.Branch, {
+    foreignKey: 'companyId',
+    as: 'branches'
+  });
+  
+  Company.hasMany(models.Vehicle, {
+    foreignKey: 'companyId',
+    as: 'vehicles'
+  });
+  
+  Company.hasMany(models.Maintenance, {
+    foreignKey: 'companyId',
+    as: 'maintenances'
+  });
+};
+
 module.exports = Company;

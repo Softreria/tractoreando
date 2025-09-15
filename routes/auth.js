@@ -120,8 +120,10 @@ router.post('/login', [
   body('password', 'Password es requerido').exists()
 ], async (req, res) => {
   try {
+    console.log('🔍 Iniciando proceso de login...');
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log('❌ Errores de validación:', errors.array());
       return res.status(400).json({ 
         message: 'Datos inválidos', 
         errors: errors.array() 
@@ -129,15 +131,17 @@ router.post('/login', [
     }
 
     const { email, password } = req.body;
+    console.log('📧 Email recibido:', email);
 
     // Buscar usuario
+    console.log('🔍 Buscando usuario en la base de datos...');
     const user = await User.findOne({
       where: { email },
       include: [
         {
           model: Company,
           as: 'company',
-          attributes: ['name', 'cif', 'isActive']
+          attributes: ['name', 'taxId', 'isActive']
         },
         {
           model: Branch,
@@ -148,11 +152,15 @@ router.post('/login', [
     });
 
     if (!user) {
+      console.log('❌ Usuario no encontrado');
       return res.status(400).json({ message: 'Credenciales inválidas' });
     }
 
+    console.log('✅ Usuario encontrado:', user.id, user.email, user.role);
+
     // Verificar si la cuenta está bloqueada
     if (user.isLocked) {
+      console.log('🔒 Cuenta bloqueada');
       return res.status(423).json({ 
         message: 'Cuenta bloqueada temporalmente por múltiples intentos fallidos' 
       });
@@ -160,29 +168,38 @@ router.post('/login', [
 
     // Verificar si el usuario está activo
     if (!user.isActive) {
+      console.log('❌ Usuario inactivo');
       return res.status(401).json({ message: 'Usuario inactivo' });
     }
 
     // Verificar si la empresa está activa (solo para usuarios que no son super_admin)
     if (user.role !== 'super_admin' && (!user.company || !user.company.isActive)) {
+      console.log('❌ Empresa inactiva');
       return res.status(401).json({ message: 'Empresa inactiva' });
     }
 
     // Verificar password
+    console.log('🔐 Verificando contraseña...');
     const isMatch = await user.comparePassword(password);
+    console.log('🔐 Resultado de verificación:', isMatch);
+    
     if (!isMatch) {
+      console.log('❌ Contraseña incorrecta');
       await user.incLoginAttempts();
       return res.status(400).json({ message: 'Credenciales inválidas' });
     }
 
     // Reset intentos de login y actualizar último login
+    console.log('🔄 Reseteando intentos de login...');
     await user.resetLoginAttempts();
     user.lastLogin = new Date().toISOString();
     await user.save();
 
     // Generar token
+    console.log('🎫 Generando token...');
     const token = generateToken(user.id);
 
+    console.log('✅ Login exitoso para:', user.email);
     res.json({
       message: 'Login exitoso',
       token,
@@ -190,7 +207,8 @@ router.post('/login', [
     });
 
   } catch (error) {
-    console.error('Error en login:', error);
+    console.error('💥 Error en login:', error);
+    console.error('💥 Stack trace:', error.stack);
     res.status(500).json({ message: 'Error interno del servidor' });
   }
 });
@@ -205,7 +223,7 @@ router.get('/me', auth, async (req, res) => {
         {
           model: Company,
           as: 'company',
-          attributes: ['id', 'name', 'cif']
+          attributes: ['id', 'name', 'taxId']
         },
         {
           model: Branch,
@@ -233,7 +251,7 @@ router.get('/profile', auth, async (req, res) => {
   try {
     const user = await User.findByPk(req.user.id, {
       include: [
-        {          model: Company,          as: 'company',          attributes: ['name', 'cif', 'settings']        },
+        {          model: Company,          as: 'company',          attributes: ['name', 'taxId', 'settings']        },
         {
           model: Branch,
           as: 'branch',
@@ -284,7 +302,7 @@ router.put('/profile', [
         {
           model: Company,
           as: 'company',
-          attributes: ['name', 'cif']
+          attributes: ['name', 'taxId']
         },
         {
           model: Branch,

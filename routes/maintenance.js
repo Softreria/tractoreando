@@ -151,7 +151,7 @@ router.get('/:id', [
         {
           model: require('../models/Company'),
           as: 'company',
-          attributes: ['name', 'cif']
+          attributes: ['name', 'taxId']
         },
         {
           model: require('../models/Branch'),
