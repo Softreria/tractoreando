@@ -38,7 +38,9 @@ import {
   Tabs,
   TextField,
   Tooltip,
-  Typography
+  Typography,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   Add,
@@ -70,9 +72,14 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
 import documentService from '../services/documentService';
+import VehicleCard from '../components/VehicleCard';
+import MobileFilters from '../components/MobileFilters';
 
 const Vehicles = () => {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState('');
@@ -605,89 +612,161 @@ const Vehicles = () => {
         )}
       </Box>
 
-      {/* Filtros */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={3}>
-              <TextField
-                fullWidth
-                placeholder="Buscar vehículos..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Search />
-                    </InputAdornment>
-                  )
-                }}
-              />
-            </Grid>
-            <Grid item xs={12} md={2}>
-              <FormControl fullWidth>
-                <InputLabel>Delegación</InputLabel>
-                <Select
-                  value={filterBranch}
-                  label="Delegación"
-                  onChange={(e) => setFilterBranch(e.target.value)}
+      {/* Filtros - Responsive */}
+      {isMobile ? (
+        // Vista móvil con drawer de filtros
+        <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
+          <TextField
+            fullWidth
+            placeholder="Buscar vehículos..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search />
+                </InputAdornment>
+              )
+            }}
+            sx={{ flex: 1 }}
+          />
+          <MobileFilters
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            filterStatus={filterStatus}
+            setFilterStatus={setFilterStatus}
+            filterBranch={filterBranch}
+            setFilterBranch={setFilterBranch}
+            filterType={filterType}
+            setFilterType={setFilterType}
+            branches={branchesData || []}
+            vehicleTypes={vehicleTypes}
+          />
+        </Box>
+      ) : (
+        // Vista de escritorio con filtros en línea
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12} md={3}>
+                <TextField
+                  fullWidth
+                  placeholder="Buscar vehículos..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Search />
+                      </InputAdornment>
+                    )
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} md={2}>
+                <FormControl fullWidth>
+                  <InputLabel>Delegación</InputLabel>
+                  <Select
+                    value={filterBranch}
+                    label="Delegación"
+                    onChange={(e) => setFilterBranch(e.target.value)}
+                  >
+                    <MenuItem value="">Todas</MenuItem>
+                    {branchesData?.map((branch) => (
+                      <MenuItem key={branch.id} value={branch.id}>
+                        {branch.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={2}>
+                <FormControl fullWidth>
+                  <InputLabel>Tipo</InputLabel>
+                  <Select
+                    value={filterType}
+                    label="Tipo"
+                    onChange={(e) => setFilterType(e.target.value)}
+                  >
+                    <MenuItem value="">Todos</MenuItem>
+                    {vehicleTypes.map((type) => (
+                      <MenuItem key={type.value} value={type.value}>
+                        {type.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={2}>
+                <FormControl fullWidth>
+                  <InputLabel>Estado</InputLabel>
+                  <Select
+                    value={filterStatus}
+                    label="Estado"
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                  >
+                    <MenuItem value="all">Todos</MenuItem>
+                    <MenuItem value="activo">Activos</MenuItem>
+                    <MenuItem value="mantenimiento">En Mantenimiento</MenuItem>
+                    <MenuItem value="inactivo">Inactivos</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={3}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={<FilterList />}
                 >
-                  <MenuItem value="">Todas</MenuItem>
-                  {branchesData?.map((branch) => (
-                    <MenuItem key={branch.id} value={branch.id}>
-                      {branch.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+                  Más Filtros
+                </Button>
+              </Grid>
             </Grid>
-            <Grid item xs={12} md={2}>
-              <FormControl fullWidth>
-                <InputLabel>Tipo</InputLabel>
-                <Select
-                  value={filterType}
-                  label="Tipo"
-                  onChange={(e) => setFilterType(e.target.value)}
-                >
-                  <MenuItem value="">Todos</MenuItem>
-                  {vehicleTypes.map((type) => (
-                    <MenuItem key={type.value} value={type.value}>
-                      {type.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} md={2}>
-              <FormControl fullWidth>
-                <InputLabel>Estado</InputLabel>
-                <Select
-                  value={filterStatus}
-                  label="Estado"
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                >
-                  <MenuItem value="all">Todos</MenuItem>
-                  <MenuItem value="activo">Activos</MenuItem>
-                  <MenuItem value="mantenimiento">En Mantenimiento</MenuItem>
-                  <MenuItem value="inactivo">Inactivos</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <Button
-                fullWidth
-                variant="outlined"
-                startIcon={<FilterList />}
-              >
-                Más Filtros
-              </Button>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Tabla de vehículos */}
-      <Card>
+      {/* Vista de vehículos - Responsive */}
+      {isMobile ? (
+        // Vista móvil con tarjetas
+        <Box>
+          {filteredVehicles.map((vehicle) => {
+            const alertCount = (vehicle.alerts?.length || 0);
+            const serviceProgress = vehicle.maintenanceSchedule?.oilChange?.intervalKm > 0 
+              ? Math.min((vehicle.odometer?.current / vehicle.maintenanceSchedule.oilChange.intervalKm) * 100, 100)
+              : 0;
+            
+            return (
+              <VehicleCard
+                key={vehicle.id}
+                vehicle={vehicle}
+                onMenuClick={(e, vehicle) => handleMenuOpen(e, vehicle)}
+                vehicleTypes={vehicleTypes}
+                alertCount={alertCount}
+                serviceProgress={serviceProgress}
+              />
+            );
+          })}
+          
+          {/* Paginación móvil */}
+          <Card sx={{ mt: 2 }}>
+            <TablePagination
+              rowsPerPageOptions={[5, 10, 25]}
+              component="div"
+              count={totalCount}
+              rowsPerPage={rowsPerPage}
+              page={page}
+              onPageChange={(e, newPage) => setPage(newPage)}
+              onRowsPerPageChange={(e) => {
+                setRowsPerPage(parseInt(e.target.value, 10));
+                setPage(0);
+              }}
+            />
+          </Card>
+        </Box>
+      ) : (
+        // Vista de escritorio con tabla
+        <Card>
         <TableContainer>
           <Table>
             <TableHead>
@@ -818,7 +897,8 @@ const Vehicles = () => {
             setPage(0);
           }}
         />
-      </Card>
+        </Card>
+      )}
 
       {/* Menú de acciones */}
       <Menu

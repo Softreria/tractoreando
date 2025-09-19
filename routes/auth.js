@@ -20,7 +20,7 @@ router.post('/register', [
   body('password', 'Password debe tener al menos 6 caracteres').isLength({ min: 6 }),
   body('companyName', 'Nombre de empresa es requerido').notEmpty().trim(),
   body('branchName', 'Nombre de sucursal es requerido').notEmpty().trim(),
-  body('companyCif', 'CIF de empresa es requerido').notEmpty().trim(),
+  body('companyTaxId', 'Tax ID de empresa es requerido').notEmpty().trim(),
   body('companyAddress', 'Dirección de empresa').optional().trim(),
   body('companyPhone', 'Teléfono de empresa').optional().trim(),
   body('companyEmail', 'Email de empresa').optional().isEmail().normalizeEmail()
@@ -31,10 +31,10 @@ router.post('/register', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { name, lastName, email, password, companyName, branchName, companyCif, companyAddress, companyPhone, companyEmail } = req.body;
+    const { name, lastName, email, password, companyName, branchName, companyTaxId, companyAddress, companyPhone, companyEmail } = req.body;
 
     console.log('Datos recibidos:', req.body);
-    console.log('CIF recibido:', companyCif);
+    console.log('Tax ID recibido:', companyTaxId);
 
     // Verificar si el usuario ya existe
     let user = await User.findOne({ email });
@@ -43,9 +43,9 @@ router.post('/register', [
     }
 
     // Crear empresa
-    const company = new Company({
+    const company = await Company.create({
       name: companyName,
-      cif: companyCif,
+      taxId: companyTaxId,
       address: {
         street: companyAddress || 'Calle Principal 123',
         city: 'Madrid',
@@ -66,7 +66,6 @@ router.post('/register', [
       },
       isActive: true
     });
-    await company.save();
 
     // Crear sucursal
     const branch = await Branch.create({
@@ -136,19 +135,7 @@ router.post('/login', [
     // Buscar usuario
     console.log('🔍 Buscando usuario en la base de datos...');
     const user = await User.findOne({
-      where: { email },
-      include: [
-        {
-          model: Company,
-          as: 'company',
-          attributes: ['name', 'taxId', 'isActive']
-        },
-        {
-          model: Branch,
-          as: 'branch',
-          attributes: ['name', 'code']
-        }
-      ]
+      where: { email }
     });
 
     if (!user) {
@@ -173,9 +160,16 @@ router.post('/login', [
     }
 
     // Verificar si la empresa está activa (solo para usuarios que no son super_admin)
-    if (user.role !== 'super_admin' && (!user.company || !user.company.isActive)) {
-      console.log('❌ Empresa inactiva');
-      return res.status(401).json({ message: 'Empresa inactiva' });
+    if (user.role !== 'super_admin') {
+      if (!user.company) {
+        console.log('❌ Usuario sin empresa asignada');
+        return res.status(401).json({ message: 'Usuario sin empresa asignada' });
+      }
+      
+      if (!user.company.isActive) {
+        console.log('❌ Empresa inactiva');
+        return res.status(401).json({ message: 'Empresa inactiva' });
+      }
     }
 
     // Verificar password
@@ -251,11 +245,15 @@ router.get('/profile', auth, async (req, res) => {
   try {
     const user = await User.findByPk(req.user.id, {
       include: [
-        {          model: Company,          as: 'company',          attributes: ['name', 'taxId', 'settings']        },
+        {
+          model: Company,
+          as: 'company',
+          attributes: ['name', 'settings', 'isActive']
+        },
         {
           model: Branch,
           as: 'branch',
-          attributes: ['name', 'code', 'address']
+          attributes: ['name', 'code']
         }
       ]
     });

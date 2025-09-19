@@ -2,11 +2,8 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
 const { Op } = require('sequelize');
-const User = require('../models/User');
-const Company = require('../models/Company');
-const Branch = require('../models/Branch');
-const { auth, requireRole, checkPermission, checkCompanyAccess, logActivity } = require('../middleware/auth');
-const { checkCompanyAdmin, checkSameCompanyUser, checkUserLimits, validateAssignableRoles } = require('../middleware/companyAdmin');
+const { User, Company, Branch, Maintenance } = require('../models');
+const { auth, checkPermission, checkCompanyAccess, logActivity } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -588,7 +585,6 @@ router.delete('/:id', [
     }
 
     // Verificar si tiene actividad (mantenimientos asignados, etc.)
-    const Maintenance = require('../models/Maintenance');
     const maintenanceCount = await Maintenance.count({ 
       where: {
         [Op.or]: [

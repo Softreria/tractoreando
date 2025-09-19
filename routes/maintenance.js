@@ -1,10 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { Op } = require('sequelize');
-const Maintenance = require('../models/Maintenance');
-const Vehicle = require('../models/Vehicle');
-const Branch = require('../models/Branch');
-const Company = require('../models/Company');
+const { Maintenance, Vehicle, Branch, Company, User } = require('../models');
 const { auth, checkPermission, checkCompanyAccess, checkBranchAccess, logActivity } = require('../middleware/auth');
 
 const router = express.Router();
@@ -90,22 +87,22 @@ router.get('/', [
           attributes: ['plateNumber', 'make', 'model', 'year']
         },
         {
-          model: require('../models/Company'),
+          model: Company,
           as: 'company',
           attributes: ['name']
         },
         {
-          model: require('../models/Branch'),
+          model: Branch,
           as: 'branch',
           attributes: ['name', 'code']
         },
         {
-          model: require('../models/User'),
+          model: User,
           as: 'assignedTo',
           attributes: ['firstName', 'lastName']
         },
         {
-          model: require('../models/User'),
+          model: User,
           as: 'createdBy',
           attributes: ['firstName', 'lastName']
         }
@@ -149,22 +146,22 @@ router.get('/:id', [
           attributes: ['plateNumber', 'make', 'model', 'year', 'vin', 'odometer']
         },
         {
-          model: require('../models/Company'),
+          model: Company,
           as: 'company',
           attributes: ['name', 'taxId']
         },
         {
-          model: require('../models/Branch'),
+          model: Branch,
           as: 'branch',
           attributes: ['name', 'code', 'address']
         },
         {
-          model: require('../models/User'),
+          model: User,
           as: 'assignedTo',
           attributes: ['firstName', 'lastName', 'email', 'phone']
         },
         {
-          model: require('../models/User'),
+          model: User,
           as: 'createdBy',
           attributes: ['firstName', 'lastName', 'email']
         }
@@ -300,22 +297,22 @@ router.post('/', [
           attributes: ['plateNumber', 'make', 'model', 'year']
         },
         {
-          model: require('../models/Company'),
+          model: Company,
           as: 'company',
           attributes: ['name']
         },
         {
-          model: require('../models/Branch'),
+          model: Branch,
           as: 'branch',
           attributes: ['name', 'code']
         },
         {
-          model: require('../models/User'),
+          model: User,
           as: 'assignedTo',
           attributes: ['firstName', 'lastName']
         },
         {
-          model: require('../models/User'),
+          model: User,
           as: 'createdBy',
           attributes: ['firstName', 'lastName']
         }
@@ -398,27 +395,27 @@ router.put('/:id', [
           attributes: ['plateNumber', 'make', 'model', 'year']
         },
         {
-          model: require('../models/Company'),
+          model: Company,
           as: 'company',
           attributes: ['name']
         },
         {
-          model: require('../models/Branch'),
+          model: Branch,
           as: 'branch',
           attributes: ['name', 'code']
         },
         {
-          model: require('../models/User'),
+          model: User,
           as: 'assignedTo',
           attributes: ['firstName', 'lastName']
         },
         {
-          model: require('../models/User'),
+          model: User,
           as: 'createdBy',
           attributes: ['firstName', 'lastName']
         },
         {
-          model: require('../models/User'),
+          model: User,
           as: 'lastModifiedBy',
           attributes: ['firstName', 'lastName']
         }
@@ -504,7 +501,7 @@ router.put('/:id/status', [
           attributes: ['plateNumber', 'make', 'model', 'year']
         },
         {
-          model: require('../models/User'),
+          model: User,
           as: 'assignedTo',
           attributes: ['firstName', 'lastName']
         }
@@ -574,7 +571,7 @@ router.post('/:id/time', [
     const updatedMaintenance = await Maintenance.findByPk(maintenance.id, {
       include: [
         {
-          model: require('../models/User'),
+          model: User,
           as: 'timeTracking.user',
           attributes: ['firstName', 'lastName']
         }
@@ -834,7 +831,7 @@ router.get('/calendar/events', [
           attributes: ['name']
         },
         {
-          model: require('../models/User'),
+          model: User,
           as: 'assignedTo',
           attributes: ['firstName', 'lastName']
         }

@@ -1,12 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { auth, checkPermission, logActivity } = require('../middleware/auth');
-const Vehicle = require('../models/Vehicle');
-const Maintenance = require('../models/Maintenance');
-const Company = require('../models/Company');
-const Branch = require('../models/Branch');
-const User = require('../models/User');
-const moment = require('moment');
+const { Vehicle, Maintenance, Company, Branch, User } = require('../models');
 const fs = require('fs').promises;
 const path = require('path');
 
@@ -209,7 +204,8 @@ router.post('/backup', [
     }
 
     // Guardar backup en archivo
-    const filename = `backup-${moment().format('YYYY-MM-DD-HH-mm-ss')}.json`;
+    const now = new Date();
+    const filename = `backup-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}.json`;
     const filepath = path.join(backupDir, filename);
     await fs.writeFile(filepath, JSON.stringify(backupData, null, 2));
 

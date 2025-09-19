@@ -1,9 +1,6 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const Company = require('../models/Company');
-const User = require('../models/User');
-const Branch = require('../models/Branch');
-const Vehicle = require('../models/Vehicle');
+const { Company, User, Branch, Vehicle } = require('../models');
 const { auth, authorize, checkPermission, logActivity } = require('../middleware/auth');
 
 const router = express.Router();
@@ -30,7 +27,7 @@ router.get('/', [
     if (search) {
       whereClause[Op.or] = [
         { name: { [Op.iLike]: `%${search}%` } },
-        { cif: { [Op.iLike]: `%${search}%` } }
+        { taxId: { [Op.iLike]: `%${search}%` } }
       ];
     }
     if (status) {
@@ -142,7 +139,7 @@ router.post('/', [
   authorize('super_admin'),
   checkPermission('companies', 'create'),
   body('name', 'Nombre de empresa es requerido').notEmpty().trim(),
-  body('cif', 'CIF es requerido').notEmpty().trim(),
+  body('taxId', 'Tax ID es requerido').notEmpty().trim(),
   body('adminData.firstName', 'Nombre del administrador es requerido').notEmpty().trim(),
   body('adminData.lastName', 'Apellidos del administrador es requerido').notEmpty().trim(),
   body('adminData.email', 'Email del administrador es requerido').isEmail().normalizeEmail(),
@@ -158,12 +155,12 @@ router.post('/', [
       });
     }
 
-    const { name, cif, address, contact, settings, administrator, adminData } = req.body;
+    const { name, taxId, address, contact, settings, administrator, adminData } = req.body;
 
-    // Verificar si el CIF ya existe
-    const existingCompany = await Company.findOne({ where: { cif: cif.toUpperCase() } });
+    // Verificar si el Tax ID ya existe
+    const existingCompany = await Company.findOne({ where: { taxId: taxId.toUpperCase() } });
     if (existingCompany) {
-      return res.status(400).json({ message: 'El CIF ya está registrado' });
+      return res.status(400).json({ message: 'El Tax ID ya está registrado' });
     }
 
     // Verificar si el email del administrador ya existe
@@ -175,7 +172,7 @@ router.post('/', [
     // Crear la empresa
     const company = await Company.create({
       name,
-      cif: cif.toUpperCase(),
+      taxId: taxId.toUpperCase(),
       address,
       contact,
       settings,
@@ -263,7 +260,7 @@ router.put('/:id', [
   auth,
   checkPermission('companies', 'update'),
   body('name', 'Nombre de empresa es requerido').optional().notEmpty().trim(),
-  body('cif', 'CIF es requerido').optional().notEmpty().trim(),
+  body('taxId', 'Tax ID es requerido').optional().notEmpty().trim(),
   logActivity('Actualizar empresa')
 ], async (req, res) => {
   try {
@@ -285,19 +282,19 @@ router.put('/:id', [
       return res.status(403).json({ message: 'No tienes acceso a esta empresa' });
     }
 
-    const { name, cif, address, contact, settings, administrator } = req.body;
+    const { name, taxId, address, contact, settings, administrator } = req.body;
 
-    // Si se está actualizando el CIF, verificar que no exista
-    if (cif && cif.toUpperCase() !== company.cif) {
-      const existingCompany = await Company.findOne({ where: { cif: cif.toUpperCase() } });
+    // Si se está actualizando el Tax ID, verificar que no exista
+    if (taxId && taxId.toUpperCase() !== company.taxId) {
+      const existingCompany = await Company.findOne({ where: { taxId: taxId.toUpperCase() } });
       if (existingCompany) {
-        return res.status(400).json({ message: 'El CIF ya está registrado' });
+        return res.status(400).json({ message: 'El Tax ID ya está registrado' });
       }
     }
 
     const updateData = {};
     if (name) updateData.name = name;
-    if (cif) updateData.cif = cif.toUpperCase();
+    if (taxId) updateData.taxId = taxId.toUpperCase();
     
     // Manejo seguro de campos JSON
     if (address) {

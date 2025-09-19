@@ -11,6 +11,7 @@ module.exports = {
       NODE_ENV: 'production',
       PORT: 3000
     },
+    env_file: '.env.production',
     error_file: '/opt/tractoreando/logs/err.log',
     out_file: '/opt/tractoreando/logs/out.log',
     log_file: '/opt/tractoreando/logs/combined.log',

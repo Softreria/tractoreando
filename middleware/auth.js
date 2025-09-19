@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const { User, Company } = require('../models');
 
 // Middleware de autenticación
 const auth = async (req, res, next) => {
@@ -14,7 +14,7 @@ const auth = async (req, res, next) => {
     const user = await User.findByPk(decoded.id, {
       include: [
         {
-          model: require('../models/Company'),
+          model: Company,
           as: 'company',
           attributes: ['name', 'isActive']
         }

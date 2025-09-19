@@ -1,13 +1,8 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { Op } = require('sequelize');
-const Vehicle = require('../models/Vehicle');
-const Branch = require('../models/Branch');
-const Company = require('../models/Company');
-const User = require('../models/User');
-const FuelRecord = require('../models/FuelRecord');
+const { Vehicle, Branch, Company, User, FuelRecord } = require('../models');
 const { auth, checkPermission, checkCompanyAccess, checkBranchAccess, logActivity } = require('../middleware/auth');
-const { checkVehicleLimits } = require('../middleware/companyAdmin');
 
 const router = express.Router();
 

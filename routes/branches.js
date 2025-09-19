@@ -1,11 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const Branch = require('../models/Branch');
-const Company = require('../models/Company');
-const Vehicle = require('../models/Vehicle');
-const User = require('../models/User');
+const { Branch, Company, Vehicle, User, Maintenance } = require('../models');
 const { auth, checkPermission, checkCompanyAccess, logActivity } = require('../middleware/auth');
-const { checkBranchLimits } = require('../middleware/companyAdmin');
 
 const router = express.Router();
 
@@ -71,7 +67,7 @@ router.get('/', [
         const vehicleCount = await Vehicle.count({ where: { branchId: branch.id, isActive: true } });
         const userCount = await User.count({ where: { branchId: branch.id, isActive: true } });
         
-        const Maintenance = require('../models/Maintenance');
+
         const activeMaintenances = await Maintenance.count({ 
           where: { 
             branchId: branch.id, 
@@ -375,7 +371,7 @@ router.put('/:id/activate', [
 
     const { isActive } = req.body;
     
-    const branch = await Branch.findById(req.params.id);
+    const branch = await Branch.findByPk(req.params.id);
     if (!branch) {
       return res.status(404).json({ message: 'Sucursal no encontrada' });
     }
@@ -385,8 +381,7 @@ router.put('/:id/activate', [
       return res.status(403).json({ message: 'No tienes acceso a esta sucursal' });
     }
 
-    branch.isActive = isActive;
-    await branch.save();
+    await branch.update({ isActive });
 
     res.json({
       message: `Sucursal ${isActive ? 'activada' : 'desactivada'} exitosamente`,

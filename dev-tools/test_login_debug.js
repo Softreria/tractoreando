@@ -14,7 +14,7 @@ async function testLogin() {
     try {
       console.log(`\n📧 Probando: ${credentials.email} / ${credentials.password}`);
       
-      const response = await axios.post('http://localhost:8001/api/auth/login', credentials);
+      const response = await axios.post('http://localhost:3000/api/auth/login', credentials);
       
       console.log('✅ Login exitoso!');
       console.log('📋 Respuesta:', JSON.stringify(response.data, null, 2));
@@ -33,7 +33,7 @@ async function testLogin() {
   // Verificar si existe algún usuario en la base de datos
   console.log('\n🔍 Verificando usuarios en la base de datos...');
   try {
-    const healthResponse = await axios.get('http://localhost:8001/api/health');
+    const healthResponse = await axios.get('http://localhost:3000/api/health');
     console.log('✅ Servidor backend está funcionando');
   } catch (error) {
     console.log('❌ Error conectando al backend:', error.message);
