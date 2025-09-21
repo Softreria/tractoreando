@@ -180,7 +180,7 @@ Maintenance.init({
     primaryKey: true
   },
   vehicleId: {
-    type: DataTypes.STRING,
+    type: DataTypes.UUID,
     allowNull: false,
     references: {
       model: 'Vehicles',
@@ -188,7 +188,7 @@ Maintenance.init({
     }
   },
   companyId: {
-    type: DataTypes.STRING,
+    type: DataTypes.UUID,
     allowNull: false,
     references: {
       model: 'Companies',
@@ -196,7 +196,7 @@ Maintenance.init({
     }
   },
   branchId: {
-    type: DataTypes.STRING,
+    type: DataTypes.UUID,
     allowNull: false,
     references: {
       model: 'Branches',

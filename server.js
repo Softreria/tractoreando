@@ -66,6 +66,29 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/settings', require('./routes/settings'));
 
+// Ruta raíz para desarrollo
+if (process.env.NODE_ENV !== 'production') {
+  app.get('/', (req, res) => {
+    res.json({
+      message: 'Tractoreando API - Modo Desarrollo',
+      version: '1.0.0',
+      environment: process.env.NODE_ENV || 'development',
+      endpoints: {
+        health: '/api/health',
+        auth: '/api/auth',
+        companies: '/api/companies',
+        branches: '/api/branches',
+        vehicles: '/api/vehicles',
+        maintenance: '/api/maintenance',
+        users: '/api/users',
+        reports: '/api/reports',
+        settings: '/api/settings'
+      },
+      frontend: 'El frontend de React debe ejecutarse por separado en modo desarrollo'
+    });
+  });
+}
+
 // Servir archivos estáticos en producción
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, 'frontend/build')));
@@ -96,10 +119,14 @@ const connectDB = async () => {
     await sequelize.authenticate();
     console.log('✅ PostgreSQL conectado exitosamente');
     
-    // Sincronizar modelos en desarrollo
+    // Sincronizar modelos en desarrollo sin forzar
     if (process.env.NODE_ENV === 'development') {
-      await sequelize.sync({ force: false });
-      console.log('✅ Modelos sincronizados con la base de datos.');
+      try {
+        await sequelize.sync({ alter: true });
+        console.log('✅ Modelos sincronizados con la base de datos.');
+      } catch (syncError) {
+        console.log('⚠️ Error en sincronización, continuando sin sync:', syncError.message);
+      }
     }
     
     // Iniciar servidor después de conectar a la base de datos
@@ -111,7 +138,18 @@ const connectDB = async () => {
     });
   } catch (error) {
     console.error('❌ Error conectando a PostgreSQL:', error.message);
-    process.exit(1);
+    
+    // En desarrollo, intentar iniciar el servidor sin base de datos
+    if (process.env.NODE_ENV === 'development') {
+      console.log('⚠️ Iniciando servidor sin conexión a base de datos...');
+      const PORT = process.env.PORT || 3000;
+      app.listen(PORT, () => {
+        console.log(`🚀 Servidor ejecutándose en puerto ${PORT} (sin BD)`);
+        console.log(`🌍 Entorno: ${process.env.NODE_ENV || 'development'}`);
+      });
+    } else {
+      process.exit(1);
+    }
   }
 };
 

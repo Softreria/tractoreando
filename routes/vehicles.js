@@ -3,6 +3,7 @@ const { body, validationResult } = require('express-validator');
 const { Op } = require('sequelize');
 const { Vehicle, Branch, Company, User, FuelRecord } = require('../models');
 const { auth, checkPermission, checkCompanyAccess, checkBranchAccess, logActivity } = require('../middleware/auth');
+const { checkVehicleLimits } = require('../middleware/companyAdmin');
 
 const router = express.Router();
 
@@ -151,8 +152,8 @@ router.get('/', [
             active: activeMaintenances,
             last: lastMaintenance,
             next: nextMaintenance,
-            needsOilChange: vehicle.needsOilChange ? vehicle.needsOilChange() : false,
-            needsInspection: vehicle.needsInspection ? vehicle.needsInspection() : false
+            needsOilChange: typeof vehicle.needsOilChange === 'function' ? vehicle.needsOilChange() : false,
+            needsInspection: typeof vehicle.needsInspection === 'function' ? vehicle.needsInspection() : false
           }
         };
       })

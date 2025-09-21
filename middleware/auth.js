@@ -10,8 +10,14 @@ const auth = async (req, res, next) => {
       return res.status(401).json({ message: 'No hay token, acceso denegado' });
     }
     
+    console.log('Token recibido:', token.substring(0, 50) + '...');
+    console.log('JWT_SECRET length:', process.env.JWT_SECRET?.length);
+    console.log('JWT_SECRET:', process.env.JWT_SECRET);
+    
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findByPk(decoded.id, {
+    console.log('Token decodificado:', decoded);
+    
+    const user = await User.findByPk(decoded.userId || decoded.id, {
       include: [
         {
           model: Company,
@@ -20,6 +26,8 @@ const auth = async (req, res, next) => {
         }
       ]
     });
+    
+    console.log('Usuario encontrado:', user ? { id: user.id, email: user.email, role: user.role } : 'No encontrado');
     
     if (!user) {
       return res.status(401).json({ message: 'Token inválido' });
@@ -45,9 +53,13 @@ const auth = async (req, res, next) => {
     }
     
     req.user = user;
+    console.log('Autenticación exitosa para usuario:', user.email);
     next();
   } catch (error) {
     console.error('Error en middleware de autenticación:', error);
+    console.error('JWT_SECRET length:', process.env.JWT_SECRET?.length);
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    console.error('Token recibido:', token?.substring(0, 50) + '...');
     res.status(401).json({ message: 'Token inválido' });
   }
 };

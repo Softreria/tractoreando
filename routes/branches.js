@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { Branch, Company, Vehicle, User, Maintenance } = require('../models');
 const { auth, checkPermission, checkCompanyAccess, logActivity } = require('../middleware/auth');
+const { checkBranchLimits } = require('../middleware/companyAdmin');
 
 const router = express.Router();
 

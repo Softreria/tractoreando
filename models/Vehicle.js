@@ -173,15 +173,15 @@ Vehicle.init({
     }
   },
   companyId: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    references: {
-      model: 'Companies',
-      key: 'id'
-    }
-  },
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: {
+        model: 'Companies',
+        key: 'id'
+      }
+    },
   branchId: {
-    type: DataTypes.STRING,
+    type: DataTypes.UUID,
     allowNull: true,
     references: {
       model: 'Branches',

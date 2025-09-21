@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { ENV_CONFIG } from '../config/environment';
 
 const AuthContext = createContext();
 
@@ -22,7 +23,7 @@ export const AuthProvider = ({ children }) => {
       if (savedToken) {
         setIsLoading(true);
         try {
-          const response = await fetch(`${process.env.REACT_APP_API_URL}/auth/me`, {
+          const response = await fetch(`${ENV_CONFIG.API_URL}/auth/me`, {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${savedToken}`,
@@ -63,7 +64,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/auth/login`, {
+      const response = await fetch(`${ENV_CONFIG.API_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

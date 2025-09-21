@@ -1,7 +1,8 @@
 import axios from 'axios';
+import { ENV_CONFIG, log } from '../config/environment';
 
 // Configuración base de la API
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000/api';
+const API_BASE_URL = ENV_CONFIG.API_URL;
 
 // Crear instancia de axios
 const api = axios.create({
@@ -44,7 +45,7 @@ api.interceptors.response.use(
     const errorMessage = error.response?.data?.message || error.message || 'Error desconocido';
     
     // Log del error para debugging
-    console.error('API Error:', {
+    log.error('API Error:', {
       url: error.config?.url,
       method: error.config?.method,
       status: error.response?.status,

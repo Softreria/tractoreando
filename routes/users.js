@@ -4,6 +4,7 @@ const { body, validationResult } = require('express-validator');
 const { Op } = require('sequelize');
 const { User, Company, Branch, Maintenance } = require('../models');
 const { auth, checkPermission, checkCompanyAccess, logActivity } = require('../middleware/auth');
+const { checkCompanyAdmin, checkUserLimits, validateAssignableRoles, checkSameCompanyUser } = require('../middleware/companyAdmin');
 
 const router = express.Router();
 

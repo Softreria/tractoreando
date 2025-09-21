@@ -22,7 +22,67 @@ class Branch extends Model {
 
   // Método toJSON personalizado
   toJSON() {
-    const values = Object.assign({}, this.get());
+    // Usar dataValues directamente para evitar los getters problemáticos
+    const values = Object.assign({}, this.dataValues);
+    
+    // Procesar address manualmente
+    if (values.address) {
+      try {
+        if (typeof values.address === 'string') {
+          values.address = JSON.parse(values.address);
+        }
+      } catch (error) {
+        console.warn(`Invalid JSON in address field for branch ${this.id}:`, values.address);
+        values.address = {
+          street: null,
+          city: null,
+          state: null,
+          zipCode: null,
+          country: 'España',
+          coordinates: {
+            latitude: null,
+            longitude: null
+          }
+        };
+      }
+    }
+    
+    // Procesar contact manualmente
+    if (values.contact) {
+      try {
+        if (typeof values.contact === 'string') {
+          values.contact = JSON.parse(values.contact);
+        }
+      } catch (error) {
+        console.warn(`Invalid JSON in contact field for branch ${this.id}:`, values.contact);
+        values.contact = {
+          phone: null,
+          email: null,
+          manager: null
+        };
+      }
+    }
+    
+    // Procesar operatingHours manualmente
+    if (values.operatingHours) {
+      try {
+        if (typeof values.operatingHours === 'string') {
+          values.operatingHours = JSON.parse(values.operatingHours);
+        }
+      } catch (error) {
+        console.warn(`Invalid JSON in operatingHours field for branch ${this.id}:`, values.operatingHours);
+        values.operatingHours = {
+          monday: { open: null, close: null, isOpen: true },
+          tuesday: { open: null, close: null, isOpen: true },
+          wednesday: { open: null, close: null, isOpen: true },
+          thursday: { open: null, close: null, isOpen: true },
+          friday: { open: null, close: null, isOpen: true },
+          saturday: { open: null, close: null, isOpen: false },
+          sunday: { open: null, close: null, isOpen: false }
+        };
+      }
+    }
+    
     return values;
   }
 }
@@ -73,14 +133,95 @@ Branch.init({
     }
   },
   address: {
-    type: DataTypes.TEXT,
+    type: DataTypes.JSONB,
     allowNull: false,
     get() {
-      const value = this.getDataValue('address');
-      return value ? JSON.parse(value) : null;
+      try {
+        const value = this.getDataValue('address');
+        if (!value) {
+          return {
+            street: null,
+            city: null,
+            state: null,
+            zipCode: null,
+            country: 'España',
+            coordinates: {
+              latitude: null,
+              longitude: null
+            }
+          };
+        }
+        
+        // Si ya es un objeto, devolverlo directamente
+        if (typeof value === 'object' && value !== null) {
+          return value;
+        }
+        
+        // Si es string, intentar parsearlo
+        if (typeof value === 'string') {
+          // Verificar si es un string válido antes de parsear
+          if (value.trim() === '' || value === 'null' || value === 'undefined') {
+            return {
+              street: null,
+              city: null,
+              state: null,
+              zipCode: null,
+              country: 'España',
+              coordinates: {
+                latitude: null,
+                longitude: null
+              }
+            };
+          }
+          
+          try {
+            const parsed = JSON.parse(value);
+            return parsed;
+          } catch (parseError) {
+            console.warn(`Invalid JSON in address field for branch ${this.id || 'unknown'}:`, value, parseError.message);
+            return {
+              street: null,
+              city: null,
+              state: null,
+              zipCode: null,
+              country: 'España',
+              coordinates: {
+                latitude: null,
+                longitude: null
+              }
+            };
+          }
+        }
+        
+        // Fallback para cualquier otro tipo
+        return {
+          street: null,
+          city: null,
+          state: null,
+          zipCode: null,
+          country: 'España',
+          coordinates: {
+            latitude: null,
+            longitude: null
+          }
+        };
+      } catch (error) {
+        console.error(`Critical error in address getter for branch ${this.id || 'unknown'}:`, error);
+        return {
+          street: null,
+          city: null,
+          state: null,
+          zipCode: null,
+          country: 'España',
+          coordinates: {
+            latitude: null,
+            longitude: null
+          }
+        };
+      }
     },
     set(value) {
-      this.setDataValue('address', JSON.stringify(value));
+      this.setDataValue('address', value);
     },
     validate: {
       isValidAddress(value) {
