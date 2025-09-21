@@ -324,7 +324,7 @@ const Maintenance = () => {
     });
   };
 
-  const filteredMaintenance = maintenanceData?.maintenance || [];
+  const filteredMaintenance = maintenanceData?.maintenances || [];
   const totalCount = maintenanceData?.total || 0;
 
   const maintenanceTypes = [
@@ -524,22 +524,46 @@ const Maintenance = () => {
       {/* Vista de lista */}
       {viewMode === 'list' && (
         <Card>
-          <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Mantenimiento</TableCell>
-                <TableCell>Vehículo</TableCell>
-                <TableCell>Tipo/Prioridad</TableCell>
-                <TableCell>Programación</TableCell>
-                <TableCell>Asignado</TableCell>
-                <TableCell>Progreso</TableCell>
-                <TableCell>Estado</TableCell>
-                <TableCell align="center">Acciones</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredMaintenance.map((maintenance) => {
+          {isLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
+              <Box sx={{ textAlign: 'center' }}>
+                <LinearProgress sx={{ mb: 2, width: 200 }} />
+                <Typography variant="body2" color="text.secondary">
+                  Cargando mantenimientos...
+                </Typography>
+              </Box>
+            </Box>
+          ) : filteredMaintenance.length === 0 ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
+              <Box sx={{ textAlign: 'center' }}>
+                <Build sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  No hay mantenimientos
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  No se encontraron mantenimientos con los filtros aplicados
+                </Typography>
+              </Box>
+            </Box>
+          ) : (
+            <>
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Mantenimiento</TableCell>
+                      <TableCell>Vehículo</TableCell>
+                      <TableCell>Tipo/Prioridad</TableCell>
+                      <TableCell>Programación</TableCell>
+                      <TableCell>Asignado</TableCell>
+                      <TableCell>Progreso</TableCell>
+                      <TableCell>Estado</TableCell>
+                      <TableCell align="center">Acciones</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {filteredMaintenance.map((maintenance) => {
+
                 const progress = maintenance.status === 'completado' ? 100 :
                                 maintenance.status === 'en_proceso' ? 50 :
                                maintenance.status === 'programado' ? 0 : 25;
@@ -662,24 +686,26 @@ const Maintenance = () => {
                   </TableRow>
                 );
               })}
-            </TableBody>
-          </Table>
-          </TableContainer>
-          
-          <TablePagination
-            rowsPerPageOptions={[5, 10, 25]}
-            component="div"
-            count={totalCount}
-            rowsPerPage={rowsPerPage}
-            page={page}
-            onPageChange={(e, newPage) => setPage(newPage)}
-            onRowsPerPageChange={(e) => {
-              setRowsPerPage(parseInt(e.target.value, 10));
-              setPage(0);
-            }}
-          />
-        </Card>
-      )}
+                     </TableBody>
+                   </Table>
+                 </TableContainer>
+                 
+                 <TablePagination
+                   rowsPerPageOptions={[5, 10, 25]}
+                   component="div"
+                   count={totalCount}
+                   rowsPerPage={rowsPerPage}
+                   page={page}
+                   onPageChange={(e, newPage) => setPage(newPage)}
+                   onRowsPerPageChange={(e) => {
+                     setRowsPerPage(parseInt(e.target.value, 10));
+                     setPage(0);
+                   }}
+                 />
+               </>
+             )}
+           </Card>
+         )}
 
       {/* Vista de calendario */}
       {viewMode === 'calendar' && (
