@@ -173,7 +173,7 @@ Vehicle.init({
     }
   },
   companyId: {
-      type: DataTypes.UUID,
+      type: DataTypes.INTEGER,
       allowNull: false,
       references: {
         model: 'Companies',

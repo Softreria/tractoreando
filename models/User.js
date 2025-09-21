@@ -197,7 +197,7 @@ User.init({
     allowNull: true
   },
   companyId: {
-    type: DataTypes.STRING,
+    type: DataTypes.INTEGER,
     allowNull: true,
     references: {
       model: 'Companies',
@@ -206,13 +206,13 @@ User.init({
     validate: {
       isRequiredForNonSuperAdmin(value) {
         if (this.role !== 'super_admin' && !value) {
-          throw new Error('Company is required for non-super admin users');
+          throw new Error('Company ID es requerido para usuarios que no son super admin');
         }
       }
     }
   },
   branchId: {
-    type: DataTypes.STRING,
+    type: DataTypes.UUID,
     allowNull: true,
     references: {
       model: 'Branches',
@@ -220,8 +220,8 @@ User.init({
     },
     validate: {
       isRequiredForNonSuperAdmin(value) {
-        if (this.role !== 'super_admin' && !value) {
-          throw new Error('Branch is required for non-super admin users');
+        if (!['super_admin', 'company_admin'].includes(this.role) && !value) {
+          throw new Error('Branch ID es requerido para usuarios que no son super admin o company admin');
         }
       }
     }

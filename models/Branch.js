@@ -89,12 +89,10 @@ class Branch extends Model {
 
 Branch.init({
   id: {
-    type: DataTypes.STRING,
+    type: DataTypes.UUID,
     defaultValue: () => {
-      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-      });
+      const { v4: uuidv4 } = require('uuid');
+      return uuidv4();
     },
     primaryKey: true
   },
@@ -125,7 +123,7 @@ Branch.init({
     }
   },
   companyId: {
-    type: DataTypes.STRING,
+    type: DataTypes.INTEGER,
     allowNull: false,
     references: {
       model: 'Companies',
