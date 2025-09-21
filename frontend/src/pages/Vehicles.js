@@ -149,7 +149,7 @@ const Vehicles = () => {
   const { data: alertsData } = useQuery({
     queryKey: ['vehicle-alerts', selectedVehicle?.id],
     queryFn: async () => {
-      const response = await api.get(`/vehicles/${selectedVehicle.id}/alerts`);
+      const response = await api.get(`/vehicles/${selectedVehicle.id}/maintenance-alerts`);
       return response.data;
     },
     enabled: !!selectedVehicle && alertsDialogOpen
@@ -724,7 +724,7 @@ const Vehicles = () => {
         // Vista móvil con tarjetas
         <Box>
           {filteredVehicles.map((vehicle) => {
-            const alertCount = (vehicle.alerts?.length || 0);
+            const alertCount = (vehicle.maintenances?.filter(m => m.isOverdue)?.length || 0);
             const serviceProgress = vehicle.maintenanceSchedule?.oilChange?.intervalKm > 0 
               ? Math.min((vehicle.odometer?.current / vehicle.maintenanceSchedule.oilChange.intervalKm) * 100, 100)
               : 0;
@@ -775,7 +775,7 @@ const Vehicles = () => {
             </TableHead>
             <TableBody>
               {filteredVehicles.map((vehicle) => {
-                const alertCount = (vehicle.alerts?.length || 0);
+                const alertCount = (vehicle.maintenances?.filter(m => m.isOverdue)?.length || 0);
                 const serviceProgress = vehicle.maintenanceSchedule?.oilChange?.intervalKm > 0 
                   ? Math.min((vehicle.odometer?.current / vehicle.maintenanceSchedule.oilChange.intervalKm) * 100, 100)
                   : 0;
@@ -946,6 +946,12 @@ const Vehicles = () => {
             <LocalGasStation fontSize="small" />
           </ListItemIcon>
           <ListItemText>Gestión de Combustible</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => { navigate(`/vehicles/${selectedVehicle?.id}/history`); handleMenuClose(); }}>
+          <ListItemIcon>
+            <History fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>Historial Completo</ListItemText>
         </MenuItem>
         <Divider />
         {hasPermission('vehicles', 'delete') && (

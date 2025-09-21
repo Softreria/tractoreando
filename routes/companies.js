@@ -46,9 +46,9 @@ router.get('/', [
     // Agregar estadísticas para cada empresa
     const companiesWithStats = await Promise.all(
       companies.map(async (company) => {
-        const branchCount = await Branch.count({ where: { companyId: company.id, isActive: true } });
-        const vehicleCount = await Vehicle.count({ where: { companyId: company.id, isActive: true } });
-        const userCount = await User.count({ where: { companyId: company.id, isActive: true } });
+        const branchCount = await Branch.count({ where: { companyId: company.id } });
+        const vehicleCount = await Vehicle.count({ where: { companyId: company.id } });
+        const userCount = await User.count({ where: { companyId: company.id } });
         
         return {
           ...company.toJSON(),
@@ -104,9 +104,9 @@ router.get('/:id', [
 
     // Obtener estadísticas
     const [branchCount, vehicleCount, userCount] = await Promise.all([
-      Branch.count({ where: { companyId: company.id, isActive: true } }),
-      Vehicle.count({ where: { companyId: company.id, isActive: true } }),
-      User.count({ where: { companyId: company.id, isActive: true } })
+      Branch.count({ where: { companyId: company.id } }),
+      Vehicle.count({ where: { companyId: company.id } }),
+      User.count({ where: { companyId: company.id } })
     ]);
 
     res.json({
@@ -457,9 +457,9 @@ router.get('/:id/dashboard', [
     const [stats, recentMaintenances, upcomingMaintenances] = await Promise.all([
       // Estadísticas generales
       Promise.all([
-        Branch.count({ where: { companyId: company.id, isActive: true } }),
-        Vehicle.count({ where: { companyId: company.id, isActive: true } }),
-        User.count({ where: { companyId: company.id, isActive: true } }),
+        Branch.count({ where: { companyId: company.id } }),
+        Vehicle.count({ where: { companyId: company.id } }),
+        User.count({ where: { companyId: company.id } }),
         Maintenance.count({ where: { companyId: company.id, status: 'en_proceso' } }),
         Maintenance.count({ 
           where: { 

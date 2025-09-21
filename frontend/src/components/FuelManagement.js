@@ -64,6 +64,7 @@ const FuelManagement = ({ vehicleId, vehicle }) => {
   const [openDialog, setOpenDialog] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [manualTotalCost, setManualTotalCost] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -72,8 +73,23 @@ const FuelManagement = ({ vehicleId, vehicle }) => {
     handleSubmit,
     control,
     reset,
+    watch,
+    setValue,
     formState: { errors }
   } = useForm();
+
+  // Observar cambios en litros y precio por litro para calcular automáticamente
+  const watchedLiters = watch('liters');
+  const watchedPricePerLiter = watch('pricePerLiter');
+  const watchedTotalCost = watch('totalCost');
+
+  // Efecto para calcular automáticamente el costo total
+  React.useEffect(() => {
+    if (!manualTotalCost && watchedLiters && watchedPricePerLiter) {
+      const calculatedTotal = (parseFloat(watchedLiters) * parseFloat(watchedPricePerLiter)).toFixed(2);
+      setValue('totalCost', calculatedTotal);
+    }
+  }, [watchedLiters, watchedPricePerLiter, manualTotalCost, setValue]);
 
   // Tipos de combustible
   const fuelTypes = [
@@ -153,6 +169,7 @@ const FuelManagement = ({ vehicleId, vehicle }) => {
 
   const handleOpenDialog = (record = null) => {
     setEditingRecord(record);
+    setManualTotalCost(false); // Resetear el estado de modificación manual
     if (record) {
       reset({
         fuelDate: format(new Date(record.fuelDate), 'yyyy-MM-dd'),
@@ -166,6 +183,14 @@ const FuelManagement = ({ vehicleId, vehicle }) => {
         isFull: record.isFull,
         notes: record.notes
       });
+      // Si hay un costo total diferente al calculado, marcar como manual
+      if (record.totalCost && record.liters && record.pricePerLiter) {
+        const calculatedTotal = parseFloat((record.liters * record.pricePerLiter).toFixed(2));
+        const actualTotal = parseFloat(record.totalCost);
+        if (Math.abs(calculatedTotal - actualTotal) > 0.01) {
+          setManualTotalCost(true);
+        }
+      }
     } else {
       reset({
         fuelDate: format(new Date(), 'yyyy-MM-dd'),
@@ -179,6 +204,7 @@ const FuelManagement = ({ vehicleId, vehicle }) => {
   const handleCloseDialog = () => {
     setOpenDialog(false);
     setEditingRecord(null);
+    setManualTotalCost(false);
     reset();
   };
 
@@ -552,9 +578,43 @@ const FuelManagement = ({ vehicleId, vehicle }) => {
                   type="number"
                   step="0.01"
                   {...register('totalCost', { min: 0 })}
-                  InputProps={{
-                    endAdornment: <InputAdornment position="end">€</InputAdornment>
+                  onChange={(e) => {
+                    // Marcar como modificación manual cuando el usuario cambia el valor
+                    setManualTotalCost(true);
+                    // Llamar al onChange original del register
+                    const { onChange } = register('totalCost', { min: 0 });
+                    onChange(e);
                   }}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Tooltip title={manualTotalCost ? "Cambiar a cálculo automático" : "Permitir edición manual"}>
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                setManualTotalCost(!manualTotalCost);
+                                if (manualTotalCost && watchedLiters && watchedPricePerLiter) {
+                                  // Si volvemos a automático, recalcular
+                                  const calculatedTotal = (parseFloat(watchedLiters) * parseFloat(watchedPricePerLiter)).toFixed(2);
+                                  setValue('totalCost', calculatedTotal);
+                                }
+                              }}
+                              color={manualTotalCost ? "primary" : "default"}
+                            >
+                              {manualTotalCost ? <Edit /> : <Assessment />}
+                            </IconButton>
+                          </Tooltip>
+                          €
+                        </Box>
+                      </InputAdornment>
+                    )
+                  }}
+                  helperText={
+                    manualTotalCost 
+                      ? "Modo manual: puedes editar el precio (ej. descuentos)" 
+                      : "Modo automático: se calcula litros × precio por litro"
+                  }
                 />
               </Grid>
               <Grid item xs={12} md={6}>

@@ -6,8 +6,8 @@ async function getVehicleStats(baseQuery) {
   try {
     const [total, active, inactive, inMaintenance] = await Promise.all([
       Vehicle.count({ where: baseQuery }),
-      Vehicle.count({ where: { ...baseQuery, isActive: true } }),
-      Vehicle.count({ where: { ...baseQuery, isActive: false } }),
+      Vehicle.count({ where: { ...baseQuery, status: 'activo' } }),
+      Vehicle.count({ where: { ...baseQuery, status: 'inactivo' } }),
       Vehicle.count({ where: { ...baseQuery, status: 'en_mantenimiento' } })
     ]);
 
@@ -174,10 +174,10 @@ async function getUserStats(baseQuery, user) {
 
     const [total, active] = await Promise.all([
       User.count({ where: userQuery }),
-      User.count({ where: { ...userQuery, isActive: true } })
+      User.count({ where: userQuery })
     ]);
 
-    return { total, active };
+    return { total, active: total };
   } catch (error) {
     console.error('Error en getUserStats:', error);
     return { total: 0, active: 0 };
@@ -188,7 +188,7 @@ async function getUserStats(baseQuery, user) {
 async function getCompanyStats(user) {
   try {
     if (user.role === 'super_admin') {
-      const total = await Company.count({ where: { isActive: true } });
+      const total = await Company.count();
       return { total };
     }
     return { total: 1 };
@@ -211,7 +211,7 @@ async function getBranchStats(baseQuery, user) {
       branchQuery.companyId = user.companyId;
     }
 
-    const total = await Branch.count({ where: { ...branchQuery, isActive: true } });
+    const total = await Branch.count({ where: branchQuery });
     return { total };
   } catch (error) {
     console.error('Error en getBranchStats:', error);

@@ -448,7 +448,7 @@ const Reports = () => {
                 <Grid item xs={12} md={3}>
                   <StatCard
                     title="Total Vehículos"
-                    value={dashboardData?.totalVehicles || 0}
+                    value={dashboardData?.vehicles?.total || 0}
                     icon={<DirectionsCar />}
                     color="primary"
                     trend={dashboardData?.vehiclesTrend}
@@ -457,7 +457,7 @@ const Reports = () => {
                 <Grid item xs={12} md={3}>
                   <StatCard
                     title="Mantenimientos Activos"
-                    value={dashboardData?.activeMaintenances || 0}
+                    value={dashboardData?.maintenance?.inProgress || 0}
                     icon={<Build />}
                     color="warning"
                     trend={dashboardData?.maintenancesTrend}
@@ -466,7 +466,7 @@ const Reports = () => {
                 <Grid item xs={12} md={3}>
                   <StatCard
                     title="Costo Total"
-                    value={formatCurrency(dashboardData?.totalCosts || 0)}
+                    value={formatCurrency(dashboardData?.fuel?.totalCost || 0)}
                     icon={<AttachMoney />}
                     color="success"
                     subtitle="Este mes"
@@ -475,11 +475,11 @@ const Reports = () => {
                 </Grid>
                 <Grid item xs={12} md={3}>
                   <StatCard
-                    title="Eficiencia"
-                    value={`${dashboardData?.efficiency || 0}%`}
+                    title="Total Usuarios"
+                    value={dashboardData?.users?.total || 0}
                     icon={<TrendingUp />}
                     color="info"
-                    subtitle="Promedio"
+                    subtitle="Activos"
                     trend={dashboardData?.efficiencyTrend}
                   />
                 </Grid>
@@ -492,14 +492,14 @@ const Reports = () => {
                         Mantenimientos por Mes
                       </Typography>
                       <ResponsiveContainer width="100%" height={300}>
-                        <AreaChart data={dashboardData?.monthlyMaintenances || []}>
+                        <AreaChart data={dashboardData?.maintenanceChart || []}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="month" />
                           <YAxis />
                           <RechartsTooltip />
                           <Area 
                             type="monotone" 
-                            dataKey="count" 
+                            dataKey="completed" 
                             stroke="#8884d8" 
                             fill="#8884d8" 
                             fillOpacity={0.6}
@@ -518,16 +518,16 @@ const Reports = () => {
                       <ResponsiveContainer width="100%" height={300}>
                         <RechartsPieChart>
                           <Pie
-                            data={dashboardData?.vehiclesByStatus || []}
+                            data={dashboardData?.vehicleDistribution || []}
                             cx="50%"
                             cy="50%"
                             labelLine={false}
                             label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                             outerRadius={80}
                             fill="#8884d8"
-                            dataKey="count"
+                            dataKey="value"
                           >
-                            {(dashboardData?.vehiclesByStatus || []).map((entry, index) => (
+                            {(dashboardData?.vehicleDistribution || []).map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                             ))}
                           </Pie>
@@ -552,8 +552,8 @@ const Reports = () => {
                               <Warning color={alert.priority === 'high' ? 'error' : 'warning'} />
                             </ListItemIcon>
                             <ListItemText
-                              primary={alert.message}
-                              secondary={`${alert.vehicle} - ${new Date(alert.date).toLocaleDateString()}`}
+                              primary={alert.message || alert.title}
+                              secondary={`${alert.vehicle} - ${new Date(alert.date || alert.createdAt).toLocaleDateString()}`}
                             />
                             <Chip
                               label={alert.priority}

@@ -439,7 +439,7 @@ const Branches = () => {
                       <Tooltip title="Vehículos">
                         <Chip
                           icon={<DirectionsCar />}
-                          label={branch.vehicleCount || 0}
+                          label={branch.stats?.vehicles || 0}
                           size="small"
                           variant="outlined"
                         />
@@ -447,7 +447,7 @@ const Branches = () => {
                       <Tooltip title="Mantenimientos Activos">
                         <Chip
                           icon={<Build />}
-                          label={branch.activeMaintenanceCount || 0}
+                          label={branch.stats?.activeMaintenances || 0}
                           size="small"
                           variant="outlined"
                           color="info"

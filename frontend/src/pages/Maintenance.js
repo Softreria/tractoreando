@@ -82,6 +82,8 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
 import MaintenanceCalendar from '../components/MaintenanceCalendar';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 const Maintenance = () => {
   const [page, setPage] = useState(0);
@@ -98,6 +100,7 @@ const Maintenance = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [timeDialogOpen, setTimeDialogOpen] = useState(false);
+  const [viewDetailsOpen, setViewDetailsOpen] = useState(false);
   const [tabValue, setTabValue] = useState(0);
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'calendar'
   
@@ -246,6 +249,10 @@ const Maintenance = () => {
         assignedTo: maintenance.assignedTo?.map(user => user.id) || [],
         services: maintenance.services || [{ category: '', description: '', estimatedCost: 0 }],
         parts: maintenance.parts || [{ name: '', partNumber: '', quantity: 1, unitPrice: 0 }],
+        costResponsibility: maintenance.costResponsibility || {
+          responsibleParty: 'empresa_propietaria',
+          notes: ''
+        },
         notes: maintenance.notes
       });
     } else {
@@ -254,7 +261,11 @@ const Maintenance = () => {
         priority: 'media',
         estimatedDuration: 2,
         services: [{ category: '', description: '', estimatedCost: 0 }],
-        parts: [{ name: '', partNumber: '', quantity: 1, unitPrice: 0 }]
+        parts: [{ name: '', partNumber: '', quantity: 1, unitPrice: 0 }],
+        costResponsibility: {
+          responsibleParty: 'empresa_propietaria',
+          notes: ''
+        }
       });
     }
     setOpenDialog(true);
@@ -287,8 +298,199 @@ const Maintenance = () => {
     }
   };
 
-  const handleChangeStatus = (status) => {
-    setStatusDialogOpen(true);
+  const handleChangeStatus = (newStatus) => {
+    if (selectedMaintenance) {
+      changeStatusMutation.mutate({
+        id: selectedMaintenance.id,
+        status: newStatus,
+        notes: `Estado cambiado a ${newStatus}`
+      });
+    }
+    handleMenuClose();
+  };
+
+  const handleViewDetails = () => {
+    // Abrir modal de detalles o navegar a página de detalles
+    setViewDetailsOpen(true);
+    handleMenuClose();
+  };
+
+  const handlePrintOrder = () => {
+    if (selectedMaintenance) {
+      // Crear nuevo documento PDF
+      const doc = new jsPDF();
+      
+      // Configurar fuente
+      doc.setFont('helvetica');
+      
+      // Header
+      doc.setFontSize(20);
+      doc.setTextColor(40, 40, 40);
+      doc.text('ORDEN DE TRABAJO', 105, 20, { align: 'center' });
+      
+      doc.setFontSize(12);
+      doc.text(`Nº: ${selectedMaintenance.workOrderNumber}`, 105, 30, { align: 'center' });
+      
+      // Línea separadora
+      doc.setDrawColor(0, 0, 0);
+      doc.line(20, 35, 190, 35);
+      
+      // Información del vehículo
+      let yPosition = 50;
+      doc.setFontSize(14);
+      doc.setTextColor(0, 0, 0);
+      doc.text('INFORMACIÓN DEL VEHÍCULO', 20, yPosition);
+      
+      yPosition += 10;
+      doc.setFontSize(10);
+      doc.text(`Matrícula: ${selectedMaintenance.vehicle?.plateNumber || 'N/A'}`, 20, yPosition);
+      doc.text(`Marca/Modelo: ${selectedMaintenance.vehicle?.make || 'N/A'} ${selectedMaintenance.vehicle?.model || 'N/A'}`, 120, yPosition);
+      
+      yPosition += 8;
+      doc.text(`Año: ${selectedMaintenance.vehicle?.year || 'N/A'}`, 20, yPosition);
+      doc.text(`Odómetro: ${selectedMaintenance.odometerReading || 'N/A'} km`, 120, yPosition);
+      
+      // Información del mantenimiento
+      yPosition += 20;
+      doc.setFontSize(14);
+      doc.text('INFORMACIÓN DEL MANTENIMIENTO', 20, yPosition);
+      
+      yPosition += 10;
+      doc.setFontSize(10);
+      doc.text(`Tipo: ${selectedMaintenance.type || 'N/A'}`, 20, yPosition);
+      doc.text(`Prioridad: ${selectedMaintenance.priority || 'N/A'}`, 120, yPosition);
+      
+      yPosition += 8;
+      doc.text(`Estado: ${selectedMaintenance.status || 'N/A'}`, 20, yPosition);
+      doc.text(`Fecha programada: ${selectedMaintenance.scheduledDate ? new Date(selectedMaintenance.scheduledDate).toLocaleDateString('es-ES') : 'N/A'}`, 120, yPosition);
+      
+      yPosition += 8;
+      doc.text(`Descripción: ${selectedMaintenance.description || 'N/A'}`, 20, yPosition);
+      
+      // Información del mecánico
+      yPosition += 20;
+      doc.setFontSize(14);
+      doc.text('MECÁNICO ASIGNADO', 20, yPosition);
+      
+      yPosition += 10;
+      doc.setFontSize(10);
+      const mechanicName = selectedMaintenance.assignedTo 
+        ? `${selectedMaintenance.assignedTo.firstName} ${selectedMaintenance.assignedTo.lastName}`
+        : 'No asignado';
+      doc.text(`Mecánico: ${mechanicName}`, 20, yPosition);
+      
+      if (selectedMaintenance.completedDate) {
+        yPosition += 8;
+        doc.text(`Fecha de finalización: ${new Date(selectedMaintenance.completedDate).toLocaleDateString('es-ES')}`, 20, yPosition);
+      }
+      
+      if (selectedMaintenance.actualDuration) {
+        yPosition += 8;
+        doc.text(`Tiempo empleado: ${selectedMaintenance.actualDuration.toFixed(2)} horas`, 20, yPosition);
+      }
+      
+      // Responsabilidad de costes
+      yPosition += 20;
+      doc.setFontSize(14);
+      doc.text('RESPONSABILIDAD DE COSTES', 20, yPosition);
+      
+      yPosition += 10;
+      doc.setFontSize(10);
+      const responsibleParty = selectedMaintenance.costResponsibility?.responsibleParty === 'empresa_propietaria' ? 'Nosotros' : 'Cliente';
+      doc.text(`Responsable: ${responsibleParty}`, 20, yPosition);
+      
+      if (selectedMaintenance.costResponsibility?.notes) {
+        yPosition += 8;
+        doc.text(`Notas: ${selectedMaintenance.costResponsibility.notes}`, 20, yPosition);
+      }
+      
+      // Servicios realizados (si existen)
+      if (selectedMaintenance.services && selectedMaintenance.services.length > 0) {
+        yPosition += 20;
+        doc.setFontSize(14);
+        doc.text('SERVICIOS REALIZADOS', 20, yPosition);
+        
+        yPosition += 10;
+        const servicesData = selectedMaintenance.services.map(service => [
+          service.name || 'N/A',
+          service.description || 'N/A',
+          `${service.laborCost || 0}€`
+        ]);
+        
+        doc.autoTable({
+          startY: yPosition,
+          head: [['Servicio', 'Descripción', 'Coste']],
+          body: servicesData,
+          theme: 'grid',
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [41, 128, 185] }
+        });
+        
+        yPosition = doc.lastAutoTable.finalY + 10;
+      }
+      
+      // Partes utilizadas (si existen)
+      if (selectedMaintenance.parts && selectedMaintenance.parts.length > 0) {
+        yPosition += 10;
+        doc.setFontSize(14);
+        doc.text('PARTES UTILIZADAS', 20, yPosition);
+        
+        yPosition += 10;
+        const partsData = selectedMaintenance.parts.map(part => [
+          part.name || 'N/A',
+          part.partNumber || 'N/A',
+          part.quantity || 0,
+          `${part.unitPrice || 0}€`,
+          `${part.totalPrice || 0}€`
+        ]);
+        
+        doc.autoTable({
+          startY: yPosition,
+          head: [['Parte', 'Número', 'Cantidad', 'Precio Unit.', 'Total']],
+          body: partsData,
+          theme: 'grid',
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [41, 128, 185] }
+        });
+        
+        yPosition = doc.lastAutoTable.finalY + 10;
+      }
+      
+      // Costes totales
+      if (selectedMaintenance.costs) {
+        yPosition += 10;
+        doc.setFontSize(14);
+        doc.text('RESUMEN DE COSTES', 20, yPosition);
+        
+        yPosition += 10;
+        doc.setFontSize(10);
+        doc.text(`Mano de obra: ${selectedMaintenance.costs.labor || 0}€`, 20, yPosition);
+        doc.text(`Partes: ${selectedMaintenance.costs.parts || 0}€`, 120, yPosition);
+        
+        yPosition += 8;
+        doc.text(`Materiales: ${selectedMaintenance.costs.materials || 0}€`, 20, yPosition);
+        doc.text(`Servicios externos: ${selectedMaintenance.costs.external || 0}€`, 120, yPosition);
+        
+        yPosition += 8;
+        doc.text(`Impuestos: ${selectedMaintenance.costs.tax || 0}€`, 20, yPosition);
+        doc.text(`Descuento: ${selectedMaintenance.costs.discount || 0}€`, 120, yPosition);
+        
+        yPosition += 12;
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`TOTAL: ${selectedMaintenance.costs.total || 0}€`, 20, yPosition);
+      }
+      
+      // Footer
+      const pageHeight = doc.internal.pageSize.height;
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Generado el: ${new Date().toLocaleDateString('es-ES')} ${new Date().toLocaleTimeString('es-ES')}`, 20, pageHeight - 20);
+      doc.text(`Por: ${selectedMaintenance.createdBy?.firstName || ''} ${selectedMaintenance.createdBy?.lastName || ''}`, 20, pageHeight - 15);
+      
+      // Guardar o abrir el PDF
+      doc.save(`orden-trabajo-${selectedMaintenance.workOrderNumber}.pdf`);
+    }
     handleMenuClose();
   };
 
@@ -558,6 +760,7 @@ const Maintenance = () => {
                       <TableCell>Asignado</TableCell>
                       <TableCell>Progreso</TableCell>
                       <TableCell>Estado</TableCell>
+                      <TableCell>Responsabilidad</TableCell>
                       <TableCell align="center">Acciones</TableCell>
                     </TableRow>
                   </TableHead>
@@ -676,6 +879,15 @@ const Maintenance = () => {
                         size="small"
                       />
                     </TableCell>
+                    <TableCell>
+                      <Chip
+                        icon={<AttachMoney />}
+                        label={maintenance.costResponsibility?.responsibleParty === 'empresa_propietaria' ? 'Nosotros' : 'Cliente'}
+                        color={maintenance.costResponsibility?.responsibleParty === 'empresa_propietaria' ? 'warning' : 'info'}
+                        size="small"
+                        variant="outlined"
+                      />
+                    </TableCell>
                     <TableCell align="center">
                       <IconButton
                         onClick={(e) => handleMenuOpen(e, maintenance)}
@@ -719,7 +931,7 @@ const Maintenance = () => {
         onClose={handleMenuClose}
       >
         {hasPermission('maintenance', 'read') && (
-          <MenuItem onClick={() => { /* Ver detalles */ handleMenuClose(); }}>
+          <MenuItem onClick={handleViewDetails}>
             <ListItemIcon>
               <Visibility fontSize="small" />
             </ListItemIcon>
@@ -758,7 +970,7 @@ const Maintenance = () => {
             <ListItemText>Registrar Tiempo</ListItemText>
           </MenuItem>
         )}
-        <MenuItem onClick={() => { /* Imprimir */ handleMenuClose(); }}>
+        <MenuItem onClick={handlePrintOrder}>
           <ListItemIcon>
             <Print fontSize="small" />
           </ListItemIcon>
@@ -787,6 +999,7 @@ const Maintenance = () => {
                 <Tab label="Información General" />
                 <Tab label="Servicios" />
                 <Tab label="Partes" />
+                <Tab label="Costes y Responsabilidad" />
               </Tabs>
             </Box>
             
@@ -1060,6 +1273,51 @@ const Maintenance = () => {
                     </CardContent>
                   </Card>
                 ))}
+              </Box>
+            )}
+            
+            {/* Tab 3: Costes y Responsabilidad */}
+            {tabValue === 3 && (
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="h6" gutterBottom>
+                  Responsabilidad de Costes
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <Controller
+                      name="costResponsibility.responsibleParty"
+                      control={control}
+                      defaultValue="empresa_propietaria"
+                      render={({ field }) => (
+                        <FormControl fullWidth>
+                          <InputLabel>Responsable del Coste</InputLabel>
+                          <Select {...field} label="Responsable del Coste">
+                            <MenuItem value="empresa_propietaria">Empresa Propietaria</MenuItem>
+                            <MenuItem value="empresa_arrendataria">Empresa Arrendataria</MenuItem>
+                          </Select>
+                        </FormControl>
+                      )}
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Notas sobre Responsabilidad"
+                      multiline
+                      rows={3}
+                      {...register('costResponsibility.notes')}
+                      placeholder="Notas adicionales sobre quién asume los costes..."
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Alert severity="info">
+                      <Typography variant="body2">
+                        Para vehículos en alquiler, especifica quién será responsable de los costes de mantenimiento.
+                        Esta información será importante para la facturación y seguimiento de gastos.
+                      </Typography>
+                    </Alert>
+                  </Grid>
+                </Grid>
               </Box>
             )}
           </DialogContent>

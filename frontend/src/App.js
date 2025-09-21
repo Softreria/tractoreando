@@ -18,6 +18,7 @@ import Users from './pages/Users';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import Reports from './pages/Reports';
+import VehicleHistory from './pages/VehicleHistory';
 
 function App() {
   return (
@@ -63,6 +64,7 @@ function App() {
       <Route path="/branches" element={<ProtectedRoute><Layout><Branches /></Layout></ProtectedRoute>} />
       <Route path="/vehicles" element={<ProtectedRoute><Layout><Vehicles /></Layout></ProtectedRoute>} />
       <Route path="/vehicles/:vehicleId/fuel" element={<ProtectedRoute><Layout><VehicleFuel /></Layout></ProtectedRoute>} />
+      <Route path="/vehicles/:vehicleId/history" element={<ProtectedRoute><Layout><VehicleHistory /></Layout></ProtectedRoute>} />
       <Route path="/fuel-summary" element={<ProtectedRoute><Layout><FuelSummaryPage /></Layout></ProtectedRoute>} />
       <Route path="/maintenance" element={<ProtectedRoute><Layout><Maintenance /></Layout></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute><Layout><Users /></Layout></ProtectedRoute>} />

@@ -65,8 +65,8 @@ router.get('/', [
     // Agregar estadísticas para cada delegación
     const branchesWithStats = await Promise.all(
       branches.map(async (branch) => {
-        const vehicleCount = await Vehicle.count({ where: { branchId: branch.id, isActive: true } });
-        const userCount = await User.count({ where: { branchId: branch.id, isActive: true } });
+        const vehicleCount = await Vehicle.count({ where: { branchId: branch.id } });
+        const userCount = await User.count({ where: { branchId: branch.id } });
         
 
         const activeMaintenances = await Maintenance.count({ 
@@ -138,8 +138,8 @@ router.get('/:id', [
     const { Op } = require('sequelize');
     const Maintenance = require('../models/Maintenance');
     const [vehicleCount, userCount, activeMaintenances, completedMaintenances] = await Promise.all([
-      Vehicle.count({ where: { branchId: branch.id, isActive: true } }),
-      User.count({ where: { branchId: branch.id, isActive: true } }),
+      Vehicle.count({ where: { branchId: branch.id } }),
+      User.count({ where: { branchId: branch.id } }),
       Maintenance.count({ where: { branchId: branch.id, status: { [Op.in]: ['programado', 'en_proceso'] } } }),
       Maintenance.count({ where: { branchId: branch.id, status: 'completado' } })
     ]);

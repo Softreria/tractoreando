@@ -122,7 +122,7 @@ router.get('/', [
     const Maintenance = require('../models/Maintenance');
     const vehiclesWithMaintenance = await Promise.all(
       vehicles.map(async (vehicle) => {
-        const [activeMaintenances, lastMaintenance, nextMaintenance] = await Promise.all([
+        const [activeMaintenances, lastMaintenance, nextMaintenance, allMaintenances] = await Promise.all([
           Maintenance.count({ 
             where: {
               vehicleId: vehicle.id, 
@@ -143,11 +143,19 @@ router.get('/', [
               scheduledDate: { [Op.gte]: new Date() }
             },
             order: [['scheduledDate', 'ASC']]
+          }),
+          Maintenance.findAll({ 
+            where: {
+              vehicleId: vehicle.id, 
+              status: { [Op.in]: ['programado', 'en_proceso'] }
+            },
+            order: [['scheduledDate', 'ASC']]
           })
         ]);
         
         return {
           ...vehicle.toJSON(),
+          maintenances: allMaintenances,
           maintenance: {
             active: activeMaintenances,
             last: lastMaintenance,
@@ -820,6 +828,229 @@ router.get('/:id/maintenance-alerts', [
   } catch (error) {
     console.error('Error obteniendo alertas:', error);
     res.status(500).json({ message: 'Error interno del servidor' });
+  }
+});
+
+// @route   GET /api/vehicles/:id/maintenance
+// @desc    Obtener historial de mantenimiento con paginación
+// @access  Private
+router.get('/:id/maintenance', [
+  auth,
+  checkPermission('vehicles', 'read'),
+  logActivity('Ver historial de mantenimiento')
+], async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 20, startDate, endDate } = req.query;
+    
+    // Verificar que el vehículo existe y el usuario tiene acceso
+    const vehicle = await Vehicle.findOne({
+      where: { 
+        id,
+        ...(req.user.role !== 'super_admin' && { companyId: req.user.companyId })
+      }
+    });
+    
+    if (!vehicle) {
+      return res.status(404).json({ message: 'Vehículo no encontrado' });
+    }
+    
+    // Construir condiciones de búsqueda
+    const whereConditions = { vehicleId: id };
+    
+    if (startDate || endDate) {
+      whereConditions.scheduledDate = {};
+      if (startDate) whereConditions.scheduledDate[Op.gte] = new Date(startDate);
+      if (endDate) whereConditions.scheduledDate[Op.lte] = new Date(endDate);
+    }
+    
+    const Maintenance = require('../models/Maintenance');
+    const User = require('../models/User');
+    const Branch = require('../models/Branch');
+    
+    // Obtener registros con paginación
+    const offset = (page - 1) * limit;
+    const { count, rows: maintenances } = await Maintenance.findAndCountAll({
+      where: whereConditions,
+      include: [
+        {
+          model: User,
+          as: 'assignedTo',
+          attributes: ['id', 'firstName', 'lastName', 'email']
+        },
+        {
+          model: User,
+          as: 'createdBy',
+          attributes: ['id', 'firstName', 'lastName', 'email']
+        },
+        {
+          model: Branch,
+          as: 'branch',
+          attributes: ['id', 'name']
+        }
+      ],
+      order: [['scheduledDate', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+    
+    res.json({
+      maintenances,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(count / limit),
+        totalRecords: count,
+        total: count,
+        hasNext: page * limit < count,
+        hasPrev: page > 1
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error obteniendo historial de mantenimiento:', error);
+    res.status(500).json({ 
+      message: 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// @route   GET /api/vehicles/:id/stats
+// @desc    Obtener estadísticas generales del vehículo
+// @access  Private
+router.get('/:id/stats', [
+  auth,
+  checkPermission('vehicles', 'read'),
+  logActivity('Ver estadísticas del vehículo')
+], async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { startDate, endDate } = req.query;
+    
+    // Verificar que el vehículo existe y el usuario tiene acceso
+    const vehicle = await Vehicle.findOne({
+      where: { 
+        id,
+        ...(req.user.role !== 'super_admin' && { companyId: req.user.companyId })
+      }
+    });
+    
+    if (!vehicle) {
+      return res.status(404).json({ message: 'Vehículo no encontrado' });
+    }
+    
+    // Construir condiciones de fecha
+    const dateConditions = {};
+    if (startDate || endDate) {
+      dateConditions.createdAt = {};
+      if (startDate) dateConditions.createdAt[Op.gte] = new Date(startDate);
+      if (endDate) dateConditions.createdAt[Op.lte] = new Date(endDate);
+    }
+    
+    const fuelDateConditions = {};
+    if (startDate || endDate) {
+      fuelDateConditions.fuelDate = {};
+      if (startDate) fuelDateConditions.fuelDate[Op.gte] = new Date(startDate);
+      if (endDate) fuelDateConditions.fuelDate[Op.lte] = new Date(endDate);
+    }
+    
+    const Maintenance = require('../models/Maintenance');
+    const FuelRecord = require('../models/FuelRecord');
+    
+    // Obtener estadísticas en paralelo
+    const [maintenanceStats, fuelStats] = await Promise.all([
+      // Estadísticas de mantenimiento
+      Maintenance.findOne({
+        attributes: [
+          [Maintenance.sequelize.fn('COUNT', Maintenance.sequelize.col('id')), 'count'],
+          [Maintenance.sequelize.fn('SUM', 
+            Maintenance.sequelize.literal('COALESCE("costs"->\'total\', 0)')
+          ), 'totalCost']
+        ],
+        where: {
+          vehicleId: id,
+          ...dateConditions
+        },
+        raw: true
+      }),
+      
+      // Estadísticas de combustible
+      FuelRecord.findOne({
+        attributes: [
+          [FuelRecord.sequelize.fn('COUNT', FuelRecord.sequelize.col('id')), 'count'],
+          [FuelRecord.sequelize.fn('SUM', FuelRecord.sequelize.col('liters')), 'totalLiters'],
+          [FuelRecord.sequelize.fn('SUM', FuelRecord.sequelize.col('totalCost')), 'totalCost'],
+          [FuelRecord.sequelize.fn('AVG', FuelRecord.sequelize.col('pricePerLiter')), 'avgPricePerLiter']
+        ],
+        where: {
+          vehicleId: id,
+          ...fuelDateConditions
+        },
+        raw: true
+      })
+    ]);
+    
+    // Calcular consumo promedio
+    const fuelRecordsForConsumption = await FuelRecord.findAll({
+      where: {
+        vehicleId: id,
+        odometer: { [Op.not]: null },
+        ...fuelDateConditions
+      },
+      order: [['fuelDate', 'ASC']],
+      attributes: ['odometer', 'liters']
+    });
+    
+    let averageConsumption = null;
+    if (fuelRecordsForConsumption.length >= 2) {
+      let totalKm = 0;
+      let totalLiters = 0;
+      
+      for (let i = 1; i < fuelRecordsForConsumption.length; i++) {
+        const current = fuelRecordsForConsumption[i];
+        const previous = fuelRecordsForConsumption[i - 1];
+        
+        const kmDiff = current.odometer - previous.odometer;
+        if (kmDiff > 0) {
+          totalKm += kmDiff;
+          totalLiters += current.liters;
+        }
+      }
+      
+      if (totalKm > 0) {
+        averageConsumption = (totalLiters / totalKm) * 100; // L/100km
+      }
+    }
+    
+    res.json({
+      vehicle: {
+        id: vehicle.id,
+        plateNumber: vehicle.plateNumber,
+        make: vehicle.make,
+        model: vehicle.model,
+        year: vehicle.year,
+        vehicleType: vehicle.vehicleType
+      },
+      period: {
+        startDate,
+        endDate
+      },
+      maintenanceCount: parseInt(maintenanceStats?.count) || 0,
+      totalMaintenanceCost: parseFloat(maintenanceStats?.totalCost) || 0,
+      fuelRecordCount: parseInt(fuelStats?.count) || 0,
+      totalFuelCost: parseFloat(fuelStats?.totalCost) || 0,
+      totalLiters: parseFloat(fuelStats?.totalLiters) || 0,
+      averagePricePerLiter: parseFloat(fuelStats?.avgPricePerLiter) || 0,
+      averageConsumption,
+      totalCost: (parseFloat(maintenanceStats?.totalCost) || 0) + (parseFloat(fuelStats?.totalCost) || 0)
+    });
+    
+  } catch (error) {
+    console.error('Error obteniendo estadísticas del vehículo:', error);
+    res.status(500).json({ 
+      message: 'Error interno del servidor',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 

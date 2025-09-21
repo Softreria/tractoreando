@@ -5,7 +5,7 @@
  */
 
 // URL base principal - todas las demás se generan a partir de esta
-const BASE_URL = process.env.REACT_APP_BASE_URL || 'http://localhost:3000';
+const BASE_URL = process.env.REACT_APP_BASE_URL || 'http://localhost:3002';
 
 // Configuración base del entorno
 export const ENV_CONFIG = {
