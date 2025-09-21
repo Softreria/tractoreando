@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { ENV_CONFIG, URL_BUILDER, log } from '../config/environment';
+import { ENV_CONFIG, log } from '../config/environment';
 
 // Configuración base de Axios
 log.info('🔧 API URL configurada:', ENV_CONFIG.API_URL);

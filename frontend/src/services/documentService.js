@@ -243,4 +243,5 @@ class DocumentService {
   }
 }
 
-export default new DocumentService();
+const documentService = new DocumentService();
+export default documentService;

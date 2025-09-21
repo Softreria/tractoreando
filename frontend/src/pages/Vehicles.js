@@ -14,7 +14,6 @@ import {
   DialogTitle,
   Divider,
   FormControl,
-  FormControlLabel,
   Grid,
   IconButton,
   InputAdornment,
@@ -26,7 +25,6 @@ import {
   MenuItem,
   Paper,
   Select,
-  Switch,
   Tab,
   Table,
   TableBody,
@@ -37,7 +35,6 @@ import {
   TableRow,
   Tabs,
   TextField,
-  Tooltip,
   Typography,
   useTheme,
   useMediaQuery
@@ -46,7 +43,6 @@ import {
   Add,
   Assignment,
   Build,
-  CalendarToday,
   CheckCircle,
   Delete,
   DirectionsCar,
@@ -58,10 +54,8 @@ import {
   LocalGasStation,
   LocationOn,
   MoreVert,
-  Schedule,
   Search,
   Speed,
-  TrendingUp,
   Visibility,
   Warning
 } from '@mui/icons-material';
@@ -97,14 +91,13 @@ const Vehicles = () => {
   const [maintenanceHistoryDialogOpen, setMaintenanceHistoryDialogOpen] = useState(false);
   const [documentsDialogOpen, setDocumentsDialogOpen] = useState(false);
   const [tabValue, setTabValue] = useState(0);
-  const [selectedFile, setSelectedFile] = useState(null);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [vehicleDocuments, setVehicleDocuments] = useState([]);
   const [maintenanceHistory, setMaintenanceHistory] = useState([]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [vehiclePhotos, setVehiclePhotos] = useState([]);
   
-  const { user, hasPermission, hasRole, isAuthenticated, authLoading } = useAuth();
+  const { user, hasPermission, isAuthenticated, authLoading } = useAuth();
   const queryClient = useQueryClient();
   
   const {
@@ -124,7 +117,7 @@ const Vehicles = () => {
   } = useForm();
 
   // Consulta de vehículos
-  const { data: vehiclesData, isLoading } = useQuery({
+  const { data: vehiclesData } = useQuery({
     queryKey: ['vehicles', page, rowsPerPage, searchTerm, filterStatus, filterBranch, filterType],
     queryFn: async () => {
       const params = {

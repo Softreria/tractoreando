@@ -36,11 +36,6 @@ router.get('/', [
 
     const companies = await Company.findAll({
       where: whereClause,
-      include: [{
-        model: User,
-        as: 'createdBy',
-        attributes: ['firstName', 'lastName', 'email']
-      }],
       order: [['createdAt', 'DESC']],
       limit: parseInt(limit),
       offset: (parseInt(page) - 1) * parseInt(limit)

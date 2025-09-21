@@ -17,15 +17,7 @@ const auth = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     console.log('Token decodificado:', decoded);
     
-    const user = await User.findByPk(decoded.userId || decoded.id, {
-      include: [
-        {
-          model: Company,
-          as: 'company',
-          attributes: ['name', 'isActive']
-        }
-      ]
-    });
+    const user = await User.findByPk(decoded.id);
     
     console.log('Usuario encontrado:', user ? { id: user.id, email: user.email, role: user.role } : 'No encontrado');
     
@@ -39,11 +31,13 @@ const auth = async (req, res, next) => {
     
     // Solo verificar empresa para usuarios que no sean super_admin
     if (user.role !== 'super_admin') {
-      if (!user.company) {
+      if (!user.companyId) {
         return res.status(401).json({ message: 'Usuario sin empresa asignada' });
       }
       
-      if (!user.company.isActive) {
+      // Verificar que la empresa esté activa
+      const company = await Company.findByPk(user.companyId);
+      if (!company || !company.isActive) {
         return res.status(401).json({ message: 'Empresa inactiva' });
       }
     }

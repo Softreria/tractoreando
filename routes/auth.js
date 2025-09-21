@@ -160,13 +160,14 @@ router.post('/login', [
     }
 
     // Verificar si la empresa está activa (solo para usuarios que no son super_admin)
-    if (user.role !== 'super_admin') {
-      if (!user.company) {
+    if (user.role !== 'super_admin' && user.companyId) {
+      const company = await Company.findByPk(user.companyId);
+      if (!company) {
         console.log('❌ Usuario sin empresa asignada');
         return res.status(401).json({ message: 'Usuario sin empresa asignada' });
       }
       
-      if (!user.company.isActive) {
+      if (!company.isActive) {
         console.log('❌ Empresa inactiva');
         return res.status(401).json({ message: 'Empresa inactiva' });
       }

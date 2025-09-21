@@ -33,12 +33,14 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    // Manejar errores de autenticación
+    // Manejar errores de autenticación - DESHABILITADO para evitar logout automático
+    // El manejo de errores 401 se hace en AuthContext.js
     if (error.response?.status === 401) {
-      // Token expirado o inválido
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+      console.log('Error 401 detectado en services/api.js:', error.config?.url);
+      // NO hacer logout automático aquí - se maneja en AuthContext
+      // localStorage.removeItem('token');
+      // localStorage.removeItem('user');
+      // window.location.href = '/login';
     }
     
     // Manejar otros errores

@@ -133,7 +133,7 @@ const Users = () => {
   });
 
   // Consulta de roles disponibles
-  const { data: rolesData } = useQuery({
+  const { } = useQuery({
     queryKey: ['user-roles'],
     queryFn: async () => {
       const response = await api.get('/users/roles');
