@@ -25,7 +25,10 @@ router.get('/', [
     if (req.user.role === 'super_admin') {
       // Super admin puede ver todos los vehículos o filtrar por empresa específica
       if (company) {
-        whereConditions.companyId = company;
+        const companyId = parseInt(company, 10);
+        if (!isNaN(companyId)) {
+          whereConditions.companyId = companyId;
+        }
       }
       // Si no se especifica company, no agregar filtro de companyId (ver todos)
     } else {
@@ -1080,7 +1083,10 @@ router.get('/stats/summary', [
     // Convertir matchQuery de MongoDB a condiciones de Sequelize
     const whereConditions = {};
     if (matchQuery.company) {
-      whereConditions.companyId = matchQuery.company;
+      const companyId = parseInt(matchQuery.company, 10);
+      if (!isNaN(companyId)) {
+        whereConditions.companyId = companyId;
+      }
     }
     if (matchQuery.branch) {
       whereConditions.branchId = matchQuery.branch;
@@ -1818,11 +1824,30 @@ router.get('/fuel/company-summary', [
     const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59);
 
     // Obtener todos los vehículos de la empresa del usuario
+    let whereConditions = {
+      isActive: true
+    };
+
+    // Determinar qué empresa consultar
+    if (req.user.role === 'super_admin') {
+      // Super admin puede especificar una empresa o ver todas
+      const { company } = req.query;
+      if (company) {
+        const companyId = parseInt(company, 10);
+        if (!isNaN(companyId)) {
+          whereConditions.companyId = companyId;
+        }
+      }
+      // Si no especifica empresa, no filtra por companyId (ve todas)
+    } else {
+      // Otros usuarios solo pueden ver su empresa
+      if (req.user.companyId) {
+        whereConditions.companyId = req.user.companyId;
+      }
+    }
+
     const vehicles = await Vehicle.findAll({
-      where: {
-        companyId: req.user.companyId,
-        isActive: true
-      },
+      where: whereConditions,
       include: [
         {
           model: FuelRecord,
@@ -1938,7 +1963,10 @@ router.get('/fuel/company-summary', [
 
   } catch (error) {
     console.error('Error obteniendo resumen de combustible por empresa:', error);
-    res.status(500).json({ message: 'Error interno del servidor' });
+    console.error('Stack trace:', error.stack);
+    console.error('User:', req.user);
+    console.error('Query params:', req.query);
+    res.status(500).json({ message: 'Error interno del servidor', error: error.message });
   }
 });
 
