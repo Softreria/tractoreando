@@ -2,7 +2,7 @@ module.exports = {
   apps: [{
     name: 'tractoreando',
     script: 'server.js',
-    cwd: '/opt/tractoreando',
+    cwd: '/root/tractoreando',
     instances: 1,
     autorestart: true,
     watch: false,
@@ -12,9 +12,9 @@ module.exports = {
       PORT: 3000
     },
     env_file: '.env.production',
-    error_file: '/opt/tractoreando/logs/err.log',
-    out_file: '/opt/tractoreando/logs/out.log',
-    log_file: '/opt/tractoreando/logs/combined.log',
+    error_file: '/root/tractoreando/logs/err.log',
+    out_file: '/root/tractoreando/logs/out.log',
+    log_file: '/root/tractoreando/logs/combined.log',
     time: true
   }],
 
@@ -24,10 +24,10 @@ module.exports = {
       host: '192.168.18.13',
       ref: 'origin/main',
       repo: 'git@github.com:tu-usuario/tractoreando.git', // Actualizar con tu repo
-      path: '/opt/tractoreando',
+      path: '/root/tractoreando',
       'pre-deploy-local': '',
       'post-deploy': 'npm install --production && cd frontend && npm install && npm run build && cd .. && pm2 reload ecosystem.config.js --env production',
-      'pre-setup': 'mkdir -p /opt/tractoreando/logs'
+      'pre-setup': 'mkdir -p /root/tractoreando/logs'
     }
   }
 };
